@@ -54,8 +54,8 @@ public abstract class DialView extends View {
             public MainActivity activity = (MainActivity)getContext();
 
             //TODO Need to optimize THRESHOLD numbers to tell single tap or drag and so on.
-            private int SWIPE_MIN_DISTANCE = 18;
-            private static final int LONGPRESS_THRESHOLD = 200; //millie seconds
+            private int SWIPE_MIN_DISTANCE = 25;
+            private static final int LONGPRESS_THRESHOLD = 250; //millie seconds
             private static final int DOUBLETAB_THRESHOLD = 100; //millie seconds
 
             private boolean isFired = false;
@@ -121,6 +121,7 @@ public abstract class DialView extends View {
 
                         return true;
                     case MotionEvent.ACTION_MOVE:
+
                         this.touchCnt = event.getPointerCount();
                         //Long Press!!! Not enough movement during threshold time.
                         // Checking only when iLongpress is false.
@@ -129,19 +130,31 @@ public abstract class DialView extends View {
                                 (Math.abs(startX - event.getX()) < SWIPE_MIN_DISTANCE && Math.abs(startY - event.getY()) < SWIPE_MIN_DISTANCE)) {
                             //Log.i(TAG, "Touch duration: " + (System.currentTimeMillis() - startAction) +":"+Math.abs(startX-event.getX())+":"+Math.abs(startY-event.getY()));
                             //To make vibration when Longpress is recognized.
+
+                            if(isDragging)
+                                this.isLongpress = true;
+                            // If event is already fired, skips.
+                            if(isFired)
+                                return true;
+
                             cmd(Command.SPEAK_FILE_INFO);
                             //cmd(Command.LONG_PRESS);
                             // And speak the file info
                             // activity.cmd(Command.SPEAK_FILE_INFO);
-                            if(isDragging)
-                                this.isLongpress = true;
+
+                            isFired = true;
+                            return true;
                         }
 
                         if (isDragging && isLongpress) {
+
                             float touchAngle = touchAngle(touchX1, touchY1);
                             float deltaAngle = (360 + touchAngle - startAngle + 180) % 360 - 180;
                             //Log.i(TAG,"touchAngle:"+touchAngle+":startAngle:"+startAngle);
                             if (Math.abs(deltaAngle) > stepAngle) {
+                                // Dial gesture stops speaking File information
+                                this.activity.speak("");
+
                                 int offset = (int) deltaAngle / (int) stepAngle;
                                 startAngle = touchAngle;
                                 // more offset for playing ff.
@@ -158,9 +171,9 @@ public abstract class DialView extends View {
                                 activity.vibrate(30);
                                 onRotate(offset);
 //                                Log.i(TAG, "ACTION_MOVE>>touchAngle:"+touchAngle+":startAngle:"+startAngle+":"+event.getPointerCount());
+                                isFired = true;
+                                return true;
                             }
-                            isFired = true;
-                            return true;
                         } else{
                             isFired = false;
                             return false;
@@ -168,15 +181,17 @@ public abstract class DialView extends View {
                     // Nothing is coming up after ACTION_MOVE
                     // TODO Need to clarify if there is any specific events captured here.
                     case MotionEvent.ACTION_SCROLL:
-                        Log.i(TAG, "ACTION_SCROLL");
+                        //Log.i(TAG, "ACTION_SCROLL");
                         return false;
                     case MotionEvent.ACTION_UP:
+                        //Stop speaking when ACTION_UP
+                        activity.speak("");
 
                         // If event is already fired, skips.
                         if(isFired)
                             return false;
 
-                        Log.i(TAG, "getDownTime:" + event.getDownTime()+" :getEventTime:"+event.getEventTime());
+                        //Log.i(TAG, "getDownTime:" + event.getDownTime()+" :getEventTime:"+event.getEventTime());
 
 
                         // If it's too short from DOWN to UP with not enough distance, it's SINGLE TAP.
@@ -385,10 +400,10 @@ public abstract class DialView extends View {
         paint.setDither(true);
         paint.setAntiAlias(true);
         paint.setStyle(Paint.Style.FILL);
-        paint.setColor(Color.GRAY);
+        paint.setColor(Color.BLACK);
         paint.setXfermode(null);
         LinearGradient linearGradient = new LinearGradient(
-                radius, 0, radius, radius, Color.GRAY, Color.DKGRAY, Shader.TileMode.CLAMP);
+                radius, 0, radius, radius, Color.BLACK, Color.BLACK, Shader.TileMode.CLAMP);
         paint.setShader(linearGradient);
         canvas.drawCircle(centerX, centerY, maxCircle * radius, paint);
         paint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.CLEAR));

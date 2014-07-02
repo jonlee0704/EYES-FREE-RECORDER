@@ -54,13 +54,12 @@ public class MusicRetriever {
 
     Random mRandom = new Random();
 
-    // Default constructor
-    public MusicRetriever(){
-        // TODO: need to consider in case mContentResolver is called.
-    }
-
     public MusicRetriever(ContentResolver cr) {
         mContentResolver = cr;
+    }
+
+    public int getSongCount(){
+        return mItems.size();
     }
 
     public void previous(){
@@ -126,20 +125,22 @@ public class MusicRetriever {
         int artistColumn = cur.getColumnIndex(MediaStore.Audio.Media.ARTIST);
         int titleColumn = cur.getColumnIndex(MediaStore.Audio.Media.TITLE);
         int albumColumn = cur.getColumnIndex(MediaStore.Audio.Media.ALBUM);
+        int trackNumber = cur.getColumnIndex(MediaStore.Audio.Media.TRACK);
         int durationColumn = cur.getColumnIndex(MediaStore.Audio.Media.DURATION);
         int idColumn = cur.getColumnIndex(MediaStore.Audio.Media._ID);
 
-        Log.i(TAG, "Title column index: " + String.valueOf(titleColumn));
-        Log.i(TAG, "ID column index: " + String.valueOf(titleColumn));
+//        Log.i(TAG, "Title column index: " + String.valueOf(titleColumn));
+//        Log.i(TAG, "ID column index: " + String.valueOf(titleColumn));
 
         // add each song to mItems
         do {
-            Log.i(TAG, "ID: " + cur.getString(idColumn) + " Title: " + cur.getString(titleColumn));
+            //Log.i(TAG, "ID: " + cur.getString(idColumn) + " Title: " + cur.getString(titleColumn));
             mItems.add(new Item(
                     cur.getLong(idColumn),
                     cur.getString(artistColumn),
                     cur.getString(titleColumn),
                     cur.getString(albumColumn),
+                    cur.getString(trackNumber),
                     cur.getLong(durationColumn)));
             //Artist navigation
             this.mArtistTable.put(cur.getString(artistColumn), cur.getPosition());
@@ -157,6 +158,7 @@ public class MusicRetriever {
     }
 
     public Item getCurrentItem(){
+        Log.i(TAG, "musicRetriever.getSongCount():" + getSongCount());
         return mItems.get(cur.getPosition());
     }
 
@@ -170,19 +172,37 @@ public class MusicRetriever {
         return mItems.get(mRandom.nextInt(mItems.size()));
     }
 
+    /**
+     * Gets the corresponding path to a file from the given content:// URI
+     */
+    public String getFilePathFromContentUri() {
+        String filePath;
+        String[] filePathColumn = {MediaStore.MediaColumns.DATA};
+
+        Cursor cursor = mContentResolver.query(mItems.get(cur.getPosition()).getURI(), filePathColumn, null, null, null);
+        cursor.moveToFirst();
+
+        int columnIndex = cursor.getColumnIndex(filePathColumn[0]);
+        filePath = cursor.getString(columnIndex);
+        cursor.close();
+        return filePath;
+    }
+
     public static class Item {
         long id;
         String artist;
         String title;
         String album;
+        String trackNumber;
         long duration;
 
-        public Item(long id, String artist, String title, String album, long duration) {
+        public Item(long id, String artist, String title, String album, String trackNumber, long duration) {
             this.id = id;
             this.artist = artist;
             this.title = title;
             this.album = album;
             this.duration = duration;
+            this.trackNumber = trackNumber;
         }
 
         public long getId() {
@@ -200,6 +220,8 @@ public class MusicRetriever {
         public String getAlbum() {
             return album;
         }
+
+        public String getTrackNumber() { return this.trackNumber; }
 
         public long getDuration() {
             return duration;

@@ -43,7 +43,8 @@ public class AudibleFileFilter implements FileFilter {
     public boolean accept(File file) {
         boolean isSupport = false;
         String ext = getFileExtension(file.getName());
-        if(file == null || ext == null || file.isDirectory())
+        //TODO Directory inclusion or not?
+        if(file == null || ext == null || file.isDirectory() || file.isHidden() || file.getName().startsWith("."))
             return false;
 
 //        Log.i(TAG, "this.extensions.indexOf:"+this.extensions.indexOf("."+ext));

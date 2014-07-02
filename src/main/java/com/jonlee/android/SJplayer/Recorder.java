@@ -5,6 +5,7 @@ package com.jonlee.android.SJplayer;
  */
 
 import android.content.Context;
+import android.media.MediaMetadataRetriever;
 import android.media.MediaPlayer;
 import android.media.MediaRecorder;
 import android.os.Build;
@@ -13,6 +14,7 @@ import android.support.v4.content.ContextCompat;
 import android.util.Log;
 
 import java.io.File;
+import java.io.FileDescriptor;
 import java.io.FileFilter;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -21,13 +23,16 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Locale;
 
 /**
  * TODO Adding "Cloud folder" of Playing back YouTube bookamark
  * TODO Adding "Cloud folder" of
  */
-public class Recorder {
+public class Recorder{
     private static final String TAG = "Recorder";
 
 
@@ -57,8 +62,13 @@ public class Recorder {
     private int audioFileDuration = 0;
 
     //Manual file name
-    private final String manualFile = "WELCOME.txt";
+//    private final String manualFile = "WELCOME.txt";
     private final String folderNameForAllMusicByMediaScanner = "All-Music-By-MediaScanner";
+
+    //Total continuously playback file count
+    private int playCnt = 0;
+    //Stop automatic playback when it gets in this nunber
+    private final int MAX_CONTINOUS_PLAYBACK = 30;
 
 
     /**
@@ -67,59 +77,88 @@ public class Recorder {
      * @param ma: MainActivity
      *            Starting from
      */
-    public Recorder(MainActivity ma) {
+    public Recorder(MainActivity ma)
+    {
         this.mainActivity = ma;
-        // Load files in default folder
-        rootFolder = getExternalSDCardDirectory();
-        // Creating root_folder in case there is not.
-        if (!rootFolder.exists()) {
-            rootFolder.mkdir();
-        }
-
-        // Creating a virtual directory to play all musics provided by MediaScanner
-        // TODO Create a file to explain that this folder won't be scanned
-        folderForAllMusicByMediaScanner = new File(rootFolder.getAbsolutePath()+"/"+folderNameForAllMusicByMediaScanner);
-        if(!folderForAllMusicByMediaScanner.exists())
-            folderForAllMusicByMediaScanner.mkdir();
-
-        // Creating the folder new recoding files are stored.
+        // Find a bigger size folder between extSD vs removableExtSDcard
+        // And set it the rootFolder
+        rootFolder = getBiggerExtSDCardDirectory();
         recordTargetFolder = new File(rootFolder.getAbsolutePath()+"/" + this.getRecordingFolderName());
+        // TODO Same folder name could be created in two different location.
+        // This can be treated inside of readDirectories, but this might be easier.
+        // TODO a method of Sorting, Cleaning up directories?
+        // This causes end user will get two same name of folder.
+        // Recording target folder will be always shown up even it has 0 file in.
+        // This is why it's added after this.readDiretories() method.
         if(!recordTargetFolder.exists()) {
             recordTargetFolder.mkdir();
         }
 
-        if (rootFolder.listFiles().length == 0){
-            String string = ma.getString(R.string.MANUAL);
-            try {
-                // Creating a manual
-                File file = new File(rootFolder.getAbsolutePath() + File.separator + manualFile);
-                FileOutputStream fos = new FileOutputStream(file);
-                fos.write(string.getBytes());
-                fos.flush();
-                fos.close();
-            }catch(FileNotFoundException e){
-                e.printStackTrace();
-            }catch(IOException e){
-                e.printStackTrace();
-            }
-
+        // Creating root_folder in case there is not.
+        // TODO whatif there are two same folder name in extSD and removableExtSD?
+        if (!rootFolder.exists()) {
+            rootFolder.mkdir();
         }
 
-        // Starting from RootFolder.
-        this.currentFolder = this.rootFolder;
 
-        // After confirming folder is in place
-        this.initiateFolder();
-        // Initiate folder array, files
-        this.readDirectories();
+        // Creating a virtual directory to play all musics provided by MediaScanner
+        // TODO Create a file to explain that this folder won't be scanned
+        // folderNameForAllMusicByMediaScanner will be under Public Music folder
+        publicMusicFolder = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC);
+
+        folderForAllMusicByMediaScanner = new File(publicMusicFolder.getAbsolutePath()+"/"+folderNameForAllMusicByMediaScanner);
+        if(!folderForAllMusicByMediaScanner.exists())
+            folderForAllMusicByMediaScanner.mkdir();
+
+//        if (rootFolder.listFiles().length == 0){
+//            String string = ma.getString(R.string.MANUAL);
+//            try {
+//                // Creating a manual
+//                File file = new File(rootFolder.getAbsolutePath() + File.separator + manualFile);
+//                FileOutputStream fos = new FileOutputStream(file);
+//                fos.write(string.getBytes());
+//                fos.flush();
+//                fos.close();
+//            }catch(FileNotFoundException e){
+//                e.printStackTrace();
+//            }catch(IOException e){
+//                e.printStackTrace();
+//            }
+//
+//        }
+
         // Initiate MusicRetriever for MediaScanned files
         this.musicRetriever = new MusicRetriever(this.mainActivity.getContentResolver());
         musicRetriever.prepare();
 
+        // Starting from RootFolder.
+        this.currentFolder = this.rootFolder;
+        // After confirming folder is in place
+        this.initiateFolder();
+        // Initiate folder array, files
+        this.readDirectories();
 
-        // InternalSDCard/Public/Music folder scanning
-        // TODO Need to support by default.
-        //directories.add( Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC));
+        // move on the first folder
+        // At least the recordTarget folder.
+        this.currentFolder = directories.get(0);
+
+        /**
+         * TEST
+         */
+//        for(int i = 0 ; directories.size() > i ; i ++)
+//            Log.i(TAG, "Listing directories: " + directories.get(i).getAbsolutePath());
+
+
+    }
+
+    /**
+     * Cleaning up Directories
+     * 1) Sorting
+     * 2) Checking if recordTargetFolder exists.
+     */
+    public void cleanDirectories(){
+
+        //
 
     }
 
@@ -144,6 +183,17 @@ public class Recorder {
         SimpleDateFormat sdf = new SimpleDateFormat("MMMM-yyyy",Locale.US);
         return sdf.format(c.getTime());
     }
+
+    /**
+     * When player ends up playing music, it calls the next song and play
+     * @return
+     */
+//    @Override
+//    public void onCompletion(MediaPlayer mp){
+//        //if(mp != null)
+//            Log.i(TAG, "inside of onCompletion");
+//    }
+
 
 
     public int getCurrentFileIndex() {
@@ -191,19 +241,40 @@ public class Recorder {
         Log.i(TAG,"playing?:"+getCurrentFileFullPath());
         this.isPlaying = true;
 
-
-
         try {
             if (!isPaused || mPlayer == null){ // Resume does not need to initiate Instance
                 mPlayer = new MediaPlayer();
-                //Log.i(TAG, "getCurrentFileFullPath():" + getCurrentFileFullPath());
+                mPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
+                    @Override
+                    public void onCompletion(MediaPlayer mp) {
+                        Log.i(TAG, "inside of onCompletion"); // finish current activity
+                        if( playCnt < MAX_CONTINOUS_PLAYBACK ) {
+                            mainActivity.cmd(Command.NEXT_SONG);
+                            playCnt++;
+                        }
+                        else {
+                            mainActivity.speak(mainActivity.getResources().getString(R.string.STILL_THERE));
+                            playCnt = 0;
+                        }
+                    }
+                });
+//
+//                mPlayer.setOnErrorListener(new MediaPlayer.OnErrorListener() {
+//                    public boolean onError(MediaPlayer paramMediaPlayer, int paramInt1,int paramInt2) {
+//                        Log.i(TAG, "inside of onErrorListener"); // finish current activity
+//                        mainActivity.cmd(Command.NEXT_SONG);
+//                        return true;
+//                    }
+//                });
+
+                Log.i(TAG, "getCurrentFileFullPath():" + getCurrentFileFullPath());
                 if(this.getCurrentDirectoryName().startsWith(this.folderNameForAllMusicByMediaScanner)) {
                     mPlayer.setDataSource(mainActivity, musicRetriever.getCurrentUri());
                 }else {
                     mPlayer.setDataSource(getCurrentFileFullPath());
                 }
                 mPlayer.prepare();
-                mPlayer.setVolume(1, 1);
+                //mPlayer.setVolume(1, 1);
                 mPlayer.start();
                 //Set the duration of file to use in SEEK()
                 this.audioFileDuration = mPlayer.getDuration();
@@ -213,12 +284,18 @@ public class Recorder {
             }
         } catch (IOException e) {
             //Log.i(TAG, "prepare() failed");
-            if(this.getCurrentFileName().startsWith("WELCOME.txt"))
+            if(this.getCurrentFileName().startsWith("WELCOME.txt")) {
                 this.mainActivity.speak(mainActivity.getResources().getString(R.string.WELCOME));
-            else
+            } else {
+                //TODO Should be moving onto the next song or wait for user's action?
+                //TODO Waiting for user's action is better way.
+                //mainActivity.cmd(Command.NEXT_SONG);
                 this.mainActivity.speak(mainActivity.getResources().getString(R.string.FAIL_TO_PLAY));
-            e.printStackTrace();
-            this.isPlaying = false;
+                this.isPaused = false;
+                this.isPlaying = false;
+//                playCnt++;
+            }
+            Log.i(TAG, e.toString());
         }
     }
 
@@ -227,7 +304,7 @@ public class Recorder {
      * @return
      */
     public String getCurrentFileFullPath(){
-        return currentFolder.getAbsolutePath() + "/"+this.getCurrentFileName();
+        return currentFolder.getAbsolutePath() + "/" + this.getCurrentFileName();
     }
 
     public void resume(){
@@ -266,13 +343,65 @@ public class Recorder {
     public String getCurrentFileName(){
         if(this.getCurrentDirectoryName().startsWith(this.folderNameForAllMusicByMediaScanner)) {
             MusicRetriever.Item item = musicRetriever.getCurrentItem();
-            return item.getArtist() + " - " + item.getTitle();
+            // TODO Need to find the real file name(location)
+            return musicRetriever.getFilePathFromContentUri();
         }
 
-        if(audibleFiles.size() > 0)
-            return audibleFiles.get(this.currentFileIndex).getName();
-        else
+        if(audibleFiles.size() > 0) {
+            return  audibleFiles.get(this.currentFileIndex).getName();
+        } else {
             return mainActivity.getResources().getString(R.string.NO_AUDIBLE_FILE_EXIST);
+        }
+    }
+
+    public String getFullInformation(String title, String trackNumber, String album, String artist){
+        String fileInfo = "";
+        if( trackNumber == null || title == null || album == null || artist == null) {
+            fileInfo = getCurrentFileName();
+        } else {
+            try {
+                fileInfo = "Title: " + title + "\n\nTrack: " + trackNumber
+                        + " in album - " + album + " BY " + artist + "\n\nFile: " + getCurrentFileName();
+            }catch(Exception e){
+                e.printStackTrace();
+                Log.i(TAG, e.toString());
+            }
+        }
+        return fileInfo;
+    }
+
+    /**
+     * TODO When card UI is completed, this Item instance will be fw'ed to card UI component.
+     * @return
+     */
+    public String getCurrentFileDisplayInformation(){
+        String fileInfo = "";
+        String trackNumber = "";
+        String title = "";
+        String album = "";
+        String artist = "";
+
+        if(this.getCurrentDirectoryName().startsWith(this.folderNameForAllMusicByMediaScanner)) {
+            MusicRetriever.Item item = musicRetriever.getCurrentItem();
+            return getFullInformation(item.getTitle(), item.getTrackNumber(), item.getAlbum(), item.getArtist());
+        }
+
+        MediaMetadataRetriever mmr = new MediaMetadataRetriever();
+        String albumName =
+                mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM);
+
+        if(audibleFiles.size() > 0) {
+            File current = audibleFiles.get(this.currentFileIndex);
+            mmr.setDataSource(current.getAbsolutePath());
+            trackNumber = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER);
+            title = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE);
+            album = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM);
+            artist = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST);
+            fileInfo = getFullInformation(title, trackNumber,album,artist);
+            return fileInfo;
+        } else {
+            return mainActivity.getResources().getString(R.string.NO_AUDIBLE_FILE_EXIST);
+        }
     }
 
     /**
@@ -280,7 +409,8 @@ public class Recorder {
      */
     public boolean nextSong(){
         if(this.getCurrentDirectoryName().startsWith(this.folderNameForAllMusicByMediaScanner)) {
-            musicRetriever.next();
+            if(musicRetriever.getSongCount() > 0)
+                musicRetriever.next();
             return true;
         }
 
@@ -303,7 +433,8 @@ public class Recorder {
 
     public boolean previousSong(){
         if(this.getCurrentDirectoryName().startsWith(this.folderNameForAllMusicByMediaScanner)) {
-            musicRetriever.previous();
+            if(musicRetriever.getSongCount() > 0)
+                musicRetriever.previous();
             return true;
         }
         //Log.i(TAG + ">>>1 previousSong", currentFileIndex + ":" + audibleFiles.size());
@@ -321,26 +452,71 @@ public class Recorder {
     }
 
     /**
-     * Build FolderList when only the app start. As there is no function of creating Folder, there is no need to checking everytime of launch.
-     * Add the ROOT folder but exclude '0' file folder.
+     * Recursively reading folders with AudioFiles.
+     * @param sFile
+     */
+    private void readRecursiveDir(File sFile){
+        //Log.i(TAG, "inside of recursive:" + sFile.getAbsolutePath());
+        File[] mFile = sFile.listFiles();
+        for(File file : mFile){
+            //Log.i(TAG, "inside of recursive loop:" + file.getAbsolutePath());
+
+            if ( file.isDirectory() && file != null
+                    && !file.isHidden()
+                    && !file.getName().startsWith("."))
+            {
+                if( file.equals(this.recordTargetFolder) || file.listFiles(new AudibleFileFilter()).length > 0)
+                    directories.add((File)file);
+                readRecursiveDir(file);
+            }
+
+        }
+    }
+
+    /**
+     * Target folders
+     * 1) folderForAllMusicByMediaScanner under userDataSpace
+     * 2) Public Music folder
+     * 3) All ExtSDcards
      */
     public void readDirectories(){
         directories = new ArrayList<File>();
+        recordTargetFolder = new File(rootFolder.getAbsolutePath()+"/" + this.getRecordingFolderName());
 
-        //Add the ROOT folder as '0' index
-        //This reads only the first level of folders
-        directories.add(rootFolder);
         //Public Music directory.
-        //directories.add(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC));
+        //Add only when there is audio files exist.
+        if(musicRetriever != null && musicRetriever.getSongCount() > 0)
+            directories.add(folderForAllMusicByMediaScanner);
 
-        for(int i = 0 ; i < rootFolder.listFiles().length ; i++){
-            if(rootFolder.listFiles()[i].isDirectory()) {
-                directories.add(rootFolder.listFiles()[i]);
+        if(publicMusicFolder.listFiles(new AudibleFileFilter()).length > 0)
+            directories.add(publicMusicFolder);
+        readRecursiveDir(publicMusicFolder);
+
+        // 1) Adding both extSDCard and read all directories having 1+ audible files
+        // 2) Checking if recordTargetFolder exists.
+        File dir[] = ContextCompat.getExternalFilesDirs((Context) this.mainActivity, Environment.DIRECTORY_MUSIC);
+
+        for(int i = 0; i < dir.length && dir[i] != null ; i++ ) {
+            //Log.i(TAG, "inside readDirectories" + dir[i].getAbsolutePath());
+            // Record Target Folder needs to be added when it has no Audible file.
+            if (dir[i].listFiles(new AudibleFileFilter()).length > 0) {
+                directories.add((File)dir[i]);
             }
+            readRecursiveDir(dir[i]);
         }
-        // Adding the virtual folder at the end of Array
-        directories.add(this.folderForAllMusicByMediaScanner);
-        Log.i(TAG,"Directory count:" + directories.size());
+
+//        Log.i(TAG, "BEFORE SORTING...");
+//
+//        for(int i = 0; directories.size() > i ; i++)
+//            Log.i(TAG,"Directories:" + directories.get(i).getAbsolutePath());
+//
+//        Collections.sort(directories);
+//
+//        Log.i(TAG, "AFTER SORTING...");
+//
+//        for(int i = 0; directories.size() > i ; i++)
+//            Log.i(TAG,"Directories:" + directories.get(i).getAbsolutePath());
+
     }
 
     /**
@@ -410,6 +586,7 @@ public class Recorder {
     public void initiateFolder(){
         //Adding only Audible Files
         FileFilter aFilter = new AudibleFileFilter();
+        Log.i(TAG, "initiateFolder:" + currentFolder.getAbsolutePath());
         this.audibleFiles = new ArrayList(Arrays.asList(this.currentFolder.listFiles(aFilter)));
         this.currentFileIndex = 0;
     }
@@ -458,12 +635,15 @@ public class Recorder {
      * Current code is not returning Removable SD card, instead, it returns the biggest Free space one.
      * @return File
      */
-    public File getExternalSDCardDirectory()
+    public File getBiggerExtSDCardDirectory()
     {
         File dir[] = ContextCompat.getExternalFilesDirs((Context) this.mainActivity, Environment.DIRECTORY_MUSIC);
 //
-//        Log.i(TAG, "getExternalStoragePublicDirectory:"+ Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC).getAbsolutePath());
+//        Log.i(TAG, "getExternalStoragePublicDirectory:"
+//                + Environment.getExternalStoragePublicDirectory(Environment.MEDIA_SHARED).getAbsolutePath()
+//        + ":" + Environment.isExternalStorageEmulated());
 //        Log.i(TAG, "getDataDirectory:"+ Environment.getDataDirectory().getAbsolutePath());
+
 
         File targetFile = null;
         //Pick the largest free space
@@ -473,9 +653,12 @@ public class Recorder {
          * Interestingly dir[] has null even without removable sdcard. This may be an issue of samsung phone.
          * TODO Test with another device and report Samsugn.
          * Tested in HTC M8 and same result...
+         *
+         * And picking up the larger storage to save recording files
          */
 
         for(int i = 0; i < dir.length && dir[i] != null ; i++ ){
+            //Log.i(TAG, "Inside of Loop getExternalSDCardDirectory():"+ dir[i].getAbsolutePath() + " : " + dir[i].getTotalSpace());
             if (dir[i].getFreeSpace() > freeSize) {
                 targetFile = dir[i];
                 freeSize = dir[i].getFreeSpace();
@@ -511,15 +694,21 @@ public class Recorder {
      */
     public void moveToLatestRecordedLocation(){
        // TargetFolder is already created and existing in the Directory index because it's always checked when Recoder is instant'ed.
+
+//        // TODO where is DirectoryIndex used for?
+//        currentFolder = recordTargetFolder;
+//        this.currentFileIndex = recordTargetFolder.list().length - 1;
+
         for(int i=0; i < directories.size() ; i++){
             if(directories.get(i).equals(this.recordTargetFolder) ) {
-                Log.i(TAG, directories.get(i).getName() + ":" + i);
+                //Log.i(TAG, "Inside of moveToLatestRecordedLocation: " + directories.get(i).getName() + ":" + i);
+
                 this.currentDirectoryIndex = i;
                 // Set current target Folder.
                 this.currentFolder = directories.get(i);
                 this.initiateFolder();
                 //TODO Maybe... comparing the exact file name is better way to find the index.
-                this.currentFileIndex = recordTargetFolder.list().length - 1;
+                this.currentFileIndex = currentFolder.listFiles(new AudibleFileFilter()).length - 1;
                 return;
             }
         }
@@ -541,8 +730,32 @@ public class Recorder {
      * Return current folder name to let user know where it is.
      */
     public String getCurrentDirectoryName(){
+
+        if(this.currentFolder.equals(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC)))
+            return "Public Music";
+
         return this.currentFolder.getName();
     }
 
+    /**
+     * Return current folder name to let user know where it is.
+     */
+    public String getCurrentDirectoryInformation(){
+
+        String info;
+
+        if(this.currentFolder.equals(folderForAllMusicByMediaScanner)) {
+            info = "Folder, \"" + getCurrentDirectoryName() + "\" has ";
+            info = info + "" + this.musicRetriever.getSongCount() + " audio files automatically scanned by system";
+        }else {
+            info = "Folder, \"" + getCurrentDirectoryName() + "\" has ";
+            info = info + currentFolder.listFiles(new AudibleFileFilter()).length + " audio files and ";
+            info = info + Math.round(currentFolder.getFreeSpace() / 1000000) + " megabyte free storage left.\n\n";
+            info = info + "This folder is under " + currentFolder.getAbsolutePath();
+
+        }
+
+        return info;
+    }
 
 }
