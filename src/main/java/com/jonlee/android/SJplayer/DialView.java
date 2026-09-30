@@ -1162,6 +1162,7 @@ public class DialView extends View {
 
                         // Initiate isFired which set up in ACTION_UP
                         isFired = false;
+                        maxPointerCount = 1;
 
                         // Initiate Longpress mode
                         isLongpress = false;
@@ -1219,8 +1220,8 @@ public class DialView extends View {
                             return true;
                         }
 
-                        // Swipe and Hold cases
-                        else if (!isLongpress && (System.currentTimeMillis() - startAction) > LONGPRESS_THRESHOLD &&
+                        // Swipe and Hold cases (single-finger only)
+                        else if (!isLongpress && maxPointerCount < 2 && (System.currentTimeMillis() - startAction) > LONGPRESS_THRESHOLD &&
                                 (Math.abs(startX - event.getX()) > SWIPE_MIN_DISTANCE || Math.abs(startY - event.getY()) > SWIPE_MIN_DISTANCE)) {
 
                             //This is turned off to enable the feature "swipe and move".
@@ -1401,7 +1402,10 @@ public class DialView extends View {
 
                             switch (dir) {
                                 case BOTTOM_TOP:
-                                    cmd(Commander.NEXT_FOLDER);
+                                    if (effectivePointers >= 2)
+                                        cmd(Commander.FAST_SEEK_NEXT_FOLDER);
+                                    else
+                                        cmd(Commander.NEXT_FOLDER);
                                     break;
 
                                 // Next ARTIST
@@ -1409,8 +1413,10 @@ public class DialView extends View {
                                     cmd(Commander.NEXT_ARTIST);
                                     break;
                                 case LEFT_RIGHT:
-                                    if(touchCnt == 1) {
-                                        cmd(Commander.NEXT_SONG);
+                                    if (effectivePointers >= 2)
+                                        cmd(Commander.FAST_SEEK_PREVIOUS_FILE);
+                                    else if(touchCnt == 1) {
+                                        cmd(Commander.PREVIOUS_SONG);
                                     } else if(touchCnt == 2) {
                                         cmd(Commander.NEXT_BOOKMARK);
                                     } else if(touchCnt >= 3) {
@@ -1422,8 +1428,8 @@ public class DialView extends View {
 //                                    break;
                                 case TOP_BOTTOM:
                                     //From Top to Bottom
-                                    if (touchCnt > 1)
-                                        cmd(Commander.START_RECORD);
+                                    if (effectivePointers >= 2)
+                                        cmd(Commander.FAST_SEEK_PREVIOUS_FOLDER);
                                     else if (touchCnt == 1)
                                         cmd(Commander.PREVIOUS_FOLDER);
                                     break;
@@ -1431,8 +1437,10 @@ public class DialView extends View {
 //                                    cmd(Commander.NOTHING);
 //                                    break;
                                 case RIGHT_LEFT:
-                                    if(touchCnt == 1) {
-                                        cmd(Commander.PREVIOUS_SONG);
+                                    if (effectivePointers >= 2)
+                                        cmd(Commander.FAST_SEEK_NEXT_FILE);
+                                    else if(touchCnt == 1) {
+                                        cmd(Commander.NEXT_SONG);
                                     } else if(touchCnt == 2) {
                                         cmd(Commander.PREVIOUS_BOOKMARK);
                                     } else if(touchCnt >= 3) {

@@ -410,6 +410,9 @@ public class MainActivity extends SampleActivityBase {
                 @Override
                 public boolean onTouch(View v, MotionEvent event) {
                     int action = event.getActionMasked();
+                    if (gestureListener != null) {
+                        gestureListener.updatePointerCount(event.getPointerCount());
+                    }
                     float rawX = event.getRawX();
                     float rawY = event.getRawY();
 
@@ -571,6 +574,17 @@ public class MainActivity extends SampleActivityBase {
         return super.onTouchEvent(event);
     }
 
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        if (intent != null && intent.hasExtra("cmd")) {
+            int c = intent.getIntExtra("cmd", -1);
+            if (c != -1 && commander != null) {
+                commander.cmd(c);
+            }
+        }
+    }
+
     private boolean isSpeakingFullHelp = false;
 
     public void stopSpeakingHelp() {
@@ -607,11 +621,12 @@ public class MainActivity extends SampleActivityBase {
                         "Long press and swipe up or down to activate the rotary wheel controller for continuous folder browsing with ambient preview. " +
                         "Swipe left or right and hold for continuous fast forward or rewind.",
                 "Multi-finger accessibility shortcuts: " +
+                        "Two finger swipe left or right performs fast seek across files by alphabet letter. " +
+                        "Two finger swipe up or down performs fast seek across folders by month for date folders, or by alphabet letter. " +
+                        "Two finger tap quickly adds a bookmark. " +
                         "One finger long press speaks the file name, date, duration, and recording location. " +
                         "Two finger long press announces the current time and battery level. " +
                         "Three finger long press marks or unmarks the track as a favorite. " +
-                        "Two finger tap quickly adds a bookmark. " +
-                        "Two finger swipe left or right jumps between bookmarks. " +
                         "Three finger swipe down opens settings. " +
                         "Three finger swipe up starts cloud backup. " +
                         "Four finger swipe right and hold deletes the current audio file.",

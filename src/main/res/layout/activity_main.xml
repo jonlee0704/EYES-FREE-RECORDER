@@ -226,7 +226,7 @@
                 android:layout_marginTop="2.5dp"
                 android:fontFamily="sans-serif-medium"
                 android:letterSpacing="0.05"
-                android:text="◀▶ SWIPE: FILE   •   ▲▼ SWIPE: FOLDER   •   HOLD: SEEK"
+                android:text="◀▶ FILE   •   ▲▼ FOLDER   •   2-FINGER: FAST SEEK"
                 android:textColor="#50738A"
                 android:textSize="9.5sp" />
         </LinearLayout>

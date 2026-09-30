@@ -27,8 +27,15 @@ public class GestureListener implements GestureDetector.OnGestureListener, Gestu
     public MainActivity activity;
     private static int SWIPE_MIN_DISTANCE = 50;
     private static final int SWIPE_THRESHOLD = 100;
-    private static final int SWIPE_VELOCITY_THRESHOLD = 100;
     public int touchCnt = 0;
+    private int maxPointerCount = 1;
+
+    public void updatePointerCount(int count) {
+        if (count > maxPointerCount) {
+            maxPointerCount = count;
+        }
+        this.touchCnt = count;
+    }
 
     private boolean isFired = false;
 
@@ -120,27 +127,30 @@ public class GestureListener implements GestureDetector.OnGestureListener, Gestu
 
             float d = getDegreeFromCartesian(e1.getX(), e1.getY(), e2.getX(), e2.getY());
             int dir = getDirection(d);
-            int count = Math.max(e1.getPointerCount(), e2.getPointerCount());
+            int count = Math.max(maxPointerCount, Math.max(e1.getPointerCount(), e2.getPointerCount()));
 
             switch (dir) {
                 case BOTTOM_TOP:
-                    cmd(Commander.NEXT_FOLDER);
+                    if (count >= 2)
+                        cmd(Commander.FAST_SEEK_NEXT_FOLDER);
+                    else
+                        cmd(Commander.NEXT_FOLDER);
                     return true;
                 case LEFT_RIGHT:
                     if (count >= 2)
-                        cmd(Commander.FAST_BACKWARD_2X);
+                        cmd(Commander.FAST_SEEK_PREVIOUS_FILE);
                     else
                         cmd(Commander.PREVIOUS_SONG);
                     return true;
                 case TOP_BOTTOM:
                     if (count >= 2)
-                        cmd(Commander.STOP_RECORD);
+                        cmd(Commander.FAST_SEEK_PREVIOUS_FOLDER);
                     else
                         cmd(Commander.PREVIOUS_FOLDER);
                     return true;
                 case RIGHT_LEFT:
                     if (count >= 2)
-                        cmd(Commander.FAST_FORWARD_2X);
+                        cmd(Commander.FAST_SEEK_NEXT_FILE);
                     else
                         cmd(Commander.NEXT_SONG);
                     return true;
@@ -218,7 +228,7 @@ public class GestureListener implements GestureDetector.OnGestureListener, Gestu
         if (e1 == null || e2 == null)
             return false;
 
-        this.touchCnt = e2.getPointerCount();
+        this.touchCnt = Math.max(maxPointerCount, Math.max(e1.getPointerCount(), e2.getPointerCount()));
         if (touchCnt > 2){
             cmd(Commander.START_RECORD);
             return true;
@@ -256,14 +266,17 @@ public class GestureListener implements GestureDetector.OnGestureListener, Gestu
 
             switch (dir) {
                 case BOTTOM_TOP:
-                    cmd(Commander.NEXT_FOLDER);
+                    if (touchCnt >= 2)
+                        cmd(Commander.FAST_SEEK_NEXT_FOLDER);
+                    else
+                        cmd(Commander.NEXT_FOLDER);
                     break;
                 case UP_RIGHT:
                     cmd(Commander.NOTHING);
                     break;
                 case LEFT_RIGHT:
-                    if (touchCnt == 2)
-                        cmd(Commander.FAST_BACKWARD_2X);
+                    if (touchCnt >= 2)
+                        cmd(Commander.FAST_SEEK_PREVIOUS_FILE);
                     else if (touchCnt == 1)
                         cmd(Commander.PREVIOUS_SONG);
                     break;
@@ -272,8 +285,8 @@ public class GestureListener implements GestureDetector.OnGestureListener, Gestu
                     break;
                 case TOP_BOTTOM:
                     //From Top to Bottom
-                    if (touchCnt == 2)
-                        cmd(Commander.STOP_RECORD);
+                    if (touchCnt >= 2)
+                        cmd(Commander.FAST_SEEK_PREVIOUS_FOLDER);
                     else if ((touchCnt == 1))
                         cmd(Commander.PREVIOUS_FOLDER);
                     break;
@@ -281,8 +294,8 @@ public class GestureListener implements GestureDetector.OnGestureListener, Gestu
                     cmd(Commander.NOTHING);
                     break;
                 case RIGHT_LEFT:
-                    if (touchCnt == 2)
-                        cmd(Commander.FAST_FORWARD_2X);
+                    if (touchCnt >= 2)
+                        cmd(Commander.FAST_SEEK_NEXT_FILE);
                     else if (touchCnt == 1)
                         cmd(Commander.NEXT_SONG);
                     break;
@@ -462,6 +475,8 @@ public class GestureListener implements GestureDetector.OnGestureListener, Gestu
         this.SWIPE_MIN_DISTANCE = 50;
         Log.i(TAG,"Down: ");
         this.isFired = false;
+        this.maxPointerCount = 1;
+        this.touchCnt = 1;
         //Down reset the start Jog event.
         this.startDir = -1;
         return true;

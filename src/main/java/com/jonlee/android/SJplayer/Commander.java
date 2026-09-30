@@ -92,6 +92,10 @@ public class Commander{
     public final static int PREVIOUS_BOOKMARK = 42;
     public final static int NEXT_FAVORITE = 43;
     public final static int PREVIOUS_FAVORITE = 44;
+    public final static int FAST_SEEK_NEXT_FOLDER = 45;
+    public final static int FAST_SEEK_PREVIOUS_FOLDER = 46;
+    public final static int FAST_SEEK_NEXT_FILE = 47;
+    public final static int FAST_SEEK_PREVIOUS_FILE = 48;
 
 
 
@@ -620,6 +624,141 @@ public class Commander{
                     } else{
                         imageView.setImageResource(R.drawable.ic_action_about);
                         this.displayNotification(cmdStr, R.drawable.ic_action_about);
+                    }
+                    break;
+                case Commander.FAST_SEEK_NEXT_FOLDER:
+                    progressBarVisible(false);
+                    vibrate(this.VIBRATOR_STRENTH);
+                    recorder.stopPlaying();
+                    if (recorder.fastSeekFolder(1)) {
+                        folderMoveCnt++;
+                        String folderName = recorder.getCurrentDirectoryName();
+                        String spokenFolder = getSpokenDirectoryName(folderName);
+                        String key = Recorder.getFolderGroupingKey(folderName);
+                        String announce;
+                        if (key.length() == 7 && key.charAt(4) == '-') { // YYYY-MM
+                            try {
+                                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM", Locale.US);
+                                Date d = sdf.parse(key);
+                                SimpleDateFormat monthFmt = new SimpleDateFormat("MMMM yyyy", Locale.US);
+                                announce = monthFmt.format(d) + ", Folder " + spokenFolder;
+                            } catch (Exception e) {
+                                announce = key + ", Folder " + spokenFolder;
+                            }
+                        } else {
+                            announce = "Section " + key + ", Folder " + spokenFolder;
+                        }
+                        speak(announce);
+                        this.updateFolderDisplay();
+                        if (mainActivity != null) {
+                            mainActivity.showFolderWheel(1);
+                        } else if (dialView != null) {
+                            dialView.onFolderChanged(1);
+                        }
+                        imageView.setImageResource(R.drawable.ic_action_collection);
+                        this.displayNotification(folderName, R.drawable.ic_action_collection);
+                    }
+                    break;
+                case Commander.FAST_SEEK_PREVIOUS_FOLDER:
+                    progressBarVisible(false);
+                    vibrate(this.VIBRATOR_STRENTH);
+                    recorder.stopPlaying();
+                    if (recorder.fastSeekFolder(-1)) {
+                        folderMoveCnt++;
+                        String folderName = recorder.getCurrentDirectoryName();
+                        String spokenFolder = getSpokenDirectoryName(folderName);
+                        String key = Recorder.getFolderGroupingKey(folderName);
+                        String announce;
+                        if (key.length() == 7 && key.charAt(4) == '-') { // YYYY-MM
+                            try {
+                                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM", Locale.US);
+                                Date d = sdf.parse(key);
+                                SimpleDateFormat monthFmt = new SimpleDateFormat("MMMM yyyy", Locale.US);
+                                announce = monthFmt.format(d) + ", Folder " + spokenFolder;
+                            } catch (Exception e) {
+                                announce = key + ", Folder " + spokenFolder;
+                            }
+                        } else {
+                            announce = "Section " + key + ", Folder " + spokenFolder;
+                        }
+                        speak(announce);
+                        this.updateFolderDisplay();
+                        if (mainActivity != null) {
+                            mainActivity.showFolderWheel(-1);
+                        } else if (dialView != null) {
+                            dialView.onFolderChanged(-1);
+                        }
+                        imageView.setImageResource(R.drawable.ic_action_collection);
+                        this.displayNotification(folderName, R.drawable.ic_action_collection);
+                    }
+                    break;
+                case Commander.FAST_SEEK_NEXT_FILE:
+                    vibrate(this.VIBRATOR_STRENTH);
+                    recorder.stopPlaying();
+                    if (recorder.fastSeekFile(1)) {
+                        recorder.startPlaying();
+                        this.updateFileDisplay(1);
+                        imageView.setImageResource(R.drawable.ic_action_play);
+                        this.displayNotification(recorder.getCurrentFileDisplayInformation(), R.drawable.ic_action_play);
+
+                        String fileName = recorder.getCurrentFileName();
+                        String key = Recorder.getFileGroupingKey(fileName);
+                        String announce;
+                        if (key.startsWith("HOUR_")) {
+                            try {
+                                int hour = Integer.parseInt(key.substring(5));
+                                String ampm = hour >= 12 ? "PM" : "AM";
+                                int h12 = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+                                announce = "Hour " + h12 + " " + ampm;
+                            } catch (Exception e) {
+                                announce = key;
+                            }
+                        } else if (key.length() == 1 && Character.isLetter(key.charAt(0))) {
+                            announce = "Letter " + key;
+                        } else if (key.length() == 1 && Character.isDigit(key.charAt(0))) {
+                            announce = "Number " + key;
+                        } else {
+                            announce = key;
+                        }
+                        speak(announce);
+                    } else {
+                        this.displayText("No file exists in this folder");
+                        imageView.setImageResource(R.drawable.ic_action_about);
+                        this.displayNotification("No file", R.drawable.ic_action_about);
+                    }
+                    break;
+                case Commander.FAST_SEEK_PREVIOUS_FILE:
+                    vibrate(this.VIBRATOR_STRENTH);
+                    recorder.stopPlaying();
+                    if (recorder.fastSeekFile(-1)) {
+                        recorder.startPlaying();
+                        this.updateFileDisplay(-1);
+                        imageView.setImageResource(R.drawable.ic_action_play);
+                        this.displayNotification(recorder.getCurrentFileDisplayInformation(), R.drawable.ic_action_play);
+
+                        String fileName = recorder.getCurrentFileName();
+                        String key = Recorder.getFileGroupingKey(fileName);
+                        String announce;
+                        if (key.startsWith("HOUR_")) {
+                            try {
+                                int hour = Integer.parseInt(key.substring(5));
+                                String ampm = hour >= 12 ? "PM" : "AM";
+                                int h12 = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+                                announce = "Hour " + h12 + " " + ampm;
+                            } catch (Exception e) {
+                                announce = key;
+                            }
+                        } else if (key.length() == 1 && Character.isLetter(key.charAt(0))) {
+                            announce = "Letter " + key;
+                        } else if (key.length() == 1 && Character.isDigit(key.charAt(0))) {
+                            announce = "Number " + key;
+                        } else {
+                            announce = key;
+                        }
+                        speak(announce);
+                    } else {
+                        imageView.setImageResource(R.drawable.ic_action_about);
+                        this.displayNotification("No file", R.drawable.ic_action_about);
                     }
                     break;
                 case Commander.NEXT_FOLDER:

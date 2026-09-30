@@ -1562,6 +1562,187 @@ public class Recorder {
     }
 
     /**
+     * Extracts folder grouping key:
+     * - "YYYY-MM" if name starts with YYYY-MM-DD (or YYYY_MM_DD or YYYY.MM.DD)
+     * - First alphabet character (uppercase) for general folders
+     */
+    public static String getFolderGroupingKey(String folderName) {
+        if (folderName == null || folderName.trim().isEmpty()) {
+            return "#";
+        }
+        String name = folderName.trim();
+        // Check date pattern: YYYY-MM-DD or YYYY_MM_DD or YYYY.MM.DD
+        if (name.length() >= 7) {
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("^(\\d{4}[-_\\.]\\d{2})([-_\\.]\\d{2})?").matcher(name);
+            if (m.find()) {
+                return m.group(1).replace('_', '-').replace('.', '-');
+            }
+        }
+        // Non-date: Find first alphanumeric character
+        for (int i = 0; i < name.length(); i++) {
+            char ch = name.charAt(i);
+            if (Character.isLetterOrDigit(ch)) {
+                return String.valueOf(Character.toUpperCase(ch));
+            }
+        }
+        return String.valueOf(Character.toUpperCase(name.charAt(0)));
+    }
+
+    /**
+     * Extracts file grouping key:
+     * - If file name starts with date-time format (e.g. YYYY-MM-DD-HHmmss or YYYY-MM-DD_HHmmss),
+     *   group by hour e.g. "HOUR_HH"
+     * - If file name starts with date format: "YYYY-MM-DD"
+     * - Otherwise alphabet level: first alphanumeric character uppercase (e.g. "A", "B", "1")
+     */
+    public static String getFileGroupingKey(String fileName) {
+        if (fileName == null || fileName.trim().isEmpty()) {
+            return "#";
+        }
+        String name = fileName.trim();
+        java.util.regex.Matcher mDateTime = java.util.regex.Pattern.compile("^\\d{4}[-_\\.]\\d{2}[-_\\.]\\d{2}[-_\\.](\\d{2})").matcher(name);
+        if (mDateTime.find()) {
+            return "HOUR_" + mDateTime.group(1);
+        }
+        java.util.regex.Matcher mDate = java.util.regex.Pattern.compile("^(\\d{4}[-_\\.]\\d{2}[-_\\.]\\d{2})").matcher(name);
+        if (mDate.find()) {
+            return mDate.group(1).replace('_', '-').replace('.', '-');
+        }
+        for (int i = 0; i < name.length(); i++) {
+            char ch = name.charAt(i);
+            if (Character.isLetterOrDigit(ch)) {
+                return String.valueOf(Character.toUpperCase(ch));
+            }
+        }
+        return String.valueOf(Character.toUpperCase(name.charAt(0)));
+    }
+
+    /**
+     * Fast seek to next/previous folder group.
+     * If folders have YYYY-MM-DD format, moves by YYYY-MM month basis.
+     * Otherwise moves by alphabet level (first letter).
+     * @param direction: +1 for next group, -1 for previous group
+     * @return true if folder was changed
+     */
+    public boolean fastSeekFolder(int direction) {
+        if (directories == null || directories.size() <= 1) {
+            return false;
+        }
+        int total = directories.size();
+        String currentKey = getFolderGroupingKey(getCurrentDirectoryName());
+        int targetIndex = -1;
+
+        if (direction > 0) {
+            // Find next group
+            for (int step = 1; step < total; step++) {
+                int idx = (currentDirectoryIndex + step) % total;
+                String key = getFolderGroupingKey(directories.get(idx).getName());
+                if (!key.equalsIgnoreCase(currentKey)) {
+                    targetIndex = idx;
+                    break;
+                }
+            }
+        } else {
+            // Find previous group and jump to the START of that group
+            String prevGroupKey = null;
+            int foundIdx = -1;
+            for (int step = 1; step < total; step++) {
+                int idx = (currentDirectoryIndex - step + total) % total;
+                String key = getFolderGroupingKey(directories.get(idx).getName());
+                if (!key.equalsIgnoreCase(currentKey)) {
+                    prevGroupKey = key;
+                    foundIdx = idx;
+                    break;
+                }
+            }
+            if (prevGroupKey != null) {
+                targetIndex = foundIdx;
+                int check = (targetIndex - 1 + total) % total;
+                int count = 0;
+                while (count < total && getFolderGroupingKey(directories.get(check).getName()).equalsIgnoreCase(prevGroupKey)) {
+                    targetIndex = check;
+                    check = (targetIndex - 1 + total) % total;
+                    count++;
+                }
+            }
+        }
+
+        if (targetIndex != -1 && targetIndex != currentDirectoryIndex) {
+            try {
+                this.currentFileIndex = 0;
+                this.currentDirectoryIndex = targetIndex;
+                this.currentFolder = this.directories.get(this.currentDirectoryIndex);
+                if (!this.getCurrentDirectoryName().startsWith(this.folderNameForAllMusicByMediaScanner)) {
+                    readAudibleFilesInCurrentFolder();
+                }
+                Log.i(TAG, "fastSeekFolder: moved to " + targetIndex + ": " + getCurrentDirectoryName());
+                return true;
+            } catch (Exception e) {
+                Log.e(TAG, "Error in fastSeekFolder", e);
+                return false;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Fast seek to next/previous file group within current folder.
+     * Moves by alphabet level (or hour if timestamped recordings).
+     * @param direction: +1 for next group, -1 for previous group
+     * @return true if file was changed
+     */
+    public boolean fastSeekFile(int direction) {
+        if (audibleFiles == null || audibleFiles.size() <= 1) {
+            return false;
+        }
+        int total = audibleFiles.size();
+        String currentKey = getFileGroupingKey(getCurrentFileName());
+        int targetIndex = -1;
+
+        if (direction > 0) {
+            // Find next group
+            for (int step = 1; step < total; step++) {
+                int idx = (currentFileIndex + step) % total;
+                String key = getFileGroupingKey(audibleFiles.get(idx).getName());
+                if (!key.equalsIgnoreCase(currentKey)) {
+                    targetIndex = idx;
+                    break;
+                }
+            }
+        } else {
+            // Find previous group and jump to the START of that group
+            String prevGroupKey = null;
+            int foundIdx = -1;
+            for (int step = 1; step < total; step++) {
+                int idx = (currentFileIndex - step + total) % total;
+                String key = getFileGroupingKey(audibleFiles.get(idx).getName());
+                if (!key.equalsIgnoreCase(currentKey)) {
+                    prevGroupKey = key;
+                    foundIdx = idx;
+                    break;
+                }
+            }
+            if (prevGroupKey != null) {
+                targetIndex = foundIdx;
+                int check = (targetIndex - 1 + total) % total;
+                int count = 0;
+                while (count < total && getFileGroupingKey(audibleFiles.get(check).getName()).equalsIgnoreCase(prevGroupKey)) {
+                    targetIndex = check;
+                    check = (targetIndex - 1 + total) % total;
+                    count++;
+                }
+            }
+        }
+
+        if (targetIndex != -1 && targetIndex != currentFileIndex) {
+            this.currentFileIndex = targetIndex;
+            Log.i(TAG, "fastSeekFile: moved to " + targetIndex + ": " + getCurrentFileName());
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * 1) Read only audible files(AudibleFileFilter) from current directory
      * 2) Filter out un-audible files
      * 3) Always set current Index to 0

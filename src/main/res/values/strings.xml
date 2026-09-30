@@ -41,7 +41,7 @@
 
 
     <string name="HELP_INSTRUCTION">Long touch for instruction.</string>
-    <string name="WELCOME">1 Tap: Play / Stop\n2 Taps: Record / Stop\n3 Taps: Add Bookmark (or 2-finger tap)\n\nSwipe Left/Right: File navigation\nSwipe Up/Down: Folder navigation\nHold and swipe left: Rewind\nHold and swipe right: FastForward\nHold and swipe up/down: \n - Fast Folder navigation\n\n1 long press: File, folder info\n2 long press: Date, battery info\n3 finger down: Backup\n3 finger up: Settings\n</string>
+    <string name="WELCOME">1 Tap: Play / Stop\n2 Taps: Record / Stop\n3 Taps: Add Bookmark (or 2-finger tap)\n\nSwipe Left/Right: File navigation\n2-Finger Swipe Left/Right: Fast seek by letter\nSwipe Up/Down: Folder navigation\n2-Finger Swipe Up/Down: Fast seek by month or letter\nHold and swipe left: Rewind\nHold and swipe right: FastForward\nHold and swipe up/down: \n - Fast Folder navigation\n\n1 long press: File, folder info\n2 long press: Date, battery info\n3 finger down: Backup\n3 finger up: Settings\n</string>
 
     <string name="MANUAL">This is manual file of SJ Player.</string>
     <string name="NO_AUDIBLE_FILE_EXIST">No audio file exists in this folder.</string>
