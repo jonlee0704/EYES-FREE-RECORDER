@@ -59,6 +59,25 @@
         </LinearLayout>
 
 
+        <!-- Volume Information Pill -->
+        <TextView
+            android:id="@+id/tv_volume_info"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="10dp"
+            android:background="@drawable/bg_mcintosh_vol_pill"
+            android:clickable="true"
+            android:focusable="true"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="0.06"
+            android:paddingStart="14dp"
+            android:paddingTop="6dp"
+            android:paddingEnd="14dp"
+            android:paddingBottom="6dp"
+            android:text="VOL --%"
+            android:textColor="#FFD54F"
+            android:textSize="13sp" />
+
         <!-- Settings Button -->
         <ImageButton
             android:id="@+id/btn_settings"

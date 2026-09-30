@@ -27,6 +27,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.database.ContentObserver;
 
 import android.content.pm.PackageManager;
 import android.media.AudioManager;
@@ -112,6 +113,8 @@ public class MainActivity extends SampleActivityBase {
     private boolean isHomemodeEnabled = false;
     private boolean isNavModeEnabled = false;
     private int maxVolume = 100;
+    private TextView tvVolumeInfo;
+    private ContentObserver volumeObserver;
 
     public TextToSpeech ttobj = null;
     private String pendingTtsMessage = null;
@@ -192,6 +195,31 @@ public class MainActivity extends SampleActivityBase {
         trackPos_TextView = (TextView) findViewById(R.id.trackPos_TextView);
 
         updateTtsButtonState();
+        tvVolumeInfo = (TextView) findViewById(R.id.tv_volume_info);
+        if (tvVolumeInfo != null) {
+            tvVolumeInfo.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
+                    if (am != null) {
+                        int cur = am.getStreamVolume(AudioManager.STREAM_MUSIC);
+                        int max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+                        int pct = max > 0 ? (cur * 100) / max : 0;
+                        alwaysSpeak("Volume " + pct + " percent");
+                        am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_SAME, AudioManager.FLAG_SHOW_UI);
+                    }
+                }
+            });
+        }
+        updateVolumeDisplay();
+
+        volumeObserver = new ContentObserver(new Handler(Looper.getMainLooper())) {
+            @Override
+            public void onChange(boolean selfChange) {
+                super.onChange(selfChange);
+                updateVolumeDisplay();
+            }
+        };
 //        main_TextView.setText(new String(Character.toChars(0x1F4C1)) + " Swipe Up/Down: Folder navigation\n"
 //                + new String(Character.toChars(0x1F4C3))  + " Swipe Left/Right: File navigation\n"
 //                + new String(Character.toChars(0x25B6)) + " Single Tab: Play/Stop\n"
@@ -1340,6 +1368,23 @@ public class MainActivity extends SampleActivityBase {
         } catch (Exception ignored) {}
     }
 
+    public void updateVolumeDisplay() {
+        try {
+            AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
+            if (am != null) {
+                int cur = am.getStreamVolume(AudioManager.STREAM_MUSIC);
+                int max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+                int pct = max > 0 ? (cur * 100) / max : 0;
+                if (tvVolumeInfo != null) {
+                    tvVolumeInfo.setText("VOL " + pct + "%");
+                    tvVolumeInfo.setContentDescription("Media volume " + pct + " percent");
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error updating volume display", e);
+        }
+    }
+
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.main, menu);
@@ -1442,6 +1487,7 @@ public class MainActivity extends SampleActivityBase {
                             }
                         }
                    // }
+                    updateVolumeDisplay();
                 }
                 return true;
             case KeyEvent.KEYCODE_VOLUME_DOWN:
@@ -1465,6 +1511,7 @@ public class MainActivity extends SampleActivityBase {
                                     0);
                         }
                     }
+                    updateVolumeDisplay();
                 }
                 return true;
             case KeyEvent.KEYCODE_POWER:
@@ -1601,6 +1648,15 @@ public class MainActivity extends SampleActivityBase {
         } catch (Exception e) {
             Log.e(TAG, "Error registering receivers: " + e.getMessage());
         }
+        if (volumeObserver != null) {
+            try {
+                getContentResolver().registerContentObserver(
+                        android.provider.Settings.System.CONTENT_URI,
+                        true,
+                        volumeObserver);
+            } catch (Exception ignored) {}
+        }
+        updateVolumeDisplay();
     }
 
     @Override
@@ -1612,6 +1668,11 @@ public class MainActivity extends SampleActivityBase {
         try {
             unregisterReceiver(becomingNoisyReceiver);
         } catch (Exception ignored) {}
+        if (volumeObserver != null) {
+            try {
+                getContentResolver().unregisterContentObserver(volumeObserver);
+            } catch (Exception ignored) {}
+        }
     }
 
     @Override
@@ -1623,6 +1684,11 @@ public class MainActivity extends SampleActivityBase {
         try {
             unregisterReceiver(becomingNoisyReceiver);
         } catch (Exception ignored) {}
+        if (volumeObserver != null) {
+            try {
+                getContentResolver().unregisterContentObserver(volumeObserver);
+            } catch (Exception ignored) {}
+        }
 
         if (recorder != null) {
             recorder.stopRecording();
