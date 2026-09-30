@@ -18,3 +18,5 @@ google-services.json
 **/google-services.json
 *.keystore
 *.jks
+*.pepk
+*.pem
