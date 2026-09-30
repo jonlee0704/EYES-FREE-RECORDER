@@ -607,7 +607,7 @@ public class MainActivity extends SampleActivityBase {
                 float deltaY = twoFingerLastY - twoFingerStartY;
                 float absX = Math.abs(deltaX);
                 float absY = Math.abs(deltaY);
-                float swipeThreshold = 22 * density; // ~22dp responsive swipe (effortless, snappy trigger)
+                float swipeThreshold = 18 * density; // ~18dp responsive swipe (effortless, snappy trigger)
 
                 if (absX >= swipeThreshold || absY >= swipeThreshold) {
                     twoFingerActionFired = true;
@@ -635,7 +635,7 @@ public class MainActivity extends SampleActivityBase {
                     super.dispatchTouchEvent(cancelEvent);
                     cancelEvent.recycle();
                     return true;
-                } else if ((System.currentTimeMillis() - twoFingerDownTime) > 450 && absX < 16 * density && absY < 16 * density) {
+                } else if ((System.currentTimeMillis() - twoFingerDownTime) > 450 && absX < 12 * density && absY < 12 * density) {
                     // Two-finger long press (stationary for >450ms) -> Speak Date/Time
                     twoFingerActionFired = true;
                     Log.i(TAG, "Two-finger long press detected: speaking date/time");
@@ -649,12 +649,16 @@ public class MainActivity extends SampleActivityBase {
                     return true;
                 }
             } else if (action == MotionEvent.ACTION_POINTER_UP) {
-                // One finger lifted - check for quick flick or tap
+                // One finger lifted - update last centroid and check for quick flick or tap
+                if (pointerCount >= 2) {
+                    twoFingerLastX = (ev.getX(0) + ev.getX(1)) / 2f;
+                    twoFingerLastY = (ev.getY(0) + ev.getY(1)) / 2f;
+                }
                 float deltaX = twoFingerLastX - twoFingerStartX;
                 float deltaY = twoFingerLastY - twoFingerStartY;
                 float absX = Math.abs(deltaX);
                 float absY = Math.abs(deltaY);
-                float flingThreshold = 16 * density; // ~16dp fling threshold
+                float flingThreshold = 12 * density; // ~12dp fling threshold
 
                 if (absX >= flingThreshold || absY >= flingThreshold) {
                     twoFingerActionFired = true;
@@ -674,7 +678,7 @@ public class MainActivity extends SampleActivityBase {
                             }
                         }
                     }
-                } else if (twoFingerMaxPointerCount == 2 && (System.currentTimeMillis() - twoFingerDownTime) < 450) {
+                } else if (twoFingerMaxPointerCount == 2 && absX < 8 * density && absY < 8 * density && (System.currentTimeMillis() - twoFingerDownTime) < 400) {
                     // Stationary 2-finger tap -> Add Bookmark
                     twoFingerActionFired = true;
                     Log.i(TAG, "Two-finger tap detected: adding bookmark");
@@ -699,7 +703,7 @@ public class MainActivity extends SampleActivityBase {
                 float deltaY = twoFingerLastY - twoFingerStartY;
                 float absX = Math.abs(deltaX);
                 float absY = Math.abs(deltaY);
-                float flingThreshold = 16 * density;
+                float flingThreshold = 12 * density;
 
                 if (absX >= flingThreshold || absY >= flingThreshold) {
                     twoFingerActionFired = true;
@@ -710,7 +714,7 @@ public class MainActivity extends SampleActivityBase {
                             commander.cmd(deltaX < 0 ? Commander.FAST_SEEK_NEXT_FILE : Commander.FAST_SEEK_PREVIOUS_FILE);
                         }
                     }
-                } else if ((System.currentTimeMillis() - twoFingerDownTime) < 450) {
+                } else if (absX < 8 * density && absY < 8 * density && (System.currentTimeMillis() - twoFingerDownTime) < 400) {
                     twoFingerActionFired = true;
                     if (commander != null) {
                         commander.cmd(Commander.ADD_BOOKMARK);
@@ -1317,6 +1321,9 @@ public class MainActivity extends SampleActivityBase {
 
     public void alwaysSpeak(String w){
         Log.i(TAG, "alwaysSpeak: " + w);
+        if (w == null || w.trim().isEmpty()) {
+            return;
+        }
         if (ttobj == null) {
             pendingTtsMessage = w;
             return;
@@ -1326,6 +1333,11 @@ public class MainActivity extends SampleActivityBase {
         if (res == TextToSpeech.ERROR) {
             pendingTtsMessage = w;
         }
+        try {
+            if (getWindow() != null && getWindow().getDecorView() != null) {
+                getWindow().getDecorView().announceForAccessibility(w);
+            }
+        } catch (Exception ignored) {}
     }
 
     @Override

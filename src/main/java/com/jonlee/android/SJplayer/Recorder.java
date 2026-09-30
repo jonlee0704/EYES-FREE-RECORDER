@@ -1682,6 +1682,25 @@ public class Recorder {
                 return false;
             }
         }
+        // Fallback: If only one folder group exists across all directories, step to next/prev folder
+        if (targetIndex == -1 && total > 1) {
+            int nextIdx = (direction > 0) ? (currentDirectoryIndex + 1) % total : (currentDirectoryIndex - 1 + total) % total;
+            if (nextIdx != currentDirectoryIndex) {
+                try {
+                    this.currentFileIndex = 0;
+                    this.currentDirectoryIndex = nextIdx;
+                    this.currentFolder = this.directories.get(this.currentDirectoryIndex);
+                    if (!this.getCurrentDirectoryName().startsWith(this.folderNameForAllMusicByMediaScanner)) {
+                        readAudibleFilesInCurrentFolder();
+                    }
+                    Log.i(TAG, "fastSeekFolder (single group): moved to " + nextIdx + ": " + getCurrentDirectoryName());
+                    return true;
+                } catch (Exception e) {
+                    Log.e(TAG, "Error in fastSeekFolder", e);
+                    return false;
+                }
+            }
+        }
         return false;
     }
 
@@ -1738,6 +1757,15 @@ public class Recorder {
             this.currentFileIndex = targetIndex;
             Log.i(TAG, "fastSeekFile: moved to " + targetIndex + ": " + getCurrentFileName());
             return true;
+        }
+        // Fallback: If all files in the current folder belong to the same group, step to next/prev file
+        if (targetIndex == -1 && total > 1) {
+            int nextIdx = (direction > 0) ? (currentFileIndex + 1) % total : (currentFileIndex - 1 + total) % total;
+            if (nextIdx != currentFileIndex) {
+                this.currentFileIndex = nextIdx;
+                Log.i(TAG, "fastSeekFile (single group): moved to " + nextIdx + ": " + getCurrentFileName());
+                return true;
+            }
         }
         return false;
     }

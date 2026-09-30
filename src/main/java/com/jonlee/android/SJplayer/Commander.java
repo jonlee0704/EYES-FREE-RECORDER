@@ -628,28 +628,15 @@ public class Commander{
                     break;
                 case Commander.FAST_SEEK_NEXT_FOLDER:
                     progressBarVisible(false);
-                    vibrate(this.VIBRATOR_STRENTH);
+                    vibrate(100);
                     recorder.stopPlaying();
                     if (recorder.fastSeekFolder(1)) {
                         folderMoveCnt++;
                         String folderName = recorder.getCurrentDirectoryName();
-                        String spokenFolder = getSpokenDirectoryName(folderName);
-                        String key = Recorder.getFolderGroupingKey(folderName);
-                        String announce;
-                        if (key.length() == 7 && key.charAt(4) == '-') { // YYYY-MM
-                            try {
-                                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM", Locale.US);
-                                Date d = sdf.parse(key);
-                                SimpleDateFormat monthFmt = new SimpleDateFormat("MMMM yyyy", Locale.US);
-                                announce = monthFmt.format(d) + ", Folder " + spokenFolder;
-                            } catch (Exception e) {
-                                announce = key + ", Folder " + spokenFolder;
-                            }
-                        } else {
-                            announce = "Section " + key + ", Folder " + spokenFolder;
-                        }
-                        speak(announce);
+                        String announce = getFolderGroupingAnnouncement(folderName);
+                        alwaysSpeak(announce);
                         this.updateFolderDisplay();
+                        this.displayText(announce + "\n" + folderName);
                         if (mainActivity != null) {
                             mainActivity.showFolderWheel(1);
                         } else if (dialView != null) {
@@ -657,32 +644,24 @@ public class Commander{
                         }
                         imageView.setImageResource(R.drawable.ic_action_collection);
                         this.displayNotification(folderName, R.drawable.ic_action_collection);
+                    } else {
+                        String folderName = recorder.getCurrentDirectoryName();
+                        String announce = getFolderGroupingAnnouncement(folderName);
+                        alwaysSpeak("Only one folder section: " + announce);
+                        this.displayText("Single section: " + announce + "\n" + folderName);
                     }
                     break;
                 case Commander.FAST_SEEK_PREVIOUS_FOLDER:
                     progressBarVisible(false);
-                    vibrate(this.VIBRATOR_STRENTH);
+                    vibrate(100);
                     recorder.stopPlaying();
                     if (recorder.fastSeekFolder(-1)) {
                         folderMoveCnt++;
                         String folderName = recorder.getCurrentDirectoryName();
-                        String spokenFolder = getSpokenDirectoryName(folderName);
-                        String key = Recorder.getFolderGroupingKey(folderName);
-                        String announce;
-                        if (key.length() == 7 && key.charAt(4) == '-') { // YYYY-MM
-                            try {
-                                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM", Locale.US);
-                                Date d = sdf.parse(key);
-                                SimpleDateFormat monthFmt = new SimpleDateFormat("MMMM yyyy", Locale.US);
-                                announce = monthFmt.format(d) + ", Folder " + spokenFolder;
-                            } catch (Exception e) {
-                                announce = key + ", Folder " + spokenFolder;
-                            }
-                        } else {
-                            announce = "Section " + key + ", Folder " + spokenFolder;
-                        }
-                        speak(announce);
+                        String announce = getFolderGroupingAnnouncement(folderName);
+                        alwaysSpeak(announce);
                         this.updateFolderDisplay();
+                        this.displayText(announce + "\n" + folderName);
                         if (mainActivity != null) {
                             mainActivity.showFolderWheel(-1);
                         } else if (dialView != null) {
@@ -690,10 +669,15 @@ public class Commander{
                         }
                         imageView.setImageResource(R.drawable.ic_action_collection);
                         this.displayNotification(folderName, R.drawable.ic_action_collection);
+                    } else {
+                        String folderName = recorder.getCurrentDirectoryName();
+                        String announce = getFolderGroupingAnnouncement(folderName);
+                        alwaysSpeak("Only one folder section: " + announce);
+                        this.displayText("Single section: " + announce + "\n" + folderName);
                     }
                     break;
                 case Commander.FAST_SEEK_NEXT_FILE:
-                    vibrate(this.VIBRATOR_STRENTH);
+                    vibrate(100);
                     recorder.stopPlaying();
                     if (recorder.fastSeekFile(1)) {
                         recorder.startPlaying();
@@ -702,33 +686,25 @@ public class Commander{
                         this.displayNotification(recorder.getCurrentFileDisplayInformation(), R.drawable.ic_action_play);
 
                         String fileName = recorder.getCurrentFileName();
-                        String key = Recorder.getFileGroupingKey(fileName);
-                        String announce;
-                        if (key.startsWith("HOUR_")) {
-                            try {
-                                int hour = Integer.parseInt(key.substring(5));
-                                String ampm = hour >= 12 ? "PM" : "AM";
-                                int h12 = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
-                                announce = "Hour " + h12 + " " + ampm;
-                            } catch (Exception e) {
-                                announce = key;
-                            }
-                        } else if (key.length() == 1 && Character.isLetter(key.charAt(0))) {
-                            announce = "Letter " + key;
-                        } else if (key.length() == 1 && Character.isDigit(key.charAt(0))) {
-                            announce = "Number " + key;
-                        } else {
-                            announce = key;
-                        }
-                        speak(announce);
+                        int fIdx = recorder.getCurrentFileIndex() + 1;
+                        int fTotal = recorder.getAudibleFilesCount();
+                        String announce = getFileGroupingAnnouncement(fileName) + (fTotal > 1 ? ", File " + fIdx + " of " + fTotal : "");
+                        alwaysSpeak(announce);
+                        this.displayText(announce + "\n" + fileName);
+                    } else if (recorder.getAudibleFilesCount() > 0) {
+                        String fileName = recorder.getCurrentFileName();
+                        String announce = getFileGroupingAnnouncement(fileName);
+                        alwaysSpeak("Only one section in folder: " + announce);
+                        this.displayText("Single section: " + announce + "\n" + fileName);
                     } else {
-                        this.displayText("No file exists in this folder");
+                        alwaysSpeak("No files in this folder");
+                        this.displayText("No files in this folder");
                         imageView.setImageResource(R.drawable.ic_action_about);
                         this.displayNotification("No file", R.drawable.ic_action_about);
                     }
                     break;
                 case Commander.FAST_SEEK_PREVIOUS_FILE:
-                    vibrate(this.VIBRATOR_STRENTH);
+                    vibrate(100);
                     recorder.stopPlaying();
                     if (recorder.fastSeekFile(-1)) {
                         recorder.startPlaying();
@@ -737,26 +713,19 @@ public class Commander{
                         this.displayNotification(recorder.getCurrentFileDisplayInformation(), R.drawable.ic_action_play);
 
                         String fileName = recorder.getCurrentFileName();
-                        String key = Recorder.getFileGroupingKey(fileName);
-                        String announce;
-                        if (key.startsWith("HOUR_")) {
-                            try {
-                                int hour = Integer.parseInt(key.substring(5));
-                                String ampm = hour >= 12 ? "PM" : "AM";
-                                int h12 = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
-                                announce = "Hour " + h12 + " " + ampm;
-                            } catch (Exception e) {
-                                announce = key;
-                            }
-                        } else if (key.length() == 1 && Character.isLetter(key.charAt(0))) {
-                            announce = "Letter " + key;
-                        } else if (key.length() == 1 && Character.isDigit(key.charAt(0))) {
-                            announce = "Number " + key;
-                        } else {
-                            announce = key;
-                        }
-                        speak(announce);
+                        int fIdx = recorder.getCurrentFileIndex() + 1;
+                        int fTotal = recorder.getAudibleFilesCount();
+                        String announce = getFileGroupingAnnouncement(fileName) + (fTotal > 1 ? ", File " + fIdx + " of " + fTotal : "");
+                        alwaysSpeak(announce);
+                        this.displayText(announce + "\n" + fileName);
+                    } else if (recorder.getAudibleFilesCount() > 0) {
+                        String fileName = recorder.getCurrentFileName();
+                        String announce = getFileGroupingAnnouncement(fileName);
+                        alwaysSpeak("Only one section in folder: " + announce);
+                        this.displayText("Single section: " + announce + "\n" + fileName);
                     } else {
+                        alwaysSpeak("No files in this folder");
+                        this.displayText("No files in this folder");
                         imageView.setImageResource(R.drawable.ic_action_about);
                         this.displayNotification("No file", R.drawable.ic_action_about);
                     }
@@ -1267,6 +1236,43 @@ public class Commander{
             return "Year " + folderName;
         }
         return folderName;
+    }
+
+    public static String getFolderGroupingAnnouncement(String folderName) {
+        String spokenFolder = getSpokenDirectoryName(folderName);
+        String key = Recorder.getFolderGroupingKey(folderName);
+        if (key.length() == 7 && key.charAt(4) == '-') { // YYYY-MM
+            try {
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM", Locale.US);
+                Date d = sdf.parse(key);
+                SimpleDateFormat monthFmt = new SimpleDateFormat("MMMM yyyy", Locale.US);
+                return monthFmt.format(d) + ", Folder " + spokenFolder;
+            } catch (Exception e) {
+                return key + ", Folder " + spokenFolder;
+            }
+        } else {
+            return "Section " + key + ", Folder " + spokenFolder;
+        }
+    }
+
+    public static String getFileGroupingAnnouncement(String fileName) {
+        String key = Recorder.getFileGroupingKey(fileName);
+        if (key.startsWith("HOUR_")) {
+            try {
+                int hour = Integer.parseInt(key.substring(5));
+                String ampm = hour >= 12 ? "PM" : "AM";
+                int h12 = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+                return "Hour " + h12 + " " + ampm;
+            } catch (Exception e) {
+                return key;
+            }
+        } else if (key.length() == 1 && Character.isLetter(key.charAt(0))) {
+            return "Letter " + key;
+        } else if (key.length() == 1 && Character.isDigit(key.charAt(0))) {
+            return "Number " + key;
+        } else {
+            return key;
+        }
     }
 
 }

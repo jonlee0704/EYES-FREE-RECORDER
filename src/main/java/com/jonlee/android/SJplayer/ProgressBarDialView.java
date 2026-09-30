@@ -298,7 +298,7 @@ public class ProgressBarDialView extends View {
                         Log.i(TAG, "ACTION_UP:startXY()"+isInWholeDiscArea(startX,startY));
 
                         //Stop speaking when ACTION_UP
-                        ((MainActivity)activity).alwaysSpeak("");
+                        // ((MainActivity)activity).alwaysSpeak("");
 
                         //Once it's touch_up, then it's set to false
                         isMultiFingerMode = false;

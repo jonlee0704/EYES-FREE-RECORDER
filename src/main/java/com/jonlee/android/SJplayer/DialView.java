@@ -1330,8 +1330,8 @@ public class DialView extends View {
                             return false;
                         }
 
-                        //Stop speaking when ACTION_UP
-                        ((MainActivity)activity).alwaysSpeak("");
+                        // Do not mute TTS on ACTION_UP, as gestures speak after finger release
+                        // ((MainActivity)activity).alwaysSpeak("");
 
                         //Once it's touch_up, then it's set to false
                         isMultiFingerMode = false;
