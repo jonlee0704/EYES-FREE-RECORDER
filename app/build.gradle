@@ -9,8 +9,8 @@ android {
         applicationId 'com.jonlee.android.SJplayer'
         minSdkVersion 26
         targetSdkVersion 36
-        versionCode 93
-        versionName "4.1.0"
+        versionCode 94
+        versionName "4.1.1"
         // Enabling multidex support.
         multiDexEnabled = true
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
@@ -40,8 +40,20 @@ android {
         checkReleaseBuilds false
     }
 
+    signingConfigs {
+        release {
+            if (project.hasProperty('RELEASE_STORE_FILE')) {
+                storeFile file(RELEASE_STORE_FILE)
+                storePassword project.findProperty('RELEASE_STORE_PASSWORD') ?: ""
+                keyAlias project.findProperty('RELEASE_KEY_ALIAS') ?: ""
+                keyPassword project.findProperty('RELEASE_KEY_PASSWORD') ?: ""
+            }
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
