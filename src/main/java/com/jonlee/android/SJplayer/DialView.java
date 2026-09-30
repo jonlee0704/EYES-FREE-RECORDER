@@ -1353,6 +1353,13 @@ public class DialView extends View {
                         }
                         int effectivePointers = Math.max(touchCnt, maxPointerCount);
 
+                        if (effectivePointers == 2) {
+                            cancelPendingTaps();
+                            // All two-finger gestures (swipes, tap bookmark, long-press date/time) are unified
+                            // and handled via dual-finger centroid tracking in MainActivity.dispatchTouchEvent.
+                            return true;
+                        }
+
                         float density = (activity != null) ? activity.getResources().getDisplayMetrics().density : 1.0f;
                         float swipeThreshold = Math.max(SWIPE_MIN_DISTANCE, 40 * density);
 

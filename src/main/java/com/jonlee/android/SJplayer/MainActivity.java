@@ -559,6 +559,181 @@ public class MainActivity extends SampleActivityBase {
         return GestureListener.isHorizontalEdgeTouch(this, e);
     }
 
+    // Two-finger gesture tracking state for fast seek, bookmark, and date/time
+    private boolean isTwoFingerGesture = false;
+    private boolean twoFingerActionFired = false;
+    private float twoFingerStartX = 0f;
+    private float twoFingerStartY = 0f;
+    private float twoFingerLastX = 0f;
+    private float twoFingerLastY = 0f;
+    private long twoFingerDownTime = 0L;
+    private int twoFingerMaxPointerCount = 0;
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent ev) {
+        int action = ev.getActionMasked();
+        int pointerCount = ev.getPointerCount();
+        float density = getResources().getDisplayMetrics().density;
+
+        if (action == MotionEvent.ACTION_DOWN) {
+            isTwoFingerGesture = false;
+            twoFingerActionFired = false;
+            twoFingerMaxPointerCount = 1;
+        } else if (pointerCount == 2) {
+            if (!isTwoFingerGesture && !twoFingerActionFired) {
+                isTwoFingerGesture = true;
+                twoFingerActionFired = false;
+                twoFingerStartX = (ev.getX(0) + ev.getX(1)) / 2f;
+                twoFingerStartY = (ev.getY(0) + ev.getY(1)) / 2f;
+                twoFingerLastX = twoFingerStartX;
+                twoFingerLastY = twoFingerStartY;
+                twoFingerDownTime = System.currentTimeMillis();
+                twoFingerMaxPointerCount = 2;
+                wheelScrubHandler.removeCallbacksAndMessages(null);
+                isWheelScrubbing = false;
+                Log.d(TAG, "2-finger tracking started: centroid=(" + twoFingerStartX + "," + twoFingerStartY + ")");
+            }
+        } else if (pointerCount > 2) {
+            isTwoFingerGesture = false;
+            twoFingerMaxPointerCount = Math.max(twoFingerMaxPointerCount, pointerCount);
+        }
+
+        if (isTwoFingerGesture && !twoFingerActionFired) {
+            if (action == MotionEvent.ACTION_MOVE && pointerCount >= 2) {
+                twoFingerLastX = (ev.getX(0) + ev.getX(1)) / 2f;
+                twoFingerLastY = (ev.getY(0) + ev.getY(1)) / 2f;
+
+                float deltaX = twoFingerLastX - twoFingerStartX;
+                float deltaY = twoFingerLastY - twoFingerStartY;
+                float absX = Math.abs(deltaX);
+                float absY = Math.abs(deltaY);
+                float swipeThreshold = 22 * density; // ~22dp responsive swipe (effortless, snappy trigger)
+
+                if (absX >= swipeThreshold || absY >= swipeThreshold) {
+                    twoFingerActionFired = true;
+                    Log.i(TAG, "Two-finger swipe detected: deltaX=" + deltaX + ", deltaY=" + deltaY);
+                    if (commander != null) {
+                        if (absY > absX) {
+                            // Vertical swipe across FOLDERS
+                            if (deltaY < 0) {
+                                commander.cmd(Commander.FAST_SEEK_NEXT_FOLDER);
+                            } else {
+                                commander.cmd(Commander.FAST_SEEK_PREVIOUS_FOLDER);
+                            }
+                        } else {
+                            // Horizontal swipe across FILES
+                            if (deltaX < 0) {
+                                commander.cmd(Commander.FAST_SEEK_NEXT_FILE);
+                            } else {
+                                commander.cmd(Commander.FAST_SEEK_PREVIOUS_FILE);
+                            }
+                        }
+                    }
+                    // Cancel ongoing touch stream for child views so DialView doesn't react
+                    MotionEvent cancelEvent = MotionEvent.obtain(ev);
+                    cancelEvent.setAction(MotionEvent.ACTION_CANCEL);
+                    super.dispatchTouchEvent(cancelEvent);
+                    cancelEvent.recycle();
+                    return true;
+                } else if ((System.currentTimeMillis() - twoFingerDownTime) > 450 && absX < 16 * density && absY < 16 * density) {
+                    // Two-finger long press (stationary for >450ms) -> Speak Date/Time
+                    twoFingerActionFired = true;
+                    Log.i(TAG, "Two-finger long press detected: speaking date/time");
+                    if (commander != null) {
+                        commander.cmd(Commander.SPEAK_DATE_TIME);
+                    }
+                    MotionEvent cancelEvent = MotionEvent.obtain(ev);
+                    cancelEvent.setAction(MotionEvent.ACTION_CANCEL);
+                    super.dispatchTouchEvent(cancelEvent);
+                    cancelEvent.recycle();
+                    return true;
+                }
+            } else if (action == MotionEvent.ACTION_POINTER_UP) {
+                // One finger lifted - check for quick flick or tap
+                float deltaX = twoFingerLastX - twoFingerStartX;
+                float deltaY = twoFingerLastY - twoFingerStartY;
+                float absX = Math.abs(deltaX);
+                float absY = Math.abs(deltaY);
+                float flingThreshold = 16 * density; // ~16dp fling threshold
+
+                if (absX >= flingThreshold || absY >= flingThreshold) {
+                    twoFingerActionFired = true;
+                    Log.i(TAG, "Two-finger flick detected: deltaX=" + deltaX + ", deltaY=" + deltaY);
+                    if (commander != null) {
+                        if (absY > absX) {
+                            if (deltaY < 0) {
+                                commander.cmd(Commander.FAST_SEEK_NEXT_FOLDER);
+                            } else {
+                                commander.cmd(Commander.FAST_SEEK_PREVIOUS_FOLDER);
+                            }
+                        } else {
+                            if (deltaX < 0) {
+                                commander.cmd(Commander.FAST_SEEK_NEXT_FILE);
+                            } else {
+                                commander.cmd(Commander.FAST_SEEK_PREVIOUS_FILE);
+                            }
+                        }
+                    }
+                } else if (twoFingerMaxPointerCount == 2 && (System.currentTimeMillis() - twoFingerDownTime) < 450) {
+                    // Stationary 2-finger tap -> Add Bookmark
+                    twoFingerActionFired = true;
+                    Log.i(TAG, "Two-finger tap detected: adding bookmark");
+                    if (commander != null) {
+                        commander.cmd(Commander.ADD_BOOKMARK);
+                    }
+                }
+
+                if (twoFingerActionFired) {
+                    MotionEvent cancelEvent = MotionEvent.obtain(ev);
+                    cancelEvent.setAction(MotionEvent.ACTION_CANCEL);
+                    super.dispatchTouchEvent(cancelEvent);
+                    cancelEvent.recycle();
+                    return true;
+                }
+            }
+        }
+
+        if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            if (!twoFingerActionFired && isTwoFingerGesture && twoFingerMaxPointerCount == 2) {
+                float deltaX = twoFingerLastX - twoFingerStartX;
+                float deltaY = twoFingerLastY - twoFingerStartY;
+                float absX = Math.abs(deltaX);
+                float absY = Math.abs(deltaY);
+                float flingThreshold = 16 * density;
+
+                if (absX >= flingThreshold || absY >= flingThreshold) {
+                    twoFingerActionFired = true;
+                    if (commander != null) {
+                        if (absY > absX) {
+                            commander.cmd(deltaY < 0 ? Commander.FAST_SEEK_NEXT_FOLDER : Commander.FAST_SEEK_PREVIOUS_FOLDER);
+                        } else {
+                            commander.cmd(deltaX < 0 ? Commander.FAST_SEEK_NEXT_FILE : Commander.FAST_SEEK_PREVIOUS_FILE);
+                        }
+                    }
+                } else if ((System.currentTimeMillis() - twoFingerDownTime) < 450) {
+                    twoFingerActionFired = true;
+                    if (commander != null) {
+                        commander.cmd(Commander.ADD_BOOKMARK);
+                    }
+                }
+            }
+
+            boolean wasFired = twoFingerActionFired;
+            isTwoFingerGesture = false;
+            twoFingerActionFired = false;
+            twoFingerMaxPointerCount = 0;
+            if (wasFired) {
+                return true;
+            }
+        }
+
+        if (twoFingerActionFired) {
+            return true;
+        }
+
+        return super.dispatchTouchEvent(ev);
+    }
+
     public boolean isVerticalEdgeTouch(MotionEvent e) {
         return GestureListener.isVerticalEdgeTouch(this, e);
     }
