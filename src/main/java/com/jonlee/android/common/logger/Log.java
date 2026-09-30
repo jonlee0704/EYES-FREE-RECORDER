@@ -64,6 +64,8 @@ public class Log {
     public static void println(int priority, String tag, String msg, Throwable tr) {
         if (mLogNode != null) {
             mLogNode.println(priority, tag, msg, tr);
+        } else {
+            android.util.Log.println(priority, tag, msg != null ? msg : "");
         }
     }
 

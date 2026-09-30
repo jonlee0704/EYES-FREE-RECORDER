@@ -1,0 +1,16 @@
+*.iml
+.gradle
+/local.properties
+/.idea/
+.vscode/
+.DS_Store
+/build
+/app/build
+captures/
+.externalNativeBuild
+.cxx
+*.apk
+*.aab
+/old
+/release
+manifest-merger-release-report.txt

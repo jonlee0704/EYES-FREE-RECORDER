@@ -1,0 +1,35 @@
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- A 'parent' preference, which enables/disables child preferences (below)
+         when checked/unchecked. -->
+
+    <!-- NOTE: EditTextPreference accepts EditText attributes. -->
+    <!-- NOTE: EditTextPreference's summary should be set to its value by the activity code. -->
+    <SwitchPreference
+        android:defaultValue="false"
+        android:key="isHomeWorkMode"
+        android:summary="@string/pref_description_is_homework_mode"
+        android:title="@string/pref_title_is_homework_mode" />
+    <EditTextPreference
+        android:dependency="isHomeWorkMode"
+        android:capitalize="words"
+        android:defaultValue="@string/pref_default_homework_folders"
+        android:inputType="textCapWords"
+        android:key="homework_folders"
+        android:maxLines="1"
+        android:selectAllOnFocus="true"
+        android:singleLine="true"
+        android:title="@string/pref_title_homework_folders" />
+
+    <EditTextPreference
+        android:dependency="isHomeWorkMode"
+        android:capitalize="words"
+        android:defaultValue="@string/pref_default_homework_file_prefix"
+        android:inputType="textCapWords"
+        android:key="homework_file_prefix"
+        android:maxLines="1"
+        android:selectAllOnFocus="true"
+        android:singleLine="true"
+        android:title="@string/pref_title_homework_file_prefix" />
+
+</PreferenceScreen>

@@ -17,7 +17,7 @@
 package com.jonlee.android.SJplayer;
 
 import android.os.Bundle;
-import android.support.v4.app.Fragment;
+import androidx.fragment.app.Fragment;
 import android.view.GestureDetector;
 import android.view.MenuItem;
 import android.view.MotionEvent;
@@ -39,12 +39,14 @@ public class BasicGestureDetectFragment extends Fragment{
     @Override
     public void onActivityCreated(Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
-        View gestureView = getActivity().findViewById(R.id.sample_output);
+        //View gestureView = getActivity().findViewById(R.id.sample_output);
+        View gestureView = getActivity().findViewById(R.id.main_layout);
+
         gestureView.setClickable(true);
         gestureView.setFocusable(true);
-        View dialView = getActivity().findViewById(R.id.dial_view);
-        dialView.setClickable(true);
-        dialView.setFocusable(true);
+//        View dialView = (View)getActivity().findViewById(R.id.dial_view);
+//        dialView.setClickable(true);
+//        dialView.setFocusable(true);
 //        // a step every 20°
 //        dialView.setStepAngle(10f);
 //        // area from 30% to 100%
@@ -68,7 +70,7 @@ public class BasicGestureDetectFragment extends Fragment{
             @Override
             public boolean onTouch(View view, MotionEvent motionEvent) {
                 gd.onTouchEvent(motionEvent);
-                return false;
+                return true;
             }
         });
         // END_INCLUDE(init_detector)
@@ -86,10 +88,5 @@ public class BasicGestureDetectFragment extends Fragment{
         this.activity = a;
     }
 
-    public void clearLog() {
-//        TextView logFragment =  ((TextView) getActivity().findViewById(R.id.log_fragment));
-//        logFragment.setText("");
-        //logFragment.setText("");
-//        activity.speak("Cleared");
-    }
+
 }

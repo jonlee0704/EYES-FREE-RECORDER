@@ -18,15 +18,7 @@
 
 
 <resources>
-    <string name="app_name">BasicGestureDetect</string>
-    <string name="intro_message">
-        <![CDATA[
-        
-            
-            Welcome to Basic Gesture Detect!
-            In order to try this sample out, try dragging or tapping this text to see what happens!
-            
-        
-        ]]>
-    </string>
+    <string name="app_name">EYES-FREE RECORDER by S&amp;D A11y Studio</string>
+    <string name="app_short_name">EYES-FREE RECORDER</string>
+    <string name="intro_message">Welcome to SJ Sound Recorder and Player!</string>
 </resources>

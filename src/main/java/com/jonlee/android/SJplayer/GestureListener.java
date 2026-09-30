@@ -19,7 +19,7 @@ package com.jonlee.android.SJplayer;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 
-import com.jonlee.android.common.logger.Log;
+import android.util.Log;
 
 public class GestureListener implements GestureDetector.OnGestureListener, GestureDetector.OnDoubleTapListener {
 
@@ -91,11 +91,61 @@ public class GestureListener implements GestureDetector.OnGestureListener, Gestu
     public void onLongPress(MotionEvent e) {
         // Touch has been long enough to indicate a long press.
         // Does not indicate motion is complete yet (no up event necessarily)
-        // activity.cmd(Command.SPEAK_FILE_INFO);
+        // activity.cmd(Commander.SPEAK_FILE_INFO);
     }
 
     @Override
     public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
+        if (isFired) return true;
+        if (e1 == null || e2 == null) return false;
+
+        if (isHorizontalEdgeTouch(e1) || isVerticalEdgeTouch(e1)) {
+            Log.i(TAG, "Ignoring fling originating from edge zone: rawX=" + e1.getRawX() + ", rawY=" + e1.getRawY());
+            return false;
+        }
+
+        float totalDeltaX = e2.getX() - e1.getX();
+        float totalDeltaY = e2.getY() - e1.getY();
+        float absDeltaX = Math.abs(totalDeltaX);
+        float absDeltaY = Math.abs(totalDeltaY);
+        float absVelocityX = Math.abs(velocityX);
+        float absVelocityY = Math.abs(velocityY);
+
+        float density = (activity != null) ? activity.getResources().getDisplayMetrics().density : 1.0f;
+        float minFlingDistance = 35 * density;
+        float minFlingVelocity = 120 * density;
+
+        if ((absDeltaX > minFlingDistance && absVelocityX > minFlingVelocity) ||
+            (absDeltaY > minFlingDistance && absVelocityY > minFlingVelocity)) {
+
+            float d = getDegreeFromCartesian(e1.getX(), e1.getY(), e2.getX(), e2.getY());
+            int dir = getDirection(d);
+            int count = Math.max(e1.getPointerCount(), e2.getPointerCount());
+
+            switch (dir) {
+                case BOTTOM_TOP:
+                    cmd(Commander.NEXT_FOLDER);
+                    return true;
+                case LEFT_RIGHT:
+                    if (count >= 2)
+                        cmd(Commander.FAST_BACKWARD_2X);
+                    else
+                        cmd(Commander.PREVIOUS_SONG);
+                    return true;
+                case TOP_BOTTOM:
+                    if (count >= 2)
+                        cmd(Commander.STOP_RECORD);
+                    else
+                        cmd(Commander.PREVIOUS_FOLDER);
+                    return true;
+                case RIGHT_LEFT:
+                    if (count >= 2)
+                        cmd(Commander.FAST_FORWARD_2X);
+                    else
+                        cmd(Commander.NEXT_SONG);
+                    return true;
+            }
+        }
         return false;
     }
 
@@ -161,58 +211,83 @@ public class GestureListener implements GestureDetector.OnGestureListener, Gestu
     @Override
     public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
 
-        if(isFired)
+
+        if (isFired)
             return true;
 
-        this.touchCnt = e2.getPointerCount();
-        float d = this.getDegreeFromCartesian(e1.getX(),e1.getY(),e2.getX(),e2.getY());
-        //float ta = touchAngle(e1.getX(),e1.getY(),e2.getX(),e2.getY());
-        int dir = getDirection(d);
-//        Log.i(TAG, "LOG:"+touchCnt+": degree:" + dir);
+        if (e1 == null || e2 == null)
+            return false;
 
+        this.touchCnt = e2.getPointerCount();
         if (touchCnt > 2){
-            cmd(Command.START_RECORD);
+            cmd(Commander.START_RECORD);
             return true;
         }
 
+        float totalDeltaX = e2.getX() - e1.getX();
+        float totalDeltaY = e2.getY() - e1.getY();
+        float absDeltaX = Math.abs(totalDeltaX);
+        float absDeltaY = Math.abs(totalDeltaY);
+
+        float d = this.getDegreeFromCartesian(e1.getX(), e1.getY(), e2.getX(), e2.getY());
+        int dir = getDirection(d);
+
+        float density = (activity != null) ? activity.getResources().getDisplayMetrics().density : 1.0f;
+        float swipeThreshold = Math.max(SWIPE_MIN_DISTANCE, 60 * density);
+
         /**
-         * Fling cases
+         * Fling / Swipe cases:
+         * Verify distance and ensure swipes do NOT originate from system gesture edge zones.
          */
-        if (Math.abs(distanceX) > SWIPE_MIN_DISTANCE || Math.abs(distanceY) > SWIPE_MIN_DISTANCE) {
-            switch (getDirection(d)) {
+        if (absDeltaX > swipeThreshold || absDeltaY > swipeThreshold
+                || Math.abs(distanceX) > SWIPE_MIN_DISTANCE || Math.abs(distanceY) > SWIPE_MIN_DISTANCE) {
+
+            // Exclude horizontal swipes originating in the left or right edge zones (reserved for system Back)
+            if ((dir == LEFT_RIGHT || dir == RIGHT_LEFT) && isHorizontalEdgeTouch(e1)) {
+                Log.i(TAG, "Ignoring horizontal swipe originating from screen edge: rawX=" + e1.getRawX());
+                return false;
+            }
+
+            // Exclude vertical swipes originating in the top or bottom edge zones (reserved for system bars)
+            if ((dir == TOP_BOTTOM || dir == BOTTOM_TOP) && isVerticalEdgeTouch(e1)) {
+                Log.i(TAG, "Ignoring vertical swipe originating from top/bottom edge: rawY=" + e1.getRawY());
+                return false;
+            }
+
+            switch (dir) {
                 case BOTTOM_TOP:
-                    cmd(Command.PREVIOUS_FOLDER);
+                    cmd(Commander.NEXT_FOLDER);
                     break;
                 case UP_RIGHT:
-                    cmd(Command.NOTHING);
+                    cmd(Commander.NOTHING);
                     break;
                 case LEFT_RIGHT:
                     if (touchCnt == 2)
-                        cmd(Command.FAST_FORWARD_2X);
+                        cmd(Commander.FAST_BACKWARD_2X);
                     else if (touchCnt == 1)
-                        cmd(Command.NEXT_SONG);
+                        cmd(Commander.PREVIOUS_SONG);
                     break;
                 case BOTTOM_RIGHT:
-                    cmd(Command.NOTHING);
+                    cmd(Commander.NOTHING);
                     break;
                 case TOP_BOTTOM:
                     //From Top to Bottom
                     if (touchCnt == 2)
-                        cmd(Command.STOP_RECORD);
+                        cmd(Commander.STOP_RECORD);
                     else if ((touchCnt == 1))
-                        cmd(Command.NEXT_FOLDER);
+                        cmd(Commander.PREVIOUS_FOLDER);
                     break;
                 case BOTTOM_LEFT:
-                    cmd(Command.NOTHING);
+                    cmd(Commander.NOTHING);
                     break;
                 case RIGHT_LEFT:
                     if (touchCnt == 2)
-                        cmd(Command.FAST_BACKWARD_2X);
+                        cmd(Commander.FAST_FORWARD_2X);
                     else if (touchCnt == 1)
-                        cmd(Command.PREVIOUS_SONG);
+                        cmd(Commander.NEXT_SONG);
                     break;
                 case UP_LEFT:
-                    cmd(Command.NOTHING);
+                    cmd(Commander.NOTHING);
                     break;
 
             }
@@ -279,12 +354,21 @@ public class GestureListener implements GestureDetector.OnGestureListener, Gestu
 
     private void cmd(int c){
         this.isFired = true;
-        activity.cmd(c);
+        if (activity != null && activity.getCommander() != null) {
+            activity.getCommander().cmd(c);
+        } else {
+            Log.e(TAG, "Activity or Commander is null, cannot execute command");
+        }
     }
 
     private void cmd(int c, boolean isFired){
-        if (!isFired)
-            activity.cmd(c);
+        if (!isFired) {
+            if (activity != null && activity.getCommander() != null) {
+                activity.getCommander().cmd(c);
+            } else {
+                Log.e(TAG, "Activity or Commander is null, cannot execute command");
+            }
+        }
     }
 
     /**
@@ -369,7 +453,7 @@ public class GestureListener implements GestureDetector.OnGestureListener, Gestu
         // User performed a down event, and hasn't moved yet.
         // Set the threshold not to get gesture event.
         this.SWIPE_MIN_DISTANCE = 1000;
-        activity.cmd(Command.NOTHING);
+        activity.getCommander().cmd(Commander.NOTHING);
     }
 
     @Override
@@ -387,7 +471,7 @@ public class GestureListener implements GestureDetector.OnGestureListener, Gestu
     public boolean onDoubleTap(MotionEvent e) {
         // User tapped the screen twice.
         //Log.i(TAG, "Double tap: " + e.getPointerCount());
-        activity.cmd(Command.SPEAK_FILE_INFO);
+        activity.getCommander().cmd(Commander.SPEAK_FILE_INFO);
         return false;
     }
 
@@ -406,7 +490,7 @@ public class GestureListener implements GestureDetector.OnGestureListener, Gestu
         // A confirmed single-tap event has occurred.  Only called when the detector has
         // determined that the first tap stands alone, and is not part of a double tap.
         //Log.i(TAG, "onSingleTapConfirmed");
-        activity.cmd(Command.ONETOUCH);
+        activity.getCommander().cmd(Commander.ONETOUCH);
         return true;
     }
 
@@ -440,5 +524,73 @@ public class GestureListener implements GestureDetector.OnGestureListener, Gestu
         return (float) (270 - Math.toDegrees(Math.atan2(dY, dX))) % 360 - 180;
     }
 
+    /**
+     * Minimum distance from screen edges where app-specific horizontal swipes are valid.
+     * Touches starting within this margin are treated as system navigation gestures (e.g. Back).
+     */
+    public boolean isHorizontalEdgeTouch(MotionEvent e) {
+        return isHorizontalEdgeTouch(activity, e);
+    }
+
+    public static boolean isHorizontalEdgeTouch(android.content.Context context, MotionEvent e) {
+        if (e == null || context == null) return false;
+        android.util.DisplayMetrics dm = context.getResources().getDisplayMetrics();
+        float density = dm.density;
+        int screenWidth = dm.widthPixels;
+
+        // System gesture back-zone: at least 50dp or ~13% of screen width (whichever is larger)
+        float baseMargin = Math.max(50 * density, screenWidth * 0.13f);
+        float leftMargin = baseMargin;
+        float rightMargin = baseMargin;
+
+        if (context instanceof android.app.Activity) {
+            try {
+                android.view.View decorView = ((android.app.Activity) context).getWindow().getDecorView();
+                androidx.core.view.WindowInsetsCompat insets = androidx.core.view.ViewCompat.getRootWindowInsets(decorView);
+                if (insets != null) {
+                    androidx.core.graphics.Insets gestureInsets = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemGestures());
+                    if (gestureInsets.left > leftMargin) leftMargin = gestureInsets.left;
+                    if (gestureInsets.right > rightMargin) rightMargin = gestureInsets.right;
+                }
+            } catch (Exception ignored) {}
+        }
+
+        float rawX = e.getRawX();
+        return (rawX < leftMargin || rawX > (screenWidth - rightMargin));
+    }
+
+    /**
+     * Minimum distance from top and bottom edges where vertical swipes are valid.
+     * Touches starting in these zones are reserved for system bar interactions (status bar pull-down, home swipe).
+     */
+    public boolean isVerticalEdgeTouch(MotionEvent e) {
+        return isVerticalEdgeTouch(activity, e);
+    }
+
+    public static boolean isVerticalEdgeTouch(android.content.Context context, MotionEvent e) {
+        if (e == null || context == null) return false;
+        android.util.DisplayMetrics dm = context.getResources().getDisplayMetrics();
+        float density = dm.density;
+        int screenHeight = dm.heightPixels;
+
+        float baseMargin = 45 * density;
+        float topMargin = baseMargin;
+        float bottomMargin = baseMargin;
+
+        if (context instanceof android.app.Activity) {
+            try {
+                android.view.View decorView = ((android.app.Activity) context).getWindow().getDecorView();
+                androidx.core.view.WindowInsetsCompat insets = androidx.core.view.ViewCompat.getRootWindowInsets(decorView);
+                if (insets != null) {
+                    androidx.core.graphics.Insets gestureInsets = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemGestures());
+                    if (gestureInsets.top > topMargin) topMargin = gestureInsets.top;
+                    if (gestureInsets.bottom > bottomMargin) bottomMargin = gestureInsets.bottom;
+                }
+            } catch (Exception ignored) {}
+        }
+
+        float rawY = e.getRawY();
+        return (rawY < topMargin || rawY > (screenHeight - bottomMargin));
+    }
 
 }

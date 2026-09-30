@@ -18,9 +18,13 @@
 
     <!-- Activity themes -->
 
-    <style name="Theme.Base" parent="android:Theme.Holo.Light" />
+    <style name="Theme.Base" parent="Theme.AppCompat.NoActionBar" />
 
-    <style name="AppTheme" parent="Theme.Base" />
+    <style name="AppTheme" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowNoTitle">true</item>
+        <item name="windowActionBar">false</item>
+        <item name="android:windowBackground">#000000</item>
+    </style>
     <!-- Widget styling -->
 
     <style name="Widget" />

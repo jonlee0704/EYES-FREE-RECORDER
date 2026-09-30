@@ -46,6 +46,7 @@ public class MusicRetriever {
 
     // the items (songs) we have queried
     List<Item> mItems = new ArrayList<Item>();
+    List<String> mFolderList = new ArrayList<String>();
 
     //TODO After getting into Artist navigation mode(UP_RIGHT/BOTTOM_LEFT),
     // some quick Alphabetical navigation/search feature required.
@@ -99,18 +100,18 @@ public class MusicRetriever {
      */
     public void prepare() {
         Uri uri = android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI;
-        Log.i(TAG, "Querying media...");
-        Log.i(TAG, "URI: " + uri.toString());
+//        Log.i(TAG, "Querying media...");
+//        Log.i(TAG, "URI: " + uri.toString());
 
         // Perform a query on the content resolver. The URI we're passing specifies that we
         // want to query for all audio media on external storage (e.g. SD card)
         cur = mContentResolver.query(uri, null,
                 MediaStore.Audio.Media.IS_MUSIC + " = 1", null, null);
-        Log.i(TAG, "Query finished. " + (cur == null ? "Returned NULL." : "Returned a cursor."));
+        //Log.i(TAG, "Query finished. " + (cur == null ? "Returned NULL." : "Returned a cursor."));
 
         if (cur == null) {
             // Query failed...
-            Log.e(TAG, "Failed to retrieve music: cursor is null :-(");
+            //Log.e(TAG, "Failed to retrieve music: cursor is null :-(");
             return;
         }
         if (!cur.moveToFirst()) {
@@ -118,8 +119,6 @@ public class MusicRetriever {
             Log.e(TAG, "Failed to move cursor to first row (no query results).");
             return;
         }
-
-        Log.i(TAG, "Listing...");
 
         // retrieve the indices of the columns where the ID, title, etc. of the song are
         int artistColumn = cur.getColumnIndex(MediaStore.Audio.Media.ARTIST);
@@ -143,22 +142,22 @@ public class MusicRetriever {
                     cur.getString(trackNumber),
                     cur.getLong(durationColumn)));
             //Artist navigation
-            this.mArtistTable.put(cur.getString(artistColumn), cur.getPosition());
+            //this.mArtistTable.put(cur.getString(artistColumn), cur.getPosition());
+            //Log.i(TAG, "MediaStore.Uri: " + getCurrentUri());
+
         } while (cur.moveToNext());
 
         //After adding all musics, then move to the first again.
         cur.moveToFirst();
-
-        Log.i(TAG, "Done querying media. MusicRetriever is ready.");
     }
 
     public Uri getCurrentUri(){
-        Log.i(TAG,"currentUri:" + mItems.get(0).getURI()+" getColumnCount:"+cur.getColumnCount() + ":" + this.getSongTitle());
+        //Log.i(TAG,"currentUri:" + mItems.get(cur.getPosition()).getURI()+" getColumnCount:"+cur.getColumnCount() + ":" + this.getSongTitle());
         return mItems.get(cur.getPosition()).getURI();
     }
 
     public Item getCurrentItem(){
-        Log.i(TAG, "musicRetriever.getSongCount():" + getSongCount());
+        //Log.i(TAG, "musicRetriever.getSongCount():" + getSongCount());
         return mItems.get(cur.getPosition());
     }
 
@@ -187,6 +186,16 @@ public class MusicRetriever {
         cursor.close();
         return filePath;
     }
+
+    public String getFolderPathFromContentUri() {
+        String filePath[] = getFilePathFromContentUri().split("/");
+        String str = "";
+        for( int i = 0; filePath.length > i+1 ; i++){
+                str = str+filePath[i]+"/";
+        }
+        return str;
+    }
+
 
     public static class Item {
         long id;

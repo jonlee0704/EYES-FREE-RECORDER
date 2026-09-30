@@ -1,37 +1,199 @@
-<!--
-  Copyright 2013 The Android Open Source Project
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000"
+    android:fitsSystemWindows="false">
 
-  Licensed under the Apache License, Version 2.0 (the "License");
-  you may not use this file except in compliance with the License.
-  You may obtain a copy of the License at
-
-      http://www.apache.org/licenses/LICENSE-2.0
-
-  Unless required by applicable law or agreed to in writing, software
-  distributed under the License is distributed on an "AS IS" BASIS,
-  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-  See the License for the specific language governing permissions and
-  limitations under the License.
-  -->
-<LinearLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    android:orientation="vertical"
-    android:layout_width="fill_parent"
-    android:layout_height="fill_parent"
-    android:id="@+id/sample_main_layout" >
-
-    <TextView android:id="@+id/sample_output"
-        style="@style/Widget.SampleMessage"
-        android:background="@android:color/white"
+    <!-- Top McIntosh Glass Header Bar -->
+    <LinearLayout
+        android:id="@+id/header_bar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/intro_message"
-        android:padding="16dp"
-        android:layout_margin="16dp"/>
-    <fragment
-        android:name="com.example.android.common.logger.LogFragment"
-        android:id="@+id/log_fragment"
+        android:layout_alignParentTop="true"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="24dp"
+        android:paddingTop="14dp"
+        android:paddingEnd="24dp"
+        android:paddingBottom="12dp">
+
+        <!-- Mode / Playback Icon Button (Hidden: gestures on dial control Play/Stop) -->
+        <ImageView
+            android:id="@+id/imageView"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
+
+        <!-- Illuminated McIntosh Brand Title -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center_vertical|start"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/brand_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.08"
+                android:shadowColor="#8000E676"
+                android:shadowRadius="8"
+                android:text="EYES-FREE RECORDER"
+                android:textColor="#00E676"
+                android:textSize="18sp" />
+
+            <TextView
+                android:id="@+id/sub_brand_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:letterSpacing="0.06"
+                android:text="BY S&amp;D A11Y STUDIO"
+                android:textColor="#3D6855"
+                android:textSize="10sp" />
+        </LinearLayout>
+
+
+        <!-- Settings Button -->
+        <ImageButton
+            android:id="@+id/btn_settings"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_marginEnd="10dp"
+            android:background="@drawable/bg_mcintosh_circle_btn"
+            android:contentDescription="Open Settings"
+            android:padding="10dp"
+            android:src="@drawable/ic_settings_cyan_24dp" />
+
+        <!-- TTS Status Pill -->
+        <TextView
+            android:id="@+id/progress_TextView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_mcintosh_pill"
+            android:clickable="true"
+            android:focusable="true"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="0.08"
+            android:paddingStart="14dp"
+            android:paddingTop="6dp"
+            android:paddingEnd="14dp"
+            android:paddingBottom="6dp"
+            android:text="TTS ON"
+            android:textColor="#00E5FF"
+            android:textSize="13sp" />
+    </LinearLayout>
+
+    <!-- Center Audiophile Display (Modern Sleek Typography) -->
+    <TextView
+        android:id="@+id/main_TextView"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_margin="16dp" />
-</LinearLayout>
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        android:layout_marginStart="44dp"
+        android:layout_marginEnd="44dp"
+        android:clickable="false"
+        android:enabled="false"
+        android:fontFamily="sans-serif-light"
+        android:gravity="center"
+        android:letterSpacing="0.02"
+        android:linksClickable="false"
+        android:longClickable="false"
+        android:shadowColor="#B3000000"
+        android:shadowDx="0"
+        android:shadowDy="1"
+        android:shadowRadius="2"
+        android:text="EYES-FREE RECORDER\nSTANDBY"
+        android:textColor="@color/mcintosh_text_glass_cyan"
+        android:textSize="22sp" />
+
+    <!-- Minimalist Gesture Hint Bar with Integrated Help '?' Button -->
+    <LinearLayout
+        android:id="@+id/gesture_hint_bar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_above="@+id/trackPos_TextView"
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="10dp"
+        android:background="@drawable/bg_mcintosh_gesture_bar"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="18dp"
+        android:paddingTop="7dp"
+        android:paddingEnd="10dp"
+        android:paddingBottom="7dp">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_horizontal"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/gesture_hint_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.05"
+                android:text="▶ 1x: PLAY/STOP   •   ● 2x: REC   •   ★ 3x: BOOKMARK"
+                android:textColor="#60849B"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/gesture_hint_swipe_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3.5dp"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.05"
+                android:text="◀▶ SWIPE: FILE   •   ▲▼ SWIPE: FOLDER   •   HOLD: SEEK"
+                android:textColor="#50738A"
+                android:textSize="11.5sp" />
+        </LinearLayout>
+
+        <!-- Subtle vertical separator -->
+        <View
+            android:layout_width="1dp"
+            android:layout_height="26dp"
+            android:layout_marginStart="10dp"
+            android:layout_marginEnd="8dp"
+            android:background="#2000E5FF" />
+
+        <!-- Help '?' Button -->
+        <ImageButton
+            android:id="@+id/btn_help"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_gravity="center_vertical"
+            android:background="@drawable/bg_mcintosh_circle_btn"
+            android:contentDescription="Gesture Instructions Help"
+            android:padding="4dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_help_cyan_24dp" />
+
+    </LinearLayout>
+
+    <!-- Bottom Readout (Track Position / Folder Counter) -->
+    <TextView
+        android:id="@+id/trackPos_TextView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_marginStart="32dp"
+        android:layout_marginEnd="32dp"
+        android:layout_marginBottom="16dp"
+        android:fontFamily="sans-serif-medium"
+        android:gravity="center"
+        android:letterSpacing="0.08"
+        android:text="STANDBY"
+        android:textColor="#00E676"
+        android:textSize="14sp" />
+
+</RelativeLayout>

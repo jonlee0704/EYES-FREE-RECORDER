@@ -129,7 +129,7 @@ public abstract class DialOnTouchListener implements
         // occurring.  This occurs for down, up, and move.
         //Log.i(TAG, "Event within double tap");
 //        cmd(T"Event within double tap");
-        activity.speak("Double Tab event");
+        ((MainActivity)activity).speak("Double Tab event");
 
         return false;
     }
@@ -139,7 +139,7 @@ public abstract class DialOnTouchListener implements
         // A confirmed single-tap event has occurred.  Only called when the detector has
         // determined that the first tap stands alone, and is not part of a double tap.
         //Log.i(TAG, "onSingleTapConfirmed");
-        activity.speak("Single Tab");
+        ((MainActivity)activity).speak("Single Tab");
 
         return true;
     }

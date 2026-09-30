@@ -1,0 +1,208 @@
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Group 1: Voice & Audio Recording -->
+    <PreferenceCategory android:title="@string/pref_header_voice_recording">
+        <SwitchPreference
+            android:defaultValue="true"
+            android:key="isTTSEnabled"
+            android:summary="@string/pref_description_is_TTS_ON"
+            android:title="@string/pref_title_is_TTS_ON" />
+
+        <Preference
+            android:key="pref_download_welcome"
+            android:summary="@string/pref_summary_download_welcome"
+            android:title="@string/pref_title_download_welcome" />
+
+        <ListPreference
+            android:defaultValue="high"
+            android:entries="@array/pref_audio_quality_entries"
+            android:entryValues="@array/pref_audio_quality_values"
+            android:key="pref_audio_quality"
+            android:negativeButtonText="@null"
+            android:positiveButtonText="@null"
+            android:title="@string/pref_title_audio_quality" />
+
+        <SwitchPreference
+            android:defaultValue="true"
+            android:key="pref_stereo_recording"
+            android:summary="@string/pref_summary_stereo_recording"
+            android:title="@string/pref_title_stereo_recording" />
+
+        <SwitchPreference
+            android:defaultValue="true"
+            android:key="pref_noise_suppression"
+            android:summary="@string/pref_summary_noise_suppression"
+            android:title="@string/pref_title_noise_suppression" />
+
+        <SwitchPreference
+            android:defaultValue="true"
+            android:key="pref_save_location"
+            android:summary="@string/pref_summary_save_location"
+            android:title="@string/pref_title_save_location" />
+    </PreferenceCategory>
+
+    <!-- Group 2: Playback & Safety -->
+    <PreferenceCategory android:title="@string/pref_header_playback_safety">
+        <ListPreference
+            android:defaultValue="90"
+            android:entries="@array/pref_max_volume_titles"
+            android:entryValues="@array/pref_max_volume_values"
+            android:key="max_volume"
+            android:negativeButtonText="@null"
+            android:positiveButtonText="@null"
+            android:title="@string/pref_title_max_volume" />
+
+        <SwitchPreference
+            android:defaultValue="false"
+            android:key="isNavModeEnabled"
+            android:summary="@string/pref_description_isNavModeEnabled"
+            android:title="@string/pref_title_isNavModeEnabled" />
+
+        <ListPreference
+            android:defaultValue="0"
+            android:entries="@array/pref_poking_eye_warning_titles"
+            android:entryValues="@array/pref_poking_eye_warning_values"
+            android:key="poking_eye_warning"
+            android:negativeButtonText="@null"
+            android:positiveButtonText="@null"
+            android:title="@string/pref_title_poking_eye_warning" />
+    </PreferenceCategory>
+
+    <!-- Group 3: Display & Animation -->
+    <PreferenceCategory android:title="@string/pref_header_visualization">
+        <ListPreference
+            android:defaultValue="0"
+            android:entries="@array/pref_visualizer_mode_entries"
+            android:entryValues="@array/pref_visualizer_mode_values"
+            android:key="pref_visualizer_mode_str"
+            android:negativeButtonText="@null"
+            android:positiveButtonText="@null"
+            android:title="@string/pref_title_visualizer_mode" />
+
+        <SwitchPreference
+            android:defaultValue="true"
+            android:key="pref_haptic_audio_pulse"
+            android:summary="@string/pref_summary_haptic_audio_pulse"
+            android:title="@string/pref_title_haptic_audio_pulse" />
+
+        <SwitchPreference
+            android:defaultValue="true"
+            android:key="pref_fullscreen_mode"
+            android:summary="@string/pref_summary_fullscreen_mode"
+            android:title="@string/pref_title_fullscreen_mode" />
+    </PreferenceCategory>
+
+    <!-- Group 4: Storage & Cloud Backup -->
+    <PreferenceCategory android:title="@string/pref_header_storage_backup">
+        <SwitchPreference
+            android:defaultValue="false"
+            android:key="isAutoSyncEnabled"
+            android:summary="@string/pref_description_is_autosync_enabled"
+            android:title="@string/pref_title_is_autosync_enabled" />
+
+        <ListPreference
+            android:dependency="isAutoSyncEnabled"
+            android:defaultValue="180"
+            android:entries="@array/pref_sync_frequency_titles"
+            android:entryValues="@array/pref_sync_frequency_values"
+            android:key="sync_frequency"
+            android:negativeButtonText="@null"
+            android:positiveButtonText="@null"
+            android:title="@string/pref_title_sync_frequency" />
+
+        <Preference
+            android:key="manual_backup_action"
+            android:summary="@string/pref_summary_manual_backup"
+            android:title="@string/pref_title_manual_backup" />
+
+        <Preference
+            android:key="target_folders"
+            android:summary="@string/pref_default_target_folders"
+            android:title="@string/pref_title_target_folers" />
+
+        <Preference
+            android:key="import_folder"
+            android:summary="@string/pref_summary_import_folder"
+            android:title="@string/pref_title_import_folder" />
+    </PreferenceCategory>
+
+    <!-- Group 5: Learning & Math Quiz -->
+    <PreferenceCategory android:title="@string/pref_header_math_quiz">
+        <SwitchPreference
+            android:defaultValue="false"
+            android:key="isMATHTESTEnabled"
+            android:summary="@string/pref_description_is_MATHTEST_ON"
+            android:title="@string/pref_title_is_MATHTEST_ON" />
+
+        <ListPreference
+            android:dependency="isMATHTESTEnabled"
+            android:defaultValue="0"
+            android:entries="@array/pref_title_mathtest_mode"
+            android:entryValues="@array/pref_title_mathtest_mode_values"
+            android:key="mathtest_mode"
+            android:negativeButtonText="@null"
+            android:positiveButtonText="@null"
+            android:title="@string/pref_title_mathtest_mode" />
+
+        <ListPreference
+            android:dependency="isMATHTESTEnabled"
+            android:defaultValue="7"
+            android:entries="@array/pref_mathtest_frequency_titles"
+            android:entryValues="@array/pref_mathtest_frequency_values"
+            android:key="mathtest_frequency"
+            android:negativeButtonText="@null"
+            android:positiveButtonText="@null"
+            android:title="@string/pref_title_mathtest_frequency" />
+
+        <EditTextPreference
+            android:dependency="isMATHTESTEnabled"
+            android:defaultValue="1"
+            android:inputType="number"
+            android:key="mathtest_starting_number"
+            android:maxLines="1"
+            android:selectAllOnFocus="true"
+            android:singleLine="true"
+            android:title="@string/pref_title_mathtest_starting_number" />
+
+        <EditTextPreference
+            android:dependency="isMATHTESTEnabled"
+            android:defaultValue="10"
+            android:inputType="number"
+            android:key="mathtest_ending_number"
+            android:maxLines="1"
+            android:selectAllOnFocus="true"
+            android:singleLine="true"
+            android:title="@string/pref_title_mathtest_ending_number" />
+
+        <EditTextPreference
+            android:dependency="isMATHTESTEnabled"
+            android:defaultValue="9"
+            android:inputType="number"
+            android:key="mathtest_multiplytest_scope"
+            android:maxLines="1"
+            android:selectAllOnFocus="true"
+            android:singleLine="true"
+            android:title="@string/pref_title_mathtest_multiplytest_scope" />
+
+        <ListPreference
+            android:dependency="isMATHTESTEnabled"
+            android:defaultValue="18"
+            android:entries="@array/pref_mathtest_count_on_start_titles"
+            android:entryValues="@array/pref_mathtest_count_on_start_values"
+            android:key="mathtest_count_on_start"
+            android:negativeButtonText="@null"
+            android:positiveButtonText="@null"
+            android:title="@string/pref_title_mathtest_count_on_start" />
+
+        <ListPreference
+            android:dependency="isMATHTESTEnabled"
+            android:defaultValue="2"
+            android:entries="@array/pref_mathtest_count_after_start_titles"
+            android:entryValues="@array/pref_mathtest_count_after_start_values"
+            android:key="mathtest_count_after_start"
+            android:negativeButtonText="@null"
+            android:positiveButtonText="@null"
+            android:title="@string/pref_title_mathtest_count_after_start" />
+    </PreferenceCategory>
+
+</PreferenceScreen>

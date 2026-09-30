@@ -1,5 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!--
+<?xml version="1.0" encoding="UTF-8"?><!--
  Copyright 2013 The Android Open Source Project
 
  Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,44 +13,315 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 
-    public final static int START_RECORD = 1;
-    public final static int STOP_RECORD = 2;
-    public final static int START_PLAYBACK = 3;
-    public final static int STOP_PLAYBACK = 4;
-    public final static int FAST_FORWARD_2X = 5;
-    public final static int FAST_BACKWARD_2X = 6;
-    public final static int JOG_CLOCK_WISE = 7;
-    public final static int JOG_ANTI_CLOCK_WISE = 8;
-    public final static int NEXT_SONG = 9;
-    public final static int PREVIOUS_SONG = 10;
-    public final static int NEXT_FOLDER = 11;
-    public final static int PREVIOUS_FOLDER = 12;
-    public final static int SPEAK_FILE_INFO = 13;
-    public final static int STOP = 14;
-    public final static int FAST_FORWARD_3X = 15;
-    public final static int FAST_BACKWARD_3X = 16;
 -->
 
 <resources>
-    <string name="sample_action">Clear Text</string>
-    <string name="START_RECORD">"RECORDING..."</string>
-    <string name="STOP_RECORD">RECORD STOPPED</string>
-    <string name="START_PLAYBACK">PLAYING</string>
-    <string name="STOP_PLAYBACK">STOPPED</string>
+    <string name="START_RECORD">Recording . . .</string>
+    <string name="STOP_RECORD">Recording stopped.</string>
+    <string name="START_PLAYBACK">Playing . . .</string>
+    <string name="STOP_PLAYBACK">Playing stopped.</string>
     <string name="FAST_FORWARD_2X">Fast forward 2x</string>
     <string name="FAST_BACKWARD_2X">Rewind 2x</string>
     <string name="JOG_CLOCK_WISE">Jog dial clock wise</string>
     <string name="JOG_ANTI_CLOCK_WISE">Jog dial anti clock wise</string>
-    <string name="NEXT_SONG">MOVED NEXT</string>
-    <string name="PREVIOUS_SONG">MOVED PREVIOUS</string>
+    <string name="NEXT_SONG">Next song</string>
+    <string name="PREVIOUS_SONG">Previous Song</string>
     <string name="NEXT_FOLDER">Next folder</string>
     <string name="PREVIOUS_FOLDER">Previous folder</string>
-    <string name="SPEAK_FILE_INFO">Details of audio file</string>
-    <string name="STOP">Stop</string>
+    <string name="SPEAK_FILE_INFO">Detail information</string>
+    <string name="STOP">Stopped</string>
     <string name="FAST_FORWARD_3X">Fast forward 3x</string>
     <string name="FAST_BACKWARD_3X">Rewind 3x</string>
-    <string name="ALREADY_RECORD">ON AIR</string>
-    <string name="PAUSE">PAUSED</string>
-    <string name="RESUME">RESUMING</string>
+    <string name="ON_AIR">Still recording . . .</string>
+    <string name="PAUSE">Paused</string>
+    <string name="RESUME">Resuming</string>
+    <string name="LONG_PRESS">Dial mode</string>
+    <string name="FAIL_TO_PLAY">Invalid</string>
+    <string name="backup_app_name">SJ\'s Backup agent</string>
+
+
+    <string name="HELP_INSTRUCTION">Long touch for instruction.</string>
+    <string name="WELCOME">1 Tap: Play / Stop\n2 Taps: Record / Stop\n3 Taps: Add Bookmark (or 2-finger tap)\n\nSwipe Left/Right: File navigation\nSwipe Up/Down: Folder navigation\nHold and swipe left: Rewind\nHold and swipe right: FastForward\nHold and swipe up/down: \n - Fast Folder navigation\n\n1 long press: File, folder info\n2 long press: Date, battery info\n3 finger down: Backup\n3 finger up: Settings\n</string>
+
+    <string name="MANUAL">This is manual file of SJ Player.</string>
+    <string name="NO_AUDIBLE_FILE_EXIST">No audio file exists in this folder.</string>
+    <string name="STILL_THERE">Are you still there?</string>
+    <string name="INVALID_FILE_FORMAT">Can\'t read this file, please ask daddy to fix it.</string>
+    <string name="LOW_STORAGE">Storage is running very low, please backup and delete some files</string>
+    <string name="LOW_BATTERY">Battery level is very low, connect to power charger</string>
+    <string name="TOO_MANY_FILES">You have MANY files! SJ recorder is still loading files in your device. Please try again in a few seconds</string>
+    <string name="GIVE_ME_A_MIN">Please give me a moment to finish up reading files which recorded.</string>
+    <string name="NOT_YET_READY">Not quite ready yet, getting ready to operate. Please try again in a few seconds</string>
+    <string name="LOVE_YOU_SANGJOON">SangJoon, I love you so much, from your daddy</string>
+    <string name="START_BACKUP">Start backup files</string>
+    <string name="STOP_BACKUP">Stop backup files</string>
+    <string name="HOMEWORK_MODE_ENABLED">Recording is not enabled in the player mode</string>
+
+    <string name="pref_title_import_folder">Folder to Import</string>
+    <string name="pref_summary_import_folder">Define a folder to copy its contents to /IMPORT folder under recording folder</string>
+    <string name="pref_import_success">Import completed successfully</string>
+    <string name="pref_import_fail">Import failed</string>
+
+    <string name="title_activity_settings">Settings</string>
+    <string name="channel_name">SJ music player</string>
+    <string name="channel_id">SJ music player status</string>
+    <string name="channel_description">Notification channel for SJplayer\'s status</string>
+    <!-- Strings related to Settings -->
+    <string name="pref_header_display">Display &amp; Screen</string>
+    <string name="pref_title_fullscreen_mode">Full Screen Mode</string>
+    <string name="pref_summary_fullscreen_mode">Extend app edge-to-edge across camera cutout and hide system bars</string>
+
+    <!-- Example General settings -->
+    <string name="pref_header_general">General</string>
+    <string name="pref_default_target_folders">/ROOT/target_folders</string>
+    <string name="pref_title_target_folers">Folders to read(e.g, folder1,folder2)</string>
+    <string name="pref_description_isNavModeEnabled">Left/Right/Up/Down swipe does not play back songs and read folder names</string>
+    <string name="pref_title_isNavModeEnabled">Music Navigation Mode</string>
+
+
+    <string name="pref_title_is_homework_mode">Enable Homework mode</string>
+    <string name="pref_description_is_homework_mode">No recording, Only playback files in $homework folders. </string>
+
+    <string name="pref_title_homework_folders">Homework folders(e.g, folder1,folder2. Working only when Homework mode is ON.)</string>
+    <string name="pref_default_homework_folders">/homework_folder/</string>
+
+    <string name="pref_title_is_TTS_ON">TTS</string>
+    <string name="pref_description_is_TTS_ON">Read screen</string>
+
+    <string name="pref_title_is_MATHTEST_ON">Math Test</string>
+    <string name="pref_description_is_MATHTEST_ON">Math test will be spoken during use of application.</string>
+    <string name="pref_title_max_volume">Max volume</string>
+    <string name="pref_title_poking_eye_warning">Poking eyes warning</string>
+    <string name="pref_title_mathtest_frequency">Math Test Frequency</string>
+    <string name="pref_title_mathtest_count_on_start">Number of Math Tests on start</string>
+    <string name="pref_title_mathtest_count_after_start">Number of Math Tests after start</string>
+    <string name="pref_title_mathtest_multiplytest_scope">Total number of math quiz on start</string>
+    <string name="pref_title_mathtest_starting_number">Math test questionnaire - Starting number</string>
+    <string name="pref_title_mathtest_ending_number">Math tests questionnaire - Ending number</string>
+    <string name="pref_title_mathtest_mode">Math test mode</string>
+
+    <!--
+    public static int mathTestModeAddition = 0;
+    public static int mathTestModeMultiplication = 1;
+    public static int mathTestModeSubtraction = 2;
+    public static int mathTestModeDivision = 3;
+    public static int mathTestModeCombination = 4;
+    -->
+    <string-array name="pref_title_mathtest_mode">
+        <item>Addition</item>
+        <item>Substraction</item>
+        <item>Multiplication</item>
+        <item>Division</item>
+        <item>Combination</item>
+    </string-array>
+    <string-array name="pref_title_mathtest_mode_values">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>4</item>
+
+    </string-array>
+
+    <string-array name="pref_max_volume_titles">
+        <item>30 percent</item>
+        <item>50 percent</item>
+        <item>70 percent</item>
+        <item>90 percent</item>
+        <item>100 percent</item>
+    </string-array>
+
+    <string-array name="pref_max_volume_values">
+        <item>30</item>
+        <item>50</item>
+        <item>70</item>
+        <item>90</item>
+        <item>100</item>
+    </string-array>
+
+    <string-array name="pref_mathtest_frequency_titles">
+        <item>Very frequent</item>
+        <item>Frequent</item>
+        <item>Normal</item>
+        <item>Once a while</item>
+    </string-array>
+
+    <string-array name="pref_mathtest_frequency_values">
+        <item>3</item>
+        <item>7</item>
+        <item>13</item>
+        <item>19</item>
+    </string-array>
+
+    <string-array name="pref_mathtest_count_on_start_titles">
+        <item>Full cycle (100 percent)</item>
+        <item>Half (50 percent)</item>
+        <item>Short (20 percent)</item>
+    </string-array>
+
+    <string-array name="pref_mathtest_count_on_start_values">
+        <item>10</item>
+        <item>5</item>
+        <item>2</item>
+    </string-array>
+
+    <string-array name="pref_mathtest_count_after_start_titles">
+        <item>20</item>
+        <item>10</item>
+        <item>5</item>
+        <item>2</item>
+        <item>1</item>
+    </string-array>
+
+    <string-array name="pref_mathtest_count_after_start_values">
+        <item>20</item>
+        <item>10</item>
+        <item>5</item>
+        <item>2</item>
+        <item>1</item>
+    </string-array>
+
+    <string name="pref_title_add_friends_to_messages">Add friends to messages</string>
+
+    <string-array name="pref_poking_eye_warning_titles">
+        <item>Off</item>
+        <item>Very frequent</item>
+        <item>Frequent</item>
+        <item>Normal</item>
+        <item>Once a while</item>
+    </string-array>
+    <string-array name="pref_poking_eye_warning_values">
+        <item>0</item>
+        <item>5</item>
+        <item>11</item>
+        <item>23</item>
+        <item>31</item>
+    </string-array>
+
+    <string-array name="pref_example_list_titles">
+        <item>Always</item>
+        <item>When possible</item>
+        <item>Never</item>
+    </string-array>
+    <string-array name="pref_example_list_values">
+        <item>1</item>
+        <item>0</item>
+        <item>-1</item>
+    </string-array>
+
+    <!-- Example settings for Data & Sync -->
+    <string name="pref_header_data_sync">Data &amp; sync</string>
+
+    <string name="pref_title_is_autosync_enabled">Sync frequency</string>
+    <string name="pref_description_is_autosync_enabled">Data &amp; sync</string>
+
+
+    <string name="pref_title_sync_frequency">Sync frequency</string>
+    <string-array name="pref_sync_frequency_titles">
+        <item>15 minutes</item>
+        <item>30 minutes</item>
+        <item>1 hour</item>
+        <item>3 hours</item>
+        <item>6 hours</item>
+        <item>Never</item>
+    </string-array>
+
+    <string-array name="pref_sync_frequency_values">
+    <item>15</item>
+    <item>30</item>
+    <item>60</item>
+    <item>180</item>
+    <item>360</item>
+    <item>-1</item>
+    </string-array>
+
+    <string-array name="list_preference_entries">
+        <item>Entry 1</item>
+        <item>Entry 2</item>
+        <item>Entry 3</item>
+    </string-array>
+
+    <string-array name="list_preference_entry_values">
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+    </string-array>
+
+    <string-array name="multi_select_list_preference_default_value" />
+
+    <string name="pref_title_system_sync_start_stop">Sync Start/Stop</string>
+
+    <!-- Example settings for Notifications -->
+    <string name="pref_header_homework_mode">Homework mode</string>
+    <string name="pref_default_homework_file_prefix">SJ-RECORDER-SHARED-FOLDER</string>
+    <string name="pref_title_homework_file_prefix">$HOMEWORK Folder filter.
+        String of "Folder or File same" to be included into AbsolutePath string for Homework mode</string>
+
+
+    <string name="pref_title_new_message_notifications">New message notifications</string>
+    <string name="pref_title_ringtone">Ringtone</string>
+    <string name="pref_ringtone_silent">Silent</string>
+    <string name="pref_title_vibrate">Vibrate</string>
+    <string name="todo">status of player</string>
+    <string name="name">Name</string>
+    <string name="download">DOWNLOAD</string>
+    <string name="upload">UPLOAD</string>
+    <string name="main_text_area_to_explain_what_this_app_is_doing">Main text area to explain what this app is doing</string>
+    <string name="progress_bar_for_music">Progress bar for music</string>
+    <!-- Audio Recording & Codec Settings -->
+    <string name="pref_header_audio_recording">Audio Recording &amp; Codec</string>
+    <string name="pref_title_audio_quality">Recording Quality &amp; Codec</string>
+    <string name="pref_summary_audio_quality">Configure audio bitrate, sample rate, and compression</string>
+    <string-array name="pref_audio_quality_entries">
+        <item>High Quality (AAC 64 kbps, 44.1 kHz, Mono) - Recommended</item>
+        <item>Storage Saver (HE-AAC 32 kbps, 44.1 kHz, Mono)</item>
+        <item>Studio / Music (AAC 128 kbps, 48 kHz, Stereo)</item>
+    </string-array>
+    <string-array name="pref_audio_quality_values">
+        <item>high</item>
+        <item>saver</item>
+        <item>studio</item>
+    </string-array>
+
+    <string name="pref_title_stereo_recording">Stereo Audio Recording</string>
+    <string name="pref_summary_stereo_recording">Record in 2-channel stereo with dual microphones when supported</string>
+    <string name="pref_summary_stereo_not_supported">Device only supports single microphone (Mono)</string>
+
+    <string name="pref_title_noise_suppression">Voice Enhancement &amp; Noise Reduction</string>
+    <string name="pref_summary_noise_suppression">Use hardware echo cancellation and ambient noise suppression for clear speech</string>
+
+    <!-- Settings Category Headers & Blind-Accessible Labels -->
+    <string name="pref_header_voice_recording">Voice &amp; Audio Recording</string>
+    <string name="pref_header_playback_safety">Playback &amp; Safety</string>
+    <string name="pref_header_storage_backup">Storage &amp; Cloud Backup</string>
+    <string name="pref_header_math_quiz">Learning &amp; Math Quiz</string>
+
+    <string name="pref_title_download_welcome">Download Spoken Welcome Guide</string>
+    <string name="pref_summary_download_welcome">Audio walkthrough of gestures and controls</string>
+
+    <string name="pref_title_manual_backup">Start Cloud Backup Now</string>
+    <string name="pref_summary_manual_backup">Manually backup all recordings to Google Drive</string>
+
+    <string name="pref_title_save_location">Save Location with Recordings</string>
+    <string name="pref_summary_save_location">Tag recordings with GPS coordinates and place name to organize files by location</string>
+
+    <!-- Visualizer & Haptic Audio Settings -->
+    <string name="pref_header_visualization">Animation &amp; Visualizer</string>
+    <string name="pref_title_visualizer_mode">Display &amp; Animation Style</string>
+    <string name="pref_title_haptic_audio_pulse">Haptic Audio Pulse</string>
+    <string name="pref_summary_haptic_audio_pulse">Feel bass beats and rhythmic transients through subtle tactile vibrations (Eyes-free accessibility)</string>
+
+    <string-array name="pref_visualizer_mode_entries">
+        <item>Simplest Split UI (Folders &amp; Files - Default)</item>
+        <item>Circle Wave Ribbon Animation</item>
+        <item>32-Band Frequency Analyzer Animation</item>
+        <item>Radial Sonic Starburst Animation</item>
+    </string-array>
+    <string-array name="pref_visualizer_mode_values">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+    </string-array>
 
 </resources>
