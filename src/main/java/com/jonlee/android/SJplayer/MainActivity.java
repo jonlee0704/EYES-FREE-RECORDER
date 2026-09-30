@@ -113,8 +113,8 @@ public class MainActivity extends SampleActivityBase {
     private boolean isHomemodeEnabled = false;
     private boolean isNavModeEnabled = false;
     private int maxVolume = 100;
-    private TextView tvVolumeInfo;
     private ContentObserver volumeObserver;
+    private int lastVolumeLevel = -1;
 
     public TextToSpeech ttobj = null;
     private String pendingTtsMessage = null;
@@ -195,29 +195,27 @@ public class MainActivity extends SampleActivityBase {
         trackPos_TextView = (TextView) findViewById(R.id.trackPos_TextView);
 
         updateTtsButtonState();
-        tvVolumeInfo = (TextView) findViewById(R.id.tv_volume_info);
-        if (tvVolumeInfo != null) {
-            tvVolumeInfo.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
-                    if (am != null) {
-                        int cur = am.getStreamVolume(AudioManager.STREAM_MUSIC);
-                        int max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
-                        int pct = max > 0 ? (cur * 100) / max : 0;
-                        alwaysSpeak("Volume " + pct + " percent");
-                        am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_SAME, AudioManager.FLAG_SHOW_UI);
-                    }
-                }
-            });
+        AudioManager amInit = (AudioManager) getSystemService(AUDIO_SERVICE);
+        if (amInit != null) {
+            lastVolumeLevel = amInit.getStreamVolume(AudioManager.STREAM_MUSIC);
         }
-        updateVolumeDisplay();
 
         volumeObserver = new ContentObserver(new Handler(Looper.getMainLooper())) {
             @Override
             public void onChange(boolean selfChange) {
                 super.onChange(selfChange);
-                updateVolumeDisplay();
+                AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
+                if (am != null) {
+                    int cur = am.getStreamVolume(AudioManager.STREAM_MUSIC);
+                    if (lastVolumeLevel != -1 && cur != lastVolumeLevel) {
+                        lastVolumeLevel = cur;
+                        int max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+                        int pct = max > 0 ? (cur * 100) / max : 0;
+                        alwaysSpeak("Volume " + pct + " percent");
+                    } else if (lastVolumeLevel == -1) {
+                        lastVolumeLevel = cur;
+                    }
+                }
             }
         };
 //        main_TextView.setText(new String(Character.toChars(0x1F4C1)) + " Swipe Up/Down: Folder navigation\n"
@@ -1368,22 +1366,6 @@ public class MainActivity extends SampleActivityBase {
         } catch (Exception ignored) {}
     }
 
-    public void updateVolumeDisplay() {
-        try {
-            AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
-            if (am != null) {
-                int cur = am.getStreamVolume(AudioManager.STREAM_MUSIC);
-                int max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
-                int pct = max > 0 ? (cur * 100) / max : 0;
-                if (tvVolumeInfo != null) {
-                    tvVolumeInfo.setText("VOL " + pct + "%");
-                    tvVolumeInfo.setContentDescription("Media volume " + pct + " percent");
-                }
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error updating volume display", e);
-        }
-    }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -1463,55 +1445,27 @@ public class MainActivity extends SampleActivityBase {
 
         switch (keyCode) {
             case KeyEvent.KEYCODE_VOLUME_UP:
-
                 if (action == KeyEvent.ACTION_DOWN) {
-
-                        //TODO click action
-                        Log.i(TAG, "Volume key up:" + volume_level
-                                + ":" + am.getStreamMaxVolume(AudioManager.STREAM_MUSIC) + ":"
-                                + ((volume_level*100)/am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)) +
-                                ":maxVolume:" + maxVolume);
-
-                        if(maxVolume < ((volume_level*100)/am.getStreamMaxVolume(AudioManager.STREAM_MUSIC))){
-//                            am.setStreamVolume(
-//                                    AudioManager.STREAM_MUSIC,
-//                                    volume_level*(maxVolume/100),
-//                                    0);
-                        }else{
-                            if(volume_level <= am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)) {
-                                volume_level = volume_level + 1;
-                                am.setStreamVolume(
-                                        AudioManager.STREAM_MUSIC,
-                                        volume_level,
-                                        0);
-                            }
-                        }
-                   // }
-                    updateVolumeDisplay();
+                    if (am != null) {
+                        am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI);
+                        int cur = am.getStreamVolume(AudioManager.STREAM_MUSIC);
+                        int max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+                        int pct = max > 0 ? (cur * 100) / max : 0;
+                        lastVolumeLevel = cur;
+                        alwaysSpeak("Volume " + pct + " percent");
+                    }
                 }
                 return true;
             case KeyEvent.KEYCODE_VOLUME_DOWN:
                 if (action == KeyEvent.ACTION_DOWN) {
-                    volume_level = volume_level - 1;
-                    if (event.getEventTime() - event.getDownTime() > ViewConfiguration.getLongPressTimeout()) {
-                        //TODO long click action
-                        volume_level = volume_level - 10;
-                        am.setStreamVolume(
-                                AudioManager.STREAM_MUSIC,
-                                volume_level,
-                                0);
-                    } else {
-                        if(volume_level >= 0) {
-                            Log.i(TAG, "Volume key down:" + volume_level
-                                    + ":" + am.getStreamMaxVolume(AudioManager.STREAM_MUSIC) + ":"
-                                    + ((volume_level * 100) / am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)));
-                            am.setStreamVolume(
-                                    AudioManager.STREAM_MUSIC,
-                                    volume_level,
-                                    0);
-                        }
+                    if (am != null) {
+                        am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI);
+                        int cur = am.getStreamVolume(AudioManager.STREAM_MUSIC);
+                        int max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+                        int pct = max > 0 ? (cur * 100) / max : 0;
+                        lastVolumeLevel = cur;
+                        alwaysSpeak("Volume " + pct + " percent");
                     }
-                    updateVolumeDisplay();
                 }
                 return true;
             case KeyEvent.KEYCODE_POWER:
@@ -1656,7 +1610,6 @@ public class MainActivity extends SampleActivityBase {
                         volumeObserver);
             } catch (Exception ignored) {}
         }
-        updateVolumeDisplay();
     }
 
     @Override
