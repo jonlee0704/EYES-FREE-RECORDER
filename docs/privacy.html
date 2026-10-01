@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy - SJ Player (Eyes-Free Recorder)</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card-bg: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --heading: #58a6ff;
+      --accent: #238636;
+      --link: #58a6ff;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      color: var(--text);
+      background-color: var(--bg);
+      margin: 0;
+      padding: 24px 16px;
+    }
+    .container {
+      max-width: 840px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      padding: 36px 32px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    }
+    h1, h2, h3 {
+      color: #f0f6fc;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+    }
+    h1 { color: var(--heading); border-bottom: 2px solid var(--heading); font-size: 1.85rem; }
+    h2 { font-size: 1.35rem; margin-top: 28px; }
+    h3 { font-size: 1.1rem; margin-top: 20px; }
+    a { color: var(--link); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      font-size: 0.95rem;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 10px 14px;
+      text-align: left;
+    }
+    th {
+      background-color: #21262d;
+      color: #f0f6fc;
+    }
+    code {
+      background-color: #21262d;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      font-size: 0.88em;
+      color: #79c0ff;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      border-radius: 12px;
+      background-color: #238636;
+      color: #ffffff;
+      margin-bottom: 16px;
+    }
+    .footer {
+      margin-top: 40px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      font-size: 0.85rem;
+      color: #8b949e;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="badge">Official Google Play Privacy Policy</div>
+    <h1>Privacy Policy — SJ Player (Eyes-Free Recorder)</h1>
+    <p><strong>Package Identifier:</strong> <code>com.jonlee.android.SJplayer</code><br>
+    <strong>Effective Date:</strong> October 1, 2026<br>
+    <strong>Developer:</strong> Jon Lee (<a href="mailto:jonlee0704@gmail.com">jonlee0704@gmail.com</a>)</p>
+
+    <h2>1. Core Privacy Principle: Zero Data Collection</h2>
+    <p>We believe your personal audio recordings, voice notes, and listening habits are strictly private. <strong>SJ Player is a local-first application. We do NOT collect, harvest, upload, transmit, analyze, or sell any of your audio files, voice recordings, personal identifiers, or device data.</strong></p>
+
+    <h2>2. Data We Do NOT Collect</h2>
+    <ul>
+      <li><strong>No Audio or Voice Uploads:</strong> All audio recordings and voice memos remain exclusively on your device's internal storage or SD card. We do not operate remote servers to harvest or store audio.</li>
+      <li><strong>No Personal Information:</strong> We do not ask for or collect names, email addresses, phone numbers, or account logins.</li>
+      <li><strong>No Audio Biometrics:</strong> We do not perform voice recognition, voice printing, or identity profiling.</li>
+      <li><strong>No Advertising or Tracking SDKs:</strong> SJ Player contains <strong>zero ads</strong>, no Google AdMob, no Facebook SDK, and no commercial tracking libraries.</li>
+      <li><strong>No Location Tracking:</strong> The app does not access, record, or track your GPS coordinates.</li>
+    </ul>
+
+    <h2>3. Android Runtime Permissions &amp; Operational Usage</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Permission</th>
+          <th>Android Identifier</th>
+          <th>Operational Purpose in SJ Player</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Microphone</strong></td>
+          <td><code>RECORD_AUDIO</code></td>
+          <td>Mandatory to capture high-clarity voice memos, lectures, and speech notes when you double-tap. Saved locally on your device.</td>
+        </tr>
+        <tr>
+          <td><strong>Media Audio / Storage</strong></td>
+          <td><code>READ_MEDIA_AUDIO</code><br><code>READ/WRITE_EXTERNAL_STORAGE</code></td>
+          <td>Allows the app to read, play, index, and organize audio files on your device and save new recordings.</td>
+        </tr>
+        <tr>
+          <td><strong>Notifications</strong></td>
+          <td><code>POST_NOTIFICATIONS</code></td>
+          <td>Required by Android for the foreground service notification so recording and playback continue when the screen is dark.</td>
+        </tr>
+        <tr>
+          <td><strong>Vibration</strong></td>
+          <td><code>VIBRATE</code></td>
+          <td>Provides tactile haptic feedback pulses on taps and swipes so blind and visually impaired users can operate by touch.</td>
+        </tr>
+        <tr>
+          <td><strong>Wake Lock</strong></td>
+          <td><code>WAKE_LOCK</code></td>
+          <td>Prevents the phone CPU from entering sleep during active recording or playback sessions.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>4. Text-To-Speech (TTS) Processing</h2>
+    <p>Spoken announcements (file names, folder names, battery level, timestamps) are generated strictly on-device using your Android system's default Text-to-Speech engine. No speech queries or audio synthesized by TTS are transmitted to any proprietary external servers.</p>
+
+    <h2>5. Children's Privacy (COPPA &amp; GDPR-K)</h2>
+    <p>SJ Player does not collect personal information from any user, including children under 13 (or under 16 in the European Union). The app is fully compliant with COPPA and global child protection standards.</p>
+
+    <h2>6. User Control &amp; Data Deletion</h2>
+    <p>You have 100% control over your data. Audio files can be permanently erased at any time using the 4-finger swipe right gesture within the app or using any standard Android file manager. Uninstalling the app removes all application configuration caches.</p>
+
+    <h2>7. Contact &amp; Open Source Repository</h2>
+    <p>For questions or verification regarding this Privacy Policy, please contact:<br>
+    <strong>Developer:</strong> Jon Lee<br>
+    <strong>Email:</strong> <a href="mailto:jonlee0704@gmail.com">jonlee0704@gmail.com</a><br>
+    <strong>GitHub:</strong> <a href="https://github.com/jonlee0704/EYES-FREE-RECORDER">github.com/jonlee0704/EYES-FREE-RECORDER</a></p>
+
+    <div class="footer">
+      SJ Player (Eyes-Free Recorder) &bull; Built with love for Sj and the accessibility community &bull; &copy; 2026 Jon Lee
+    </div>
+  </div>
+</body>
+</html>
