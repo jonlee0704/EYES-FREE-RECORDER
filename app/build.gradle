@@ -9,8 +9,8 @@ android {
         applicationId 'com.jonlee.android.SJplayer'
         minSdkVersion 26
         targetSdkVersion 36
-        versionCode 94
-        versionName "4.1.1"
+        versionCode 95
+        versionName "4.1.2"
         // Enabling multidex support.
         multiDexEnabled = true
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
