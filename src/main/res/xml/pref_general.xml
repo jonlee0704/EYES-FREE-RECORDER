@@ -205,4 +205,17 @@
             android:title="@string/pref_title_mathtest_count_after_start" />
     </PreferenceCategory>
 
+    <!-- Group 6: Legal & Privacy -->
+    <PreferenceCategory android:title="Legal &amp; Privacy">
+        <Preference
+            android:key="pref_view_tos"
+            android:title="Terms of Service &amp; Agreement"
+            android:summary="Review software license, recording disclaimers, and user obligations" />
+
+        <Preference
+            android:key="pref_view_privacy_policy"
+            android:title="Privacy Policy"
+            android:summary="Review zero data collection policy and permissions usage" />
+    </PreferenceCategory>
+
 </PreferenceScreen>

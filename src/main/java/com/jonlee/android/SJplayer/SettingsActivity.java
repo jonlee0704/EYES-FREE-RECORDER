@@ -358,6 +358,33 @@ public class SettingsActivity extends AppCompatActivity {
                     return true;
                 });
             }
+
+            // Group 6: Legal & Privacy
+            Preference tosPref = findPreference("pref_view_tos");
+            if (tosPref != null) {
+                tosPref.setOnPreferenceClickListener(preference -> {
+                    speak("Opening Terms of Service.");
+                    vibrate(preference.getContext(), 30);
+                    try {
+                        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(MainActivity.TOS_ONLINE_URL));
+                        startActivity(intent);
+                    } catch (Exception e) {
+                        Toast.makeText(requireContext(), "Could not open browser: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    }
+                    return true;
+                });
+            }
+
+            Preference privacyPref = findPreference("pref_view_privacy_policy");
+            if (privacyPref != null) {
+                privacyPref.setOnPreferenceClickListener(preference -> {
+                    speak("Opening Privacy Policy.");
+                    vibrate(preference.getContext(), 30);
+                    Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(MainActivity.PRIVACY_ONLINE_URL));
+                    startActivity(intent);
+                    return true;
+                });
+            }
         }
 
         @Override

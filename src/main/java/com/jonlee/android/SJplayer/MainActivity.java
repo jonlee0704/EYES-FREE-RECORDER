@@ -58,6 +58,9 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.ScrollView;
 import android.widget.Button;
+import android.widget.LinearLayout;
+import android.view.ViewGroup;
+import android.net.Uri;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.graphics.Color;
@@ -101,6 +104,13 @@ public class MainActivity extends SampleActivityBase {
     public static final String TAG = "MainActivity";
     public static final String FRAGTAG = "BasicGestureDetectFragment";
     static final int REQUEST_ACCOUNT_PICKER = 2;
+
+    public static final String PREF_TOS_ACCEPTED = "pref_tos_accepted";
+    public static final String PREF_TOS_ACCEPTED_VERSION = "pref_tos_accepted_version";
+    public static final String PREF_TOS_ACCEPTED_TIMESTAMP = "pref_tos_accepted_timestamp";
+    public static final int CURRENT_TOS_VERSION = 1;
+    public static final String TOS_ONLINE_URL = "https://github.com/jonlee0704/EYES-FREE-RECORDER/blob/master/docs/TERMS_OF_SERVICE.md";
+    public static final String PRIVACY_ONLINE_URL = "https://github.com/jonlee0704/EYES-FREE-RECORDER/blob/master/docs/PRIVACY_POLICY.md";
 
     // Place to manage all gesture commands
     public Commander commander = null;
@@ -340,7 +350,11 @@ public class MainActivity extends SampleActivityBase {
 
         setupGestureDetection();
 
-        requestPermissions();
+        if (!isTermsOfServiceAccepted()) {
+            showTermsOfServiceDialog(true);
+        } else {
+            requestPermissions();
+        }
     }
 
     private interface TopButtonNarrativeProvider {
@@ -1013,6 +1027,37 @@ public class MainActivity extends SampleActivityBase {
         };
         dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
 
+        LinearLayout buttonRow = new LinearLayout(this);
+        buttonRow.setOrientation(LinearLayout.HORIZONTAL);
+        buttonRow.setPadding(0, (int) (8 * density), 0, 0);
+
+        Button tosBtn = new Button(this);
+        tosBtn.setText("TERMS & PRIVACY");
+        tosBtn.setTextColor(Color.parseColor("#80D8FF"));
+        tosBtn.setTextSize(12f);
+        android.graphics.drawable.GradientDrawable tosBg = new android.graphics.drawable.GradientDrawable();
+        tosBg.setColor(Color.parseColor("#161E2E"));
+        tosBg.setStroke((int) (1 * density), Color.parseColor("#374151"));
+        tosBg.setCornerRadius(10 * density);
+        tosBtn.setBackground(tosBg);
+        LinearLayout.LayoutParams tosLp = new LinearLayout.LayoutParams(0, (int) (48 * density), 1f);
+        tosLp.setMargins(0, 0, (int) (6 * density), 0);
+        tosBtn.setLayoutParams(tosLp);
+        tosBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                stopSpeakingHelp();
+                dialog.dismiss();
+                v.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        showTermsOfServiceDialog(false);
+                    }
+                });
+            }
+        });
+        buttonRow.addView(tosBtn);
+
         Button closeBtn = new Button(this);
         closeBtn.setText("GOT IT");
         closeBtn.setTextColor(Color.parseColor("#002811"));
@@ -1021,6 +1066,9 @@ public class MainActivity extends SampleActivityBase {
         btnBg.setCornerRadius(10 * density);
         closeBtn.setBackground(btnBg);
         closeBtn.setTypeface(null, android.graphics.Typeface.BOLD);
+        LinearLayout.LayoutParams closeLp = new LinearLayout.LayoutParams(0, (int) (48 * density), 1f);
+        closeLp.setMargins((int) (6 * density), 0, 0, 0);
+        closeBtn.setLayoutParams(closeLp);
         closeBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -1028,7 +1076,9 @@ public class MainActivity extends SampleActivityBase {
                 dialog.dismiss();
             }
         });
-        root.addView(closeBtn);
+        buttonRow.addView(closeBtn);
+
+        root.addView(buttonRow);
 
         dialog.setOnDismissListener(new DialogInterface.OnDismissListener() {
             @Override
@@ -1052,6 +1102,229 @@ public class MainActivity extends SampleActivityBase {
             if (ttobj == null || !ttobj.isSpeaking()) {
                 alwaysSpeak("Gesture instructions opened. Long press to hear full details.");
             }
+        }
+    }
+
+    public boolean isTermsOfServiceAccepted() {
+        if (sharedPref == null) {
+            sharedPref = PreferenceManager.getDefaultSharedPreferences(this.getApplicationContext());
+        }
+        return sharedPref.getBoolean(PREF_TOS_ACCEPTED, false)
+                && sharedPref.getInt(PREF_TOS_ACCEPTED_VERSION, 0) >= CURRENT_TOS_VERSION;
+    }
+
+    public void showTermsOfServiceDialog(final boolean isMandatoryFirstLaunch) {
+        final float density = getResources().getDisplayMetrics().density;
+
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding((int) (20 * density), (int) (20 * density), (int) (20 * density), (int) (18 * density));
+
+        android.graphics.drawable.GradientDrawable cardBg = new android.graphics.drawable.GradientDrawable();
+        cardBg.setColor(Color.parseColor("#0F141C"));
+        cardBg.setCornerRadius(18 * density);
+        cardBg.setStroke((int) (2 * density), Color.parseColor("#00E5FF"));
+        root.setBackground(cardBg);
+
+        // Header Title
+        TextView titleView = new TextView(this);
+        titleView.setText("TERMS OF SERVICE & PRIVACY");
+        titleView.setTextColor(Color.parseColor("#00E5FF"));
+        titleView.setTextSize(17f);
+        titleView.setTypeface(null, android.graphics.Typeface.BOLD);
+        titleView.setGravity(android.view.Gravity.CENTER);
+        titleView.setContentDescription("Terms of Service and Privacy Agreement");
+        root.addView(titleView);
+
+        // Subtitle
+        TextView subtitleView = new TextView(this);
+        subtitleView.setText(isMandatoryFirstLaunch ? "Please review and accept to use SJ Player" : "Legal Terms & Privacy Summary");
+        subtitleView.setTextColor(Color.parseColor("#80D8FF"));
+        subtitleView.setTextSize(12f);
+        subtitleView.setGravity(android.view.Gravity.CENTER);
+        subtitleView.setPadding(0, (int) (4 * density), 0, (int) (12 * density));
+        root.addView(subtitleView);
+
+        // Divider
+        View divider = new View(this);
+        divider.setBackgroundColor(Color.parseColor("#1F2937"));
+        root.addView(divider, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (int) (1 * density)));
+
+        // Scrollable Terms Content
+        String tosHtml =
+                "<font color=\"#00E5FF\"><b>1. SOFTWARE LICENSE (\"AS IS\")</b></font><br/>" +
+                "SJ Player is provided strictly on an <b>\"AS IS\"</b> and <b>\"AS AVAILABLE\"</b> basis without warranties of any kind. Developer expressly disclaims all liability for lost audio, file corruption, or interrupted recordings.<br/><br/>" +
+
+                "<font color=\"#FFD54F\"><b>2. AUDIO RECORDING &amp; WIRETAPPING LAWS</b></font><br/>" +
+                "Audio recording laws vary widely across states and nations. In many jurisdictions, recording a conversation without prior consent of all participants is illegal. <b>You are solely and exclusively responsible for complying with all applicable wiretapping and consent laws before recording anyone.</b><br/><br/>" +
+
+                "<font color=\"#00E676\"><b>3. ZERO DATA HARVESTING &amp; PRIVACY</b></font><br/>" +
+                "Your audio recordings and memos remain 100% private on your physical device. We never collect, transmit, upload, or sell your audio or personal information.<br/><br/>" +
+
+                "<font color=\"#80D8FF\"><b>4. USER BACKUP RESPONSIBILITY</b></font><br/>" +
+                "Audio is stored locally on your device. You are solely responsible for creating regular external backups of your critical recordings.<br/><br/>" +
+
+                "<font color=\"#FF8A80\"><b>5. NON-MEDICAL &amp; NON-EMERGENCY AID</b></font><br/>" +
+                "SJ Player is an assistive utility, not a certified medical device or emergency communication tool. Do not rely on it in life-critical or emergency situations.";
+
+        ScrollView scrollView = new ScrollView(this);
+        TextView textView = new TextView(this);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            textView.setText(android.text.Html.fromHtml(tosHtml, android.text.Html.FROM_HTML_MODE_LEGACY));
+        } else {
+            textView.setText(android.text.Html.fromHtml(tosHtml));
+        }
+        textView.setTextColor(Color.parseColor("#E0F7FA"));
+        textView.setTextSize(13f);
+        textView.setLineSpacing(0, 1.3f);
+        textView.setPadding(0, (int) (12 * density), 0, (int) (14 * density));
+        textView.setContentDescription(android.text.Html.fromHtml(tosHtml).toString());
+        scrollView.addView(textView);
+        root.addView(scrollView, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        scrollView.post(new Runnable() {
+            @Override
+            public void run() {
+                scrollView.fullScroll(ScrollView.FOCUS_UP);
+            }
+        });
+
+        final android.app.Dialog dialog = new android.app.Dialog(this);
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+
+        // Buttons Container
+        LinearLayout buttonContainer = new LinearLayout(this);
+        buttonContainer.setOrientation(LinearLayout.VERTICAL);
+        buttonContainer.setPadding(0, (int) (8 * density), 0, 0);
+
+        // Accept Button
+        Button acceptBtn = new Button(this);
+        acceptBtn.setText(isMandatoryFirstLaunch ? "ACCEPT & CONTINUE" : "I AGREE / ACCEPT");
+        acceptBtn.setTextColor(Color.parseColor("#002811"));
+        acceptBtn.setTextSize(14f);
+        acceptBtn.setTypeface(null, android.graphics.Typeface.BOLD);
+        acceptBtn.setContentDescription("Accept Terms of Service and Privacy Policy");
+        android.graphics.drawable.GradientDrawable acceptBg = new android.graphics.drawable.GradientDrawable();
+        acceptBg.setColor(Color.parseColor("#00E676"));
+        acceptBg.setCornerRadius(10 * density);
+        acceptBtn.setBackground(acceptBg);
+        LinearLayout.LayoutParams acceptLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (int) (52 * density));
+        acceptLp.setMargins(0, 0, 0, (int) (8 * density));
+        acceptBtn.setLayoutParams(acceptLp);
+
+        acceptBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (sharedPref == null) {
+                    sharedPref = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
+                }
+                sharedPref.edit()
+                        .putBoolean(PREF_TOS_ACCEPTED, true)
+                        .putInt(PREF_TOS_ACCEPTED_VERSION, CURRENT_TOS_VERSION)
+                        .putLong(PREF_TOS_ACCEPTED_TIMESTAMP, System.currentTimeMillis())
+                        .apply();
+                dialog.dismiss();
+                Toast.makeText(MainActivity.this, "Terms of Service Accepted", Toast.LENGTH_SHORT).show();
+                alwaysSpeak("Terms of Service accepted. Welcome to SJ Player.");
+                if (isMandatoryFirstLaunch) {
+                    requestPermissions();
+                }
+            }
+        });
+        buttonContainer.addView(acceptBtn);
+
+        // Read Full Terms Online Button
+        Button viewOnlineBtn = new Button(this);
+        viewOnlineBtn.setText("READ FULL TERMS & PRIVACY (ONLINE)");
+        viewOnlineBtn.setTextColor(Color.parseColor("#80D8FF"));
+        viewOnlineBtn.setTextSize(12f);
+        viewOnlineBtn.setContentDescription("Open full legal terms and privacy policy in browser");
+        android.graphics.drawable.GradientDrawable viewBg = new android.graphics.drawable.GradientDrawable();
+        viewBg.setColor(Color.parseColor("#161E2E"));
+        viewBg.setStroke((int) (1 * density), Color.parseColor("#374151"));
+        viewBg.setCornerRadius(8 * density);
+        viewOnlineBtn.setBackground(viewBg);
+        LinearLayout.LayoutParams viewLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (int) (42 * density));
+        viewLp.setMargins(0, 0, 0, (int) (8 * density));
+        viewOnlineBtn.setLayoutParams(viewLp);
+
+        viewOnlineBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                try {
+                    Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(TOS_ONLINE_URL));
+                    startActivity(browserIntent);
+                } catch (Exception e) {
+                    Toast.makeText(MainActivity.this, "Could not open browser: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+        buttonContainer.addView(viewOnlineBtn);
+
+        // Decline Button
+        Button declineBtn = new Button(this);
+        declineBtn.setText(isMandatoryFirstLaunch ? "DECLINE & EXIT" : "CLOSE");
+        declineBtn.setTextColor(isMandatoryFirstLaunch ? Color.parseColor("#FF5252") : Color.parseColor("#9E9E9E"));
+        declineBtn.setTextSize(12f);
+        declineBtn.setContentDescription(isMandatoryFirstLaunch ? "Decline Terms of Service and exit application" : "Close dialog");
+        android.graphics.drawable.GradientDrawable declineBg = new android.graphics.drawable.GradientDrawable();
+        declineBg.setColor(Color.TRANSPARENT);
+        declineBtn.setBackground(declineBg);
+        LinearLayout.LayoutParams declineLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (int) (38 * density));
+        declineBtn.setLayoutParams(declineLp);
+
+        declineBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (isMandatoryFirstLaunch) {
+                    Toast.makeText(MainActivity.this, "Terms of Service must be accepted to use SJ Player.", Toast.LENGTH_LONG).show();
+                    alwaysSpeak("Terms of Service declined. Exiting application.");
+                    dialog.dismiss();
+                    v.postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
+                            finishAffinity();
+                        }
+                    }, 800);
+                } else {
+                    dialog.dismiss();
+                }
+            }
+        });
+        buttonContainer.addView(declineBtn);
+
+        root.addView(buttonContainer);
+
+        if (isMandatoryFirstLaunch) {
+            dialog.setCancelable(false);
+            dialog.setCanceledOnTouchOutside(false);
+            dialog.setOnKeyListener(new DialogInterface.OnKeyListener() {
+                @Override
+                public boolean onKey(DialogInterface d, int keyCode, KeyEvent event) {
+                    if (keyCode == KeyEvent.KEYCODE_BACK && event.getAction() == KeyEvent.ACTION_UP) {
+                        alwaysSpeak("Please accept or decline the Terms of Service to continue.");
+                        Toast.makeText(MainActivity.this, "Please accept or decline to proceed.", Toast.LENGTH_SHORT).show();
+                        return true;
+                    }
+                    return false;
+                }
+            });
+        } else {
+            dialog.setCancelable(true);
+        }
+
+        dialog.setContentView(root);
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            int w = (int) (getResources().getDisplayMetrics().widthPixels * 0.92);
+            int h = (int) (getResources().getDisplayMetrics().heightPixels * 0.84);
+            dialog.getWindow().setLayout(w, h);
+        }
+        dialog.show();
+
+        if (isMandatoryFirstLaunch) {
+            alwaysSpeak("Welcome to SJ Player. Before using the eyes-free recorder, please review and accept our Terms of Service and Privacy Policy. By tapping Accept, you agree that software is provided as-is and that you are solely responsible for obtaining legal consent before recording conversations.");
+        } else {
+            alwaysSpeak("Terms of Service and Privacy Policy opened.");
         }
     }
 
