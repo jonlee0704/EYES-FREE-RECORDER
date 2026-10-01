@@ -1,19 +1,19 @@
-# SJ Player (Eyes-Free Recorder)
+# EYES-FREE VOICE RECORDER
 ## Comprehensive User Guide & Accessibility Manual for Blind & Visually Impaired Users
 
 ---
 
 ## 1. Welcome & Philosophy: True Eyes-Free Audio Control
 
-**SJ Player** was engineered from the ground up for one primary mission: **to allow you to record, organize, navigate, and listen to audio without ever having to look at your smartphone screen or hunt for small on-screen buttons.**
+**EYES-FREE VOICE RECORDER** was engineered from the ground up for one primary mission: **to allow you to record, organize, navigate, and listen to audio without ever having to look at your smartphone screen or hunt for small on-screen buttons.**
 
 Conventional smartphone recorders rely on tiny visual icons (a 30-pixel record button, a small pause glyph, a narrow scrubber slider). For blind and visually impaired users, finding and double-tapping these targets under standard screen readers can be slow, cumbersome, and stressful—especially when you need to record an urgent conversation, lecture, or musical idea in an instant.
 
-SJ Player eliminates the button interface entirely. **The entire physical glass surface of your smartphone acts as one unified, tactile touch controller.** Whether you tap the top-left corner, swipe across the center, or press near the bottom edge, your gestures are recognized instantly. Every action is reinforced with two simultaneous sensory feedback channels:
+EYES-FREE VOICE RECORDER eliminates the button interface entirely. **The entire physical glass surface of your smartphone acts as one unified, tactile touch controller.** Whether you tap the top-left corner, swipe across the center, or press near the bottom edge, your gestures are recognized instantly. Every action is reinforced with two simultaneous sensory feedback channels:
 1. **Clear Spoken Speech (Text-To-Speech / TTS)** announcing titles, folders, timestamps, durations, and battery status.
 2. **Distinct Tactile Haptic Vibration Pulses** confirming each command directly to your fingertips.
 
-You can operate SJ Player while walking, with the phone resting in your coat pocket, under a desk, in a purse, or in total darkness.
+You can operate EYES-FREE VOICE RECORDER while walking, with the phone resting in your coat pocket, under a desk, in a purse, or in total darkness.
 
 ---
 
@@ -25,8 +25,8 @@ You can operate SJ Player while walking, with the phone resting in your coat poc
 3. You do **not** need to aim for any specific region. A tap in the center has the exact same effect as a tap near the edge.
 
 ### 2.2 Permissions Setup (First Launch Only)
-On first launch, SJ Player will announce through spoken speech:
-> *"Welcome to SJ Player. Please grant microphone, storage, and location permissions on screen to get started."*
+On first launch, EYES-FREE VOICE RECORDER will announce through spoken speech:
+> *"Welcome to EYES-FREE VOICE RECORDER. Please grant microphone, storage, and location permissions on screen to get started."*
 
 - **Microphone (`RECORD_AUDIO`)**: Mandatory to capture high-clarity voice memos, lectures, and live ambient sound.
 - **Storage / Audio Files (`READ_MEDIA_AUDIO` / Storage)**: Mandatory to save recordings locally and play your audiobooks or imported music.
@@ -39,7 +39,7 @@ Once granted, the app initializes its speech engine and announces your current f
 
 ## 3. Auditory & Haptic Feedback Guide
 
-SJ Player never leaves you guessing what the app is doing. Every physical interaction produces immediate auditory and tactile confirmation.
+EYES-FREE VOICE RECORDER never leaves you guessing what the app is doing. Every physical interaction produces immediate auditory and tactile confirmation.
 
 ### 3.1 Spoken Audio Announcements (TTS)
 - **Folder Navigation**: When you switch folders, the app immediately speaks the folder name and position (e.g., *"Folder: Lectures. 3 of 12"*).
@@ -90,7 +90,7 @@ All gestures are performed on the main touchscreen. You do not need to lift or r
 ## 5. Step-by-Step Practical Walkthroughs
 
 ### 5.1 Making a Voice Recording (The 2-Tap Rule)
-1. Launch SJ Player. You will feel a light vibration and hear your current folder name.
+1. Launch EYES-FREE VOICE RECORDER. You will feel a light vibration and hear your current folder name.
 2. **Double-tap anywhere on the glass with one finger.**
    - You will feel a sharp double pulse.
    - The microphone opens instantly and begins recording high-fidelity audio.
@@ -120,7 +120,7 @@ When listening to a 1-hour recording and searching for a specific sentence:
 3. Bookmarks are saved directly alongside the audio file. You can jump directly between bookmarks using the bookmark skip command.
 
 ### 5.5 Checking the Time and Battery Status
-Without leaving SJ Player or having to pull down the Android notification shade:
+Without leaving EYES-FREE VOICE RECORDER or having to pull down the Android notification shade:
 1. Place **two fingers** flat on the screen and hold them still for half a second.
 2. The app pauses playback momentarily and announces in your configured voice:
    > *"Wednesday, October 1, 2:45 PM. Battery 78 percent."*
@@ -130,30 +130,30 @@ Without leaving SJ Player or having to pull down the Android notification shade:
 
 ## 6. Interaction with Android TalkBack & Screen Readers
 
-SJ Player is unique because **it possesses its own integrated, high-speed auditory UI engine.** However, many blind users run Android TalkBack full-time on their smartphones. Here is how TalkBack interacts with SJ Player:
+EYES-FREE VOICE RECORDER is unique because **it possesses its own integrated, high-speed auditory UI engine.** However, many blind users run Android TalkBack full-time on their smartphones. Here is how TalkBack interacts with EYES-FREE VOICE RECORDER:
 
 ### 6.1 Recommended Practice: TalkBack Pass-Through Gesture
 On modern Android devices running TalkBack (Android 11 through Android 15+):
 - **TalkBack Pass-Through Gesture**: When TalkBack is active, a **two-finger double tap and hold** or a **three-finger tap** (depending on your TalkBack gesture settings) tells TalkBack to pass all raw touch gestures directly to the active application.
-- Once pass-through is active, all of SJ Player’s instant single-finger swipes, dials, and single taps execute natively without TalkBack intercepting them.
+- Once pass-through is active, all of EYES-FREE VOICE RECORDER’s instant single-finger swipes, dials, and single taps execute natively without TalkBack intercepting them.
 
-### 6.2 Using SJ Player with TalkBack Active
+### 6.2 Using EYES-FREE VOICE RECORDER with TalkBack Active
 If you prefer not to suspend TalkBack:
-- All prominent screen elements in SJ Player (Gesture Canvas, Folder Display, File Name, Play Status, and Help Button) are fully annotated with descriptive `contentDescription` tags.
+- All prominent screen elements in EYES-FREE VOICE RECORDER (Gesture Canvas, Folder Display, File Name, Play Status, and Help Button) are fully annotated with descriptive `contentDescription` tags.
 - TalkBack users can explore by touch: TalkBack will announce *"Eyes-Free Blind Dial touch surface, double tap to interact"*.
-- Double-tapping and dragging will send motion events directly into SJ Player’s gesture detector.
+- Double-tapping and dragging will send motion events directly into EYES-FREE VOICE RECORDER’s gesture detector.
 
 ### 6.3 Suspending TalkBack for Dedicated Recording Sessions
 If you are attending an all-day conference or conducting intensive field interviews:
 1. You can temporarily pause TalkBack using your device's accessibility shortcut (typically pressing both Volume keys for 3 seconds).
-2. With TalkBack paused, SJ Player takes over completely, giving you blisteringly fast single-tap and single-swipe responses with zero input lag.
+2. With TalkBack paused, EYES-FREE VOICE RECORDER takes over completely, giving you blisteringly fast single-tap and single-swipe responses with zero input lag.
 3. When finished, press both Volume keys for 3 seconds to re-enable TalkBack.
 
 ---
 
 ## 7. Folder Structure & Managing Your Audio Library
 
-SJ Player organizes your audio systematically on your device's internal storage or external SD card:
+EYES-FREE VOICE RECORDER organizes your audio systematically on your device's internal storage or external SD card:
 
 - **Root Location**: `Music/SJplayer/` or `Android/data/com.jonlee.android.SJplayer/files/`
 - **Automatic Subfolders**:
@@ -163,7 +163,7 @@ SJ Player organizes your audio systematically on your device's internal storage 
   - `Bookmarks`: Stores XML/JSON timestamp markers for annotated files.
   - `Shared`: Staging directory for audio files shared via peer-to-peer Wi-Fi backup.
 
-You can copy your own MP3, M4A, FLAC, OGG, or WAV files from a computer into these folders, and SJ Player will index and read them automatically.
+You can copy your own MP3, M4A, FLAC, OGG, or WAV files from a computer into these folders, and EYES-FREE VOICE RECORDER will index and read them automatically.
 
 ---
 
@@ -188,11 +188,11 @@ To open the Settings screen, **swipe down with 3 fingers**, or tap the Help/Sett
 **A:** Make sure you slide your finger across the glass by at least 1 to 2 inches (50dp). Short, nervous twitches may register as taps. Drag firmly in a straight horizontal or vertical line.
 
 **Q: Can I use wired or Bluetooth headphones?**  
-**A:** Yes! SJ Player fully supports Bluetooth earbuds (with microphone) and wired headsets. All TTS announcements and playback route directly to your headphones.
+**A:** Yes! EYES-FREE VOICE RECORDER fully supports Bluetooth earbuds (with microphone) and wired headsets. All TTS announcements and playback route directly to your headphones.
 
 **Q: How do I recover a deleted file?**  
 **A:** Because 4-finger swipe right permanently deletes the active file from storage to free memory, always maintain periodic backups using the 3-finger swipe up backup utility or copying files to your computer.
 
 ---
 
-*SJ Player Accessibility Team — Designed with and for the Blind Community.*
+*EYES-FREE VOICE RECORDER Accessibility Team — Designed with and for the Blind Community.*

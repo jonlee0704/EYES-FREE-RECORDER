@@ -18,7 +18,7 @@
 
 
 <resources>
-    <string name="app_name">EYES-FREE RECORDER by S&amp;D A11y Studio</string>
-    <string name="app_short_name">EYES-FREE RECORDER</string>
-    <string name="intro_message">Welcome to SJ Sound Recorder and Player!</string>
+    <string name="app_name">EYES-FREE VOICE RECORDER by S&amp;D A11y Studio</string>
+    <string name="app_short_name">EYES-FREE VOICE RECORDER</string>
+    <string name="intro_message">Welcome to EYES-FREE VOICE RECORDER!</string>
 </resources>

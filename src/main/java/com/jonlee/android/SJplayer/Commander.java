@@ -1114,7 +1114,7 @@ public class Commander{
 
         mBuilder = new NotificationCompat.Builder(mainActivity, getResources().getString(R.string.channel_id))
                 .setSmallIcon(imageR)
-                .setContentTitle("SJ Player for Blind")
+                .setContentTitle("EYES-FREE VOICE RECORDER")
                 .setContentText(recorder.getCurrentFileName())
                 .setStyle(new NotificationCompat.BigTextStyle().bigText(msg))
                 ;

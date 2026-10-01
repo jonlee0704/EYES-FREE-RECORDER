@@ -1,4 +1,4 @@
-# SJ Player — Eyes-Free Audio Recorder & Player
+# EYES-FREE VOICE RECORDER — Eyes-Free Audio Recorder & Player
 *Designed with love for Sj, and built for the blind and visually impaired community.*
 
 [![Platform](https://img.shields.io/badge/Platform-Android%2014+-3DDC84.svg?style=flat&logo=android)](https://www.android.com)
@@ -10,24 +10,24 @@
 
 ## Overview
 
-**SJ Player** is an eyes-free, gesture-driven audio recorder and player developed specifically for blind and visually impaired users. 
+**EYES-FREE VOICE RECORDER** is an eyes-free, gesture-driven audio recorder and player developed specifically for blind and visually impaired users. 
 
 Conventional mobile apps rely on tiny on-screen visual buttons (a 30-pixel record circle, a small pause glyph, a narrow scrubber slider). For blind individuals, finding and double-tapping these targets under screen readers can be slow, cumbersome, and stressful.
 
-SJ Player eliminates the button interface entirely. **The entire physical glass surface of your smartphone acts as one unified, tactile touch controller.** Whether you tap the top corner, swipe across the center, or trace a dial near the bottom, your gestures are recognized instantly. Every action is reinforced with two simultaneous feedback channels:
+EYES-FREE VOICE RECORDER eliminates the button interface entirely. **The entire physical glass surface of your smartphone acts as one unified, tactile touch controller.** Whether you tap the top corner, swipe across the center, or trace a dial near the bottom, your gestures are recognized instantly. Every action is reinforced with two simultaneous feedback channels:
 1. **Clear Spoken Speech (Text-To-Speech / TTS)** announcing titles, folders, timestamps, durations, and battery status.
 2. **Distinct Tactile Haptic Vibration Pulses** confirming each command directly to your fingertips.
 
-You can operate SJ Player while walking, with the phone resting in your coat pocket, under a desk, in a purse, or in total darkness.
+You can operate EYES-FREE VOICE RECORDER while walking, with the phone resting in your coat pocket, under a desk, in a purse, or in total darkness.
 
 ---
 
 ## App Showcase
 
 <p align="center">
-  <img src="release/screenshots/eyes_free_recorder_showcase.gif" width="320" alt="SJ Player Showcase Animation" />
+  <img src="release/screenshots/eyes_free_recorder_showcase.gif" width="320" alt="EYES-FREE VOICE RECORDER Showcase Animation" />
   &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="release/screenshots/eyes_free_recorder_app_flow.gif" width="320" alt="SJ Player App Flow Animation" />
+  <img src="release/screenshots/eyes_free_recorder_app_flow.gif" width="320" alt="EYES-FREE VOICE RECORDER App Flow Animation" />
 </p>
 
 ---

@@ -1138,7 +1138,7 @@ public class MainActivity extends SampleActivityBase {
 
         // Subtitle
         TextView subtitleView = new TextView(this);
-        subtitleView.setText(isMandatoryFirstLaunch ? "Please review and accept to use SJ Player" : "Legal Terms & Privacy Summary");
+        subtitleView.setText(isMandatoryFirstLaunch ? "Please review and accept to use EYES-FREE VOICE RECORDER" : "Legal Terms & Privacy Summary");
         subtitleView.setTextColor(Color.parseColor("#80D8FF"));
         subtitleView.setTextSize(12f);
         subtitleView.setGravity(android.view.Gravity.CENTER);
@@ -1153,7 +1153,7 @@ public class MainActivity extends SampleActivityBase {
         // Scrollable Terms Content
         String tosHtml =
                 "<font color=\"#00E5FF\"><b>1. SOFTWARE LICENSE (\"AS IS\")</b></font><br/>" +
-                "SJ Player is provided strictly on an <b>\"AS IS\"</b> and <b>\"AS AVAILABLE\"</b> basis without warranties of any kind. Developer expressly disclaims all liability for lost audio, file corruption, or interrupted recordings.<br/><br/>" +
+                "EYES-FREE VOICE RECORDER is provided strictly on an <b>\"AS IS\"</b> and <b>\"AS AVAILABLE\"</b> basis without warranties of any kind. Developer expressly disclaims all liability for lost audio, file corruption, or interrupted recordings.<br/><br/>" +
 
                 "<font color=\"#FFD54F\"><b>2. AUDIO RECORDING &amp; WIRETAPPING LAWS</b></font><br/>" +
                 "Audio recording laws vary widely across states and nations. In many jurisdictions, recording a conversation without prior consent of all participants is illegal. <b>You are solely and exclusively responsible for complying with all applicable wiretapping and consent laws before recording anyone.</b><br/><br/>" +
@@ -1165,7 +1165,7 @@ public class MainActivity extends SampleActivityBase {
                 "Audio is stored locally on your device. You are solely responsible for creating regular external backups of your critical recordings.<br/><br/>" +
 
                 "<font color=\"#FF8A80\"><b>5. NON-MEDICAL &amp; NON-EMERGENCY AID</b></font><br/>" +
-                "SJ Player is an assistive utility, not a certified medical device or emergency communication tool. Do not rely on it in life-critical or emergency situations.";
+                "EYES-FREE VOICE RECORDER is an assistive utility, not a certified medical device or emergency communication tool. Do not rely on it in life-critical or emergency situations.";
 
         ScrollView scrollView = new ScrollView(this);
         TextView textView = new TextView(this);
@@ -1224,7 +1224,7 @@ public class MainActivity extends SampleActivityBase {
                         .apply();
                 dialog.dismiss();
                 Toast.makeText(MainActivity.this, "Terms of Service Accepted", Toast.LENGTH_SHORT).show();
-                alwaysSpeak("Terms of Service accepted. Welcome to SJ Player.");
+                alwaysSpeak("Terms of Service accepted. Welcome to EYES-FREE VOICE RECORDER.");
                 if (isMandatoryFirstLaunch) {
                     requestPermissions();
                 }
@@ -1276,7 +1276,7 @@ public class MainActivity extends SampleActivityBase {
             @Override
             public void onClick(View v) {
                 if (isMandatoryFirstLaunch) {
-                    Toast.makeText(MainActivity.this, "Terms of Service must be accepted to use SJ Player.", Toast.LENGTH_LONG).show();
+                    Toast.makeText(MainActivity.this, "Terms of Service must be accepted to use EYES-FREE VOICE RECORDER.", Toast.LENGTH_LONG).show();
                     alwaysSpeak("Terms of Service declined. Exiting application.");
                     dialog.dismiss();
                     v.postDelayed(new Runnable() {
@@ -1322,7 +1322,7 @@ public class MainActivity extends SampleActivityBase {
         dialog.show();
 
         if (isMandatoryFirstLaunch) {
-            alwaysSpeak("Welcome to SJ Player. Before using the eyes-free recorder, please review and accept our Terms of Service and Privacy Policy. By tapping Accept, you agree that software is provided as-is and that you are solely responsible for obtaining legal consent before recording conversations.");
+            alwaysSpeak("Welcome to EYES-FREE VOICE RECORDER. Before using the eyes-free recorder, please review and accept our Terms of Service and Privacy Policy. By tapping Accept, you agree that software is provided as-is and that you are solely responsible for obtaining legal consent before recording conversations.");
         } else {
             alwaysSpeak("Terms of Service and Privacy Policy opened.");
         }
@@ -1358,7 +1358,7 @@ public class MainActivity extends SampleActivityBase {
         }
 
         if (!permissionsToRequest.isEmpty()) {
-            speak("Welcome to SJ Player. Please grant microphone, storage, and location permissions on screen to get started.");
+            speak("Welcome to EYES-FREE VOICE RECORDER. Please grant microphone, storage, and location permissions on screen to get started.");
             ActivityCompat.requestPermissions(this, permissionsToRequest.toArray(new String[0]), 0);
         }
     }

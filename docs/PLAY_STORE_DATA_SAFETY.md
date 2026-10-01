@@ -1,5 +1,5 @@
 # Google Play Console: Data Safety & Policy Questionnaire Guide
-**Application**: SJ Player (Eyes-Free Recorder)  
+**Application**: EYES-FREE VOICE RECORDER  
 **Package Identifier**: `com.jonlee.android.SJplayer`  
 **Purpose**: Reference guide for completing the mandatory **Data Safety Section** and **App Content Declarations** in Google Play Console.
 
@@ -46,7 +46,7 @@ Under *App Content* in Google Play Console:
    - Select: **18 and over** (or 13 and over).
    - Could your app unintentionally appeal to children? $\rightarrow$ **No**.
 2. **Ads Declaration**:
-   - Does your app contain ads? $\rightarrow$ **No** (SJ Player contains 0 ads).
+   - Does your app contain ads? $\rightarrow$ **No** (EYES-FREE VOICE RECORDER contains 0 ads).
 3. **App Access**:
    - Are any parts of your app restricted (e.g. login credentials)? $\rightarrow$ **All functionality is available without restrictions**.
 4. **Government Apps**:

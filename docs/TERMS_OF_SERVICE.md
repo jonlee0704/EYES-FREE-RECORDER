@@ -1,5 +1,5 @@
 # Terms of Service
-**Application**: SJ Player (Eyes-Free Recorder)  
+**Application**: EYES-FREE VOICE RECORDER  
 **Package Identifier**: `com.jonlee.android.SJplayer`  
 **Last Updated**: October 1, 2026  
 **Developer**: Jon Lee ("Developer", "We", "Us", or "Our")
@@ -7,7 +7,7 @@
 ---
 
 ### IMPORTANT NOTICE: PLEASE READ CAREFULLY
-BEFORE DOWNLOADING, INSTALLING, COPYING, ACCESSING, OR USING THE SJ PLAYER APPLICATION (THE "APPLICATION" OR "SERVICE"), CAREFULLY READ THESE TERMS OF SERVICE ("TERMS"). BY DOWNLOADING, INSTALLING, ACCESSING, OR USING THIS APPLICATION, YOU ("USER" OR "YOU") AGREE TO BE LEGALLY BOUND BY ALL TERMS AND CONDITIONS HEREIN. IF YOU DO NOT AGREE TO THESE TERMS, DO NOT INSTALL, ACCESS, OR USE THE APPLICATION, AND UNINSTALL IT IMMEDIATELY FROM YOUR DEVICE.
+BEFORE DOWNLOADING, INSTALLING, COPYING, ACCESSING, OR USING THE EYES-FREE VOICE RECORDER APPLICATION (THE "APPLICATION" OR "SERVICE"), CAREFULLY READ THESE TERMS OF SERVICE ("TERMS"). BY DOWNLOADING, INSTALLING, ACCESSING, OR USING THIS APPLICATION, YOU ("USER" OR "YOU") AGREE TO BE LEGALLY BOUND BY ALL TERMS AND CONDITIONS HEREIN. IF YOU DO NOT AGREE TO THESE TERMS, DO NOT INSTALL, ACCESS, OR USE THE APPLICATION, AND UNINSTALL IT IMMEDIATELY FROM YOUR DEVICE.
 
 ---
 
@@ -51,21 +51,21 @@ THIS LIMITATION APPLIES REGARDLESS OF THE THEORY OF LIABILITY (WHETHER CONTRACT,
 ---
 
 ### 4. User Responsibility for Data Backups & Media Integrity
-4.1 **Local Storage Operation**: SJ Player operates primarily locally on your device. Audio files are saved directly to internal flash storage or an inserted SD card. Developer does not operate cloud backup servers or synchronized database mirrors.  
+4.1 **Local Storage Operation**: EYES-FREE VOICE RECORDER operates primarily locally on your device. Audio files are saved directly to internal flash storage or an inserted SD card. Developer does not operate cloud backup servers or synchronized database mirrors.  
 4.2 **Sole Backup Responsibility**: **YOU ARE EXCLUSIVELY RESPONSIBLE FOR BACKING UP YOUR AUDIO RECORDINGS.** Operating system updates, Android factory resets, hardware failures, physical damage, accidental deletion (including multi-touch deletion commands), or device loss will result in permanent, irrecoverable loss of files. DEVELOPER ASSUMES ZERO RESPONSIBILITY FOR RECOVERING LOST OR CORRUPTED AUDIO FILES.
 
 ---
 
 ### 5. Compliance with Audio Recording, Eavesdropping & Wiretapping Laws
 5.1 **User’s Strict Legal Obligation**: Audio recording laws vary widely across states, nations, and territories. Many jurisdictions (including California, Florida, Illinois, Pennsylvania, Massachusetts, and numerous international jurisdictions) require the prior consent of **all parties** involved in a conversation before recording ("two-party" or "all-party" consent laws). Other jurisdictions require the consent of at least one party.  
-5.2 **Sole Compliance Liability**: You represent and warrant that you will use SJ Player only in full compliance with all applicable federal, state, local, and international recording, eavesdropping, wiretapping, and privacy statutes.  
+5.2 **Sole Compliance Liability**: You represent and warrant that you will use EYES-FREE VOICE RECORDER only in full compliance with all applicable federal, state, local, and international recording, eavesdropping, wiretapping, and privacy statutes.  
 5.3 **No Surreptitious or Prohibited Recording**: You agree never to use the Application for unlawful surreptitious recording, stalking, harassment, invasion of privacy, or corporate espionage. DEVELOPER DISCLAIMS ALL LIABILITY FOR ANY UNLAWFUL AUDIO RECORDINGS CREATED BY USERS.
 
 ---
 
 ### 6. Assistive Technology Notice (Non-Medical / Non-Emergency Device)
-6.1 **Not a Certified Medical Device**: Although SJ Player incorporates accessibility features designed to assist blind and visually impaired individuals through speech announcements and haptic feedback, **SJ Player is NOT a regulated medical device, life-safety tool, or official emergency recording system.**  
-6.2 **No Life-Critical Reliance**: You must not rely on SJ Player in life-threatening scenarios, medical emergencies, aviation, maritime navigation, or high-risk environments where failure of an audio recording or gesture response could cause injury, death, or severe financial ruin.
+6.1 **Not a Certified Medical Device**: Although EYES-FREE VOICE RECORDER incorporates accessibility features designed to assist blind and visually impaired individuals through speech announcements and haptic feedback, **EYES-FREE VOICE RECORDER is NOT a regulated medical device, life-safety tool, or official emergency recording system.**  
+6.2 **No Life-Critical Reliance**: You must not rely on EYES-FREE VOICE RECORDER in life-threatening scenarios, medical emergencies, aviation, maritime navigation, or high-risk environments where failure of an audio recording or gesture response could cause injury, death, or severe financial ruin.
 
 ---
 

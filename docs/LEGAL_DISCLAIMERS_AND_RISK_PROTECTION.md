@@ -1,5 +1,5 @@
 # Legal Disclaimers & Risk Protection Notice
-**Application**: SJ Player (Eyes-Free Recorder)  
+**Application**: EYES-FREE VOICE RECORDER  
 **Package Identifier**: `com.jonlee.android.SJplayer`  
 **Developer**: Jon Lee  
 **Last Revised**: October 1, 2026
@@ -32,9 +32,9 @@ Audio recording technology is subject to strict criminal and civil penalties und
   - **Australia**: State surveillance device acts (e.g. Surveillance Devices Act 2007 NSW) strictly prohibit recording private conversations without all-party consent.
 
 ### 1.3 Developer Immunity & User Sole Responsibility
-1. **Tool Provider Status**: SJ Player is a neutral software utility capable of legitimate, lawful use (personal voice memos, dictated notes, music practice, authorized classroom lectures).
+1. **Tool Provider Status**: EYES-FREE VOICE RECORDER is a neutral software utility capable of legitimate, lawful use (personal voice memos, dictated notes, music practice, authorized classroom lectures).
 2. **No Affirmative Control**: Developer has no physical control over how, where, or when an end user triggers the recording function.
-3. **Acknowledgment by User**: By using SJ Player, the user explicitly acknowledges that:
+3. **Acknowledgment by User**: By using EYES-FREE VOICE RECORDER, the user explicitly acknowledges that:
    - They assume **sole legal and financial responsibility** for verifying and complying with all applicable recording, eavesdropping, wiretapping, and privacy statutes in their jurisdiction.
    - Developer shall not be joined as a party to, nor held liable for, any civil lawsuit, criminal indictment, fine, or dispute arising out of the user's surreptitious or unlawful audio recording of any individual.
 
@@ -43,8 +43,8 @@ Audio recording technology is subject to strict criminal and civil penalties und
 ## 2. Assistive Technology & Medical / Emergency Disclaimer
 
 ### 2.1 Not a Medical Device or FDA-Regulated Product
-Although SJ Player includes tailored auditory and haptic interfaces designed to assist blind and visually impaired users:
-- **SJ Player is NOT a medical device**, assistive diagnostic tool, or FDA/CE-cleared therapeutic aid.
+Although EYES-FREE VOICE RECORDER includes tailored auditory and haptic interfaces designed to assist blind and visually impaired users:
+- **EYES-FREE VOICE RECORDER is NOT a medical device**, assistive diagnostic tool, or FDA/CE-cleared therapeutic aid.
 - It is not certified under medical device directives (such as EU MDR 2017/745 or U.S. FDA 21 CFR).
 
 ### 2.2 No Reliance in Emergency Situations
@@ -56,7 +56,7 @@ Although SJ Player includes tailored auditory and haptic interfaces designed to 
 ## 3. Accidental File Deletion & Multi-Touch Gestures
 
 ### 3.1 Advanced Gesture Operation
-SJ Player features high-speed multi-touch gestures, including:
+EYES-FREE VOICE RECORDER features high-speed multi-touch gestures, including:
 - 4-Finger Swipe Right: Permanently deletes the current file from storage to streamline hands-free storage management.
 - Multi-tap controls: Rapid sequences initiate recording or pause playback.
 
@@ -75,14 +75,14 @@ Modern Android operating systems (Android 10 through Android 15+) employ aggress
 
 ### 4.2 Disclaimer of Recording Continuity
 - Developer does **NOT** guarantee that any recording session will continue uninterrupted for any specific duration.
-- The user is responsible for ensuring the device is sufficiently charged, disabling aggressive OS battery optimizations for SJ Player if long-duration recording is required, and testing recording continuity on their specific device hardware.
+- The user is responsible for ensuring the device is sufficiently charged, disabling aggressive OS battery optimizations for EYES-FREE VOICE RECORDER if long-duration recording is required, and testing recording continuity on their specific device hardware.
 
 ---
 
 ## 5. Intellectual Property & Copyrighted Material
 
 ### 5.1 Playback of Third-Party Media
-SJ Player functions as an audio player capable of playing any audio file stored on the device (MP3, WAV, FLAC, M4A, OGG).
+EYES-FREE VOICE RECORDER functions as an audio player capable of playing any audio file stored on the device (MP3, WAV, FLAC, M4A, OGG).
 - Developer does not provide, host, license, or distribute copyrighted music, audiobooks, or commercial podcasts.
 - Users warrant that they possess all requisite legal rights, licenses, or fair-use exemptions for any third-party media imported into or played through the Application.
 - Developer assumes zero liability for any copyright infringement or unauthorized public performance executed by users through the Application.

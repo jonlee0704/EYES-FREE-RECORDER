@@ -1,6 +1,6 @@
-# SJ Player Documentation Index
+# EYES-FREE VOICE RECORDER Documentation Index
 
-Welcome to the documentation repository for **SJ Player (Eyes-Free Recorder)** (`com.jonlee.android.SJplayer`).
+Welcome to the documentation repository for **EYES-FREE VOICE RECORDER** (`com.jonlee.android.SJplayer`).
 
 Below are the official user guides, legal contracts, and policy documents:
 
