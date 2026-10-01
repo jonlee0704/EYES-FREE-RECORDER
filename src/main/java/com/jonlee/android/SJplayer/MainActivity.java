@@ -611,6 +611,9 @@ public class MainActivity extends SampleActivityBase {
 
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
+        if (!isTermsOfServiceAccepted()) {
+            return super.dispatchTouchEvent(ev);
+        }
         int action = ev.getActionMasked();
         int pointerCount = ev.getPointerCount();
         float density = getResources().getDisplayMetrics().density;
@@ -1275,18 +1278,15 @@ public class MainActivity extends SampleActivityBase {
         declineBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (isMandatoryFirstLaunch) {
-                    Toast.makeText(MainActivity.this, "Terms of Service must be accepted to use EYES-FREE VOICE RECORDER.", Toast.LENGTH_LONG).show();
-                    alwaysSpeak("Terms of Service declined. Exiting application.");
-                    dialog.dismiss();
-                    v.postDelayed(new Runnable() {
-                        @Override
-                        public void run() {
-                            finishAffinity();
-                        }
-                    }, 800);
-                } else {
-                    dialog.dismiss();
+                if (sharedPref == null) {
+                    sharedPref = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
+                }
+                sharedPref.edit().putBoolean(PREF_TOS_ACCEPTED, false).apply();
+                Toast.makeText(MainActivity.this, "Terms of Service declined. Exiting EYES-FREE VOICE RECORDER.", Toast.LENGTH_LONG).show();
+                dialog.dismiss();
+                finishAffinity();
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    finishAndRemoveTask();
                 }
             }
         });
@@ -1301,8 +1301,12 @@ public class MainActivity extends SampleActivityBase {
                 @Override
                 public boolean onKey(DialogInterface d, int keyCode, KeyEvent event) {
                     if (keyCode == KeyEvent.KEYCODE_BACK && event.getAction() == KeyEvent.ACTION_UP) {
-                        alwaysSpeak("Please accept or decline the Terms of Service to continue.");
-                        Toast.makeText(MainActivity.this, "Please accept or decline to proceed.", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(MainActivity.this, "Terms of Service declined. Exiting EYES-FREE VOICE RECORDER.", Toast.LENGTH_LONG).show();
+                        d.dismiss();
+                        finishAffinity();
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                            finishAndRemoveTask();
+                        }
                         return true;
                     }
                     return false;
