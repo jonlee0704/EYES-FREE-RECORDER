@@ -493,7 +493,7 @@ public class Recorder {
 
     //Return audio file number in current folder
     public int getNumberOfAudioFiles(){
-        return audibleFiles.size();
+        return audibleFiles != null ? audibleFiles.size() : 0;
     }
 
     public boolean isReadyToStart(){
@@ -716,7 +716,7 @@ public class Recorder {
 
         // If there is no files, just do nothing.
         // What will be better way than this ... way?
-        if(audibleFiles.size() == 0)
+        if(audibleFiles == null || audibleFiles.size() == 0)
             return;
 
         this.isPlaying = true;
@@ -886,7 +886,7 @@ public class Recorder {
         if (isRecording && currentRecordingFileName != null) {
             return currentRecordingFileName;
         }
-        if(audibleFiles.size() > 0) {
+        if(audibleFiles != null && audibleFiles.size() > 0) {
             if (this.currentFileIndex >= 0 && this.currentFileIndex < audibleFiles.size()) {
                 return audibleFiles.get(this.currentFileIndex).getName();
             } else {
@@ -1085,7 +1085,7 @@ public class Recorder {
 //            String albumName =
 //                    mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM);
 
-            if (audibleFiles.size() > 0) {
+            if (audibleFiles != null && audibleFiles.size() > 0) {
                 File current;
                 current = audibleFiles.get(this.currentFileIndex);
                 mmr.setDataSource(current.getAbsolutePath());
@@ -1129,7 +1129,7 @@ public class Recorder {
 //        for(int i = 0;i < audibleFiles.size() ; i++)
 //            Log.i(TAG,">>>" + audibleFiles.get(i).getAbsolutePath());
 
-        if (audibleFiles.size() == 0)
+        if (audibleFiles == null || audibleFiles.size() == 0)
             return false;
 
         //If it's the end of files, it moves to the first one.
@@ -1150,7 +1150,7 @@ public class Recorder {
             return true;
         }
         //Log.i(TAG + ">>>1 previousSong", currentFileIndex + ":" + audibleFiles.size());
-        if (audibleFiles.size() == 0)
+        if (audibleFiles == null || audibleFiles.size() == 0)
             return false;
 
         // Turn-around when it's at the first of files.
