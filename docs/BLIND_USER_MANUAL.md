@@ -48,30 +48,50 @@ EYES-FREE VOICE RECORDER never leaves you guessing what the app is doing. Every 
 - **File Metadata Announcement**: Announcing elapsed time, total length, and folder location on demand.
 - **System Information**: Spoken time of day, date, day of the week, and remaining battery percentage.
 
-### 3.2 Tactile Haptic Vibration Pulses
-Your phone's vibration motor provides tactile "clicks" directly under your finger:
-- **Light Click (30ms)**: Single tap registered (Play / Pause).
-- **Double Click (Double Pulse)**: Double tap registered (Record Start / Stop).
-- **Medium Click (50ms)**: File or folder stepped backward or forward.
-- **Firm Long Pulse (100ms)**: Long press triggered, information spoken, or special mode entered.
-- **Continuous Subtle Clicks**: Firing rhythmically as you drag your finger in a circle to jog-scrub forward or backward through audio.
+### 3.2 Synthesized Soundscape Earcons
+In addition to spoken TTS, the app synthesizes low-latency positional audio cues ("earcons") so you have instant non-speech spatial confirmation even in noisy environments:
+- **Next Track (Swipe Right)**: Crisp rising chirp (520Hz $\rightarrow$ 940Hz) panned slightly to the right ear.
+- **Previous Track (Swipe Left)**: Gentle falling chirp (940Hz $\rightarrow$ 520Hz) panned slightly to the left ear.
+- **Next Folder (Swipe Up)**: Upward two-tone harmonic chime (C5 523Hz $\rightarrow$ G5 784Hz).
+- **Previous Folder (Swipe Down)**: Downward two-tone harmonic chime (G5 784Hz $\rightarrow$ C5 523Hz).
+- **Corner Anchor Tap**: Resonant crystal bell ping (C6 1046Hz) confirming glass edge anchor acquisition.
+
+### 3.3 Tactile Haptic Vibration Pulses
+Your phone's vibration motor provides amplitude-modulated tactile waveforms directly under your finger:
+- **Next / Previous Track**: Forward-rolling or backward-stepping micro-ticks.
+- **Folder Shift**: Heavy mechanical gear-shift latch (deeper and more authoritative than track ticks).
+- **Play / Stop**: Upward ignition pulse (Play) vs. solid deceleration brake (Pause).
+- **Corner Anchor**: Crisp resonant double-pulse indicating tactile corner lock.
+- **Jog Wheel Detents**: Continuous micro-ticks at 30dp drag increments.
 
 ---
 
-## 4. Master Gesture Reference Cheatsheet
+## 4. Physical Corner Anchors & Master Gesture Reference
 
-All gestures are performed on the main touchscreen. You do not need to lift or replace your finger into any specific coordinate.
+### 4.1 Physical Corner Anchors (Glass Edge Targets)
+The 4 outer corners of the device glass provide absolute tactile landmarks:
+- **Top-Left Corner**: **"Where Am I?" Spatial Announcement** — Speaks current folder index & name, file index & name, playback state, and volume.
+- **Top-Right Corner**: **Toggle Speech Prompts (TTS On/Off)** — Instantly mutes or enables spoken announcements.
+- **Bottom-Left Corner**: **Time, Battery & Storage Status** — Speaks current time, date, battery level, and available recording space.
+- **Bottom-Right Corner**: **Instant Voice Recording** — Starts microphone recording immediately, or stops and saves if already recording.
+
+### 4.2 Master Gesture Reference Cheatsheet
+
+All gestures are performed on the main touchscreen:
 
 | Gesture | Fingers | Target Action | Audio & Tactile Feedback |
 | :--- | :---: | :--- | :--- |
-| **Single Tap** | 1 Finger | **Play / Stop Playback** | Short click; audio begins playing or stops immediately. |
-| **Double Tap** | 1 Finger | **Start Recording / Stop Recording** | Double haptic pulse; speaks *"Recording"* and activates mic. |
-| **Triple Tap** | 1 Finger | **Add Bookmark** at current position | Speaks *"Bookmark added at [time]"*; sets cue point. |
-| **Single Tap (2 Fingers)** | 2 Fingers | **Add Bookmark** (Quick alternate) | Speaks *"Bookmark added at [time]"*. |
-| **Swipe Left $\rightarrow$ Right** | 1 Finger | **Next File** | Speaks next track title and plays preview. |
-| **Swipe Right $\rightarrow$ Left** | 1 Finger | **Previous File** | Speaks previous track title and plays preview. |
-| **Swipe Down $\rightarrow$ Up** | 1 Finger | **Next Folder** | Speaks next folder name (e.g. *"Folder: Notes"*). |
-| **Swipe Up $\rightarrow$ Down** | 1 Finger | **Previous Folder** | Speaks previous folder name. |
+| **Single Tap (Center)** | 1 Finger | **Play / Stop Playback** | Short click; audio begins playing or stops immediately. |
+| **Top-Left Corner Tap** | 1 Finger | **"Where Am I?" Spatial Status** | Crystal ping + full spoken folder, file, and volume report. |
+| **Top-Right Corner Tap** | 1 Finger | **Toggle Speech Prompts** | Double-pulse; toggles TTS speech on/off. |
+| **Bottom-Left Corner Tap** | 1 Finger | **Time, Battery & Storage** | Double-pulse; speaks time, battery %, and free GB. |
+| **Bottom-Right Corner Tap**| 1 Finger | **Start / Stop Recording** | Crescendo pulse; activates/deactivates mic. |
+| **Double Tap** | 1 Finger | **Speak File Information** | Speaks current track title and duration. |
+| **Triple Tap** | 1 Finger | **"Where Am I?" Spatial Query** | Full spatial status report (Folder X of Y, File A of B). |
+| **Swipe Left $\rightarrow$ Right** | 1 Finger | **Next File** | Rising chirp (panned right) + rolling tick. |
+| **Swipe Right $\rightarrow$ Left** | 1 Finger | **Previous File** | Falling chirp (panned left) + reverse tick. |
+| **Swipe Down $\rightarrow$ Up** | 1 Finger | **Next Folder** | Ascending chime + heavy mechanical gear pulse. |
+| **Swipe Up $\rightarrow$ Down** | 1 Finger | **Previous Folder** | Descending chime + heavy mechanical gear pulse. |
 | **Two-Finger Swipe Left / Right** | 2 Fingers | **Fast Seek File by First Letter** | Jumps across alphabetical letter sections (A, B, C...). |
 | **Two-Finger Swipe Up / Down** | 2 Fingers | **Fast Seek Folder by Month / Letter** | Jumps folders grouped by date/month or category. |
 | **Swipe & Hold Left** | 1 Finger | **Continuous Rewind (2X Speed)** | Audio chirps backward rapidly until released. |
@@ -79,6 +99,7 @@ All gestures are performed on the main touchscreen. You do not need to lift or r
 | **Swipe & Hold Up / Down** | 1 Finger | **Fast Folder Roll** | Rapidly cycles through folders with rapid haptic clicks. |
 | **Long Press (Hold stationary >0.5s)** | 1 Finger | **Speak File & Folder Info** | Speaks full title, length, folder path, and date. |
 | **Two-Finger Long Press (>0.45s)** | 2 Fingers | **Speak Time, Date & Battery** | Speaks: *"It is 3:45 PM, Wednesday, Battery 82 percent"*. |
+| **Three-Finger Triple Tap** | 3 Fingers | **Toggle Screen Curtain (OLED Battery Saver)** | iOS VoiceOver consistent gesture (tap 3 times with 3 fingers). Shuts display pixels completely black (0 nits) for total privacy & maximum battery savings while keeping touch, haptics & audio active. Spoken announcement: *"Screen curtain on"* or *"Screen curtain off"*. |
 | **Three-Finger Long Press** | 3 Fingers | **Toggle Favorite Status** | Marks/unmarks recording as a priority favorite. |
 | **Three-Finger Swipe Down** | 3 Fingers | **Open App Settings Menu** | Opens audio settings, speech configuration, and options. |
 | **Three-Finger Swipe Up** | 3 Fingers | **Start / Stop Backup** | Initiates local audio file sync/backup. |
@@ -104,8 +125,8 @@ All gestures are performed on the main touchscreen. You do not need to lift or r
 ### 5.2 Browsing Folders and Tracks
 1. **Changing Folders**: Swipe your finger upward from the bottom to move to the next folder. Swipe downward to go to the previous folder.
    - Example: You swipe up and hear: *"Folder: Voice Memos"*. Swipe up again: *"Folder: Audiobooks"*.
-2. **Browsing Tracks in that Folder**: Swipe from right to left to step forward through tracks. Swipe from left to right to step backward.
-   - Example: *"Lecture 1. Duration 42 minutes."* $\rightarrow$ Swipe $\rightarrow$ *"Lecture 2. Duration 38 minutes."*
+2. **Browsing Tracks in that Folder**: Swipe from left to right (swipe right) to step forward to the next track. Swipe from right to left (swipe left) to step backward to the previous track.
+   - Example: *"Lecture 1. Duration 42 minutes."* $\rightarrow$ Swipe Right $\rightarrow$ *"Lecture 2. Duration 38 minutes."*
 3. **Instant Playback**: Tap once anywhere with one finger. Playback starts immediately. Tap again to pause.
 
 ### 5.3 Fast Scrubbing Through Long Recordings

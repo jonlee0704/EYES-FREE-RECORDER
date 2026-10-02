@@ -29,7 +29,7 @@
             android:title="@string/pref_title_stereo_recording" />
 
         <SwitchPreference
-            android:defaultValue="true"
+            android:defaultValue="false"
             android:key="pref_noise_suppression"
             android:summary="@string/pref_summary_noise_suppression"
             android:title="@string/pref_title_noise_suppression" />
@@ -90,6 +90,17 @@
             android:key="pref_fullscreen_mode"
             android:summary="@string/pref_summary_fullscreen_mode"
             android:title="@string/pref_title_fullscreen_mode" />
+
+        <SwitchPreference
+            android:defaultValue="false"
+            android:key="pref_screen_curtain"
+            android:summary="@string/pref_summary_screen_curtain"
+            android:title="@string/pref_title_screen_curtain" />
+
+        <Preference
+            android:key="pref_replay_gesture_tutorial"
+            android:summary="Show animated finger guide for folder and file navigation"
+            android:title="Replay Gesture Tutorial" />
     </PreferenceCategory>
 
     <!-- Group 4: Storage & Cloud Backup -->

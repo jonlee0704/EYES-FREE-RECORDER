@@ -38,6 +38,11 @@ public class GestureListener implements GestureDetector.OnGestureListener, Gestu
     }
 
     private boolean isFired = false;
+    private long lastDoubleTapTime = 0;
+
+    public boolean isFired() {
+        return isFired;
+    }
 
     private float centerX;
     private float centerY;
@@ -119,8 +124,8 @@ public class GestureListener implements GestureDetector.OnGestureListener, Gestu
         float absVelocityY = Math.abs(velocityY);
 
         float density = (activity != null) ? activity.getResources().getDisplayMetrics().density : 1.0f;
-        float minFlingDistance = 35 * density;
-        float minFlingVelocity = 120 * density;
+        float minFlingDistance = 24 * density;
+        float minFlingVelocity = 100 * density;
 
         if ((absDeltaX > minFlingDistance && absVelocityX > minFlingVelocity) ||
             (absDeltaY > minFlingDistance && absVelocityY > minFlingVelocity)) {
@@ -138,9 +143,9 @@ public class GestureListener implements GestureDetector.OnGestureListener, Gestu
                     return true;
                 case LEFT_RIGHT:
                     if (count >= 2)
-                        cmd(Commander.FAST_SEEK_PREVIOUS_FILE);
+                        cmd(Commander.FAST_SEEK_NEXT_FILE);
                     else
-                        cmd(Commander.PREVIOUS_SONG);
+                        cmd(Commander.NEXT_SONG);
                     return true;
                 case TOP_BOTTOM:
                     if (count >= 2)
@@ -150,9 +155,9 @@ public class GestureListener implements GestureDetector.OnGestureListener, Gestu
                     return true;
                 case RIGHT_LEFT:
                     if (count >= 2)
-                        cmd(Commander.FAST_SEEK_NEXT_FILE);
+                        cmd(Commander.FAST_SEEK_PREVIOUS_FILE);
                     else
-                        cmd(Commander.NEXT_SONG);
+                        cmd(Commander.PREVIOUS_SONG);
                     return true;
             }
         }
@@ -243,14 +248,15 @@ public class GestureListener implements GestureDetector.OnGestureListener, Gestu
         int dir = getDirection(d);
 
         float density = (activity != null) ? activity.getResources().getDisplayMetrics().density : 1.0f;
-        float swipeThreshold = Math.max(SWIPE_MIN_DISTANCE, 60 * density);
+        // Crisp, intuitive swipe threshold: ~28dp provides immediate response as soon as finger moves intentionally
+        float swipeThreshold = Math.max(30f, 28 * density);
 
         /**
          * Fling / Swipe cases:
          * Verify distance and ensure swipes do NOT originate from system gesture edge zones.
          */
         if (absDeltaX > swipeThreshold || absDeltaY > swipeThreshold
-                || Math.abs(distanceX) > SWIPE_MIN_DISTANCE || Math.abs(distanceY) > SWIPE_MIN_DISTANCE) {
+                || Math.abs(distanceX) > swipeThreshold || Math.abs(distanceY) > swipeThreshold) {
 
             // Exclude horizontal swipes originating in the left or right edge zones (reserved for system Back)
             if ((dir == LEFT_RIGHT || dir == RIGHT_LEFT) && isHorizontalEdgeTouch(e1)) {
@@ -276,9 +282,9 @@ public class GestureListener implements GestureDetector.OnGestureListener, Gestu
                     break;
                 case LEFT_RIGHT:
                     if (touchCnt >= 2)
-                        cmd(Commander.FAST_SEEK_PREVIOUS_FILE);
+                        cmd(Commander.FAST_SEEK_NEXT_FILE);
                     else if (touchCnt == 1)
-                        cmd(Commander.PREVIOUS_SONG);
+                        cmd(Commander.NEXT_SONG);
                     break;
                 case BOTTOM_RIGHT:
                     cmd(Commander.NOTHING);
@@ -295,9 +301,9 @@ public class GestureListener implements GestureDetector.OnGestureListener, Gestu
                     break;
                 case RIGHT_LEFT:
                     if (touchCnt >= 2)
-                        cmd(Commander.FAST_SEEK_NEXT_FILE);
+                        cmd(Commander.FAST_SEEK_PREVIOUS_FILE);
                     else if (touchCnt == 1)
-                        cmd(Commander.NEXT_SONG);
+                        cmd(Commander.PREVIOUS_SONG);
                     break;
                 case UP_LEFT:
                     cmd(Commander.NOTHING);
@@ -368,6 +374,9 @@ public class GestureListener implements GestureDetector.OnGestureListener, Gestu
     private void cmd(int c){
         this.isFired = true;
         if (activity != null && activity.getCommander() != null) {
+            if (activity.getCommander().dialView != null) {
+                activity.getCommander().dialView.setInteractiveDragDelta(0, 0);
+            }
             activity.getCommander().cmd(c);
         } else {
             Log.e(TAG, "Activity or Commander is null, cannot execute command");
@@ -401,16 +410,16 @@ public class GestureListener implements GestureDetector.OnGestureListener, Gestu
     private int getDirection(float angle){
         // n = 45 in case 4 direction
         double n = 45;
-        if (angle > 360-n || angle < n){
+        if (angle >= 360-n || angle < n){
             return this.BOTTOM_TOP;
-        } else if (angle > n && angle < n*3){
+        } else if (angle >= n && angle < n*3){
             return this.LEFT_RIGHT;
-        } else if (angle > n*3 && angle < n*5){
+        } else if (angle >= n*3 && angle < n*5){
             return this.TOP_BOTTOM;
-        } else if (angle > n*5 && angle < n*7){
+        } else if (angle >= n*5 && angle < n*7){
             return this.RIGHT_LEFT;
         } else{
-            return this.NO_DIRECTION;
+            return this.BOTTOM_TOP;
         }
 
         // n = 22.5 in case 8 direction
@@ -479,14 +488,28 @@ public class GestureListener implements GestureDetector.OnGestureListener, Gestu
         this.touchCnt = 1;
         //Down reset the start Jog event.
         this.startDir = -1;
+
+        long now = System.currentTimeMillis();
+        if (now - lastDoubleTapTime < 450) {
+            // Triple tap detected! Trigger comprehensive spatial status ("Where Am I?")
+            lastDoubleTapTime = 0;
+            this.isFired = true;
+            if (activity != null && activity.getCommander() != null) {
+                activity.getCommander().cmd(Commander.SPEAK_SPATIAL_STATUS);
+            }
+            return true;
+        }
+
         return true;
     }
 
     @Override
     public boolean onDoubleTap(MotionEvent e) {
         // User tapped the screen twice.
-        //Log.i(TAG, "Double tap: " + e.getPointerCount());
-        activity.getCommander().cmd(Commander.SPEAK_FILE_INFO);
+        lastDoubleTapTime = System.currentTimeMillis();
+        if (activity != null && activity.getCommander() != null) {
+            activity.getCommander().cmd(Commander.SPEAK_FILE_INFO);
+        }
         return false;
     }
 
@@ -502,9 +525,52 @@ public class GestureListener implements GestureDetector.OnGestureListener, Gestu
 
     @Override
     public boolean onSingleTapConfirmed(MotionEvent e) {
-        // A confirmed single-tap event has occurred.  Only called when the detector has
-        // determined that the first tap stands alone, and is not part of a double tap.
-        //Log.i(TAG, "onSingleTapConfirmed");
+        // A confirmed single-tap event has occurred.
+        if (e == null || activity == null || activity.getCommander() == null) {
+            return false;
+        }
+
+        android.util.DisplayMetrics dm = activity.getResources().getDisplayMetrics();
+        float density = dm.density;
+        int screenWidth = dm.widthPixels;
+        int screenHeight = dm.heightPixels;
+
+        // Physical Corner Anchor detection: 72dp tactile corner target box
+        float cornerBox = 72 * density;
+        float rawX = e.getRawX();
+        float rawY = e.getRawY();
+
+        boolean isLeft = (rawX <= cornerBox);
+        boolean isRight = (rawX >= screenWidth - cornerBox);
+        boolean isTop = (rawY <= cornerBox);
+        boolean isBottom = (rawY >= screenHeight - cornerBox);
+
+        if (isTop && isLeft) {
+            // Top-Left Corner Anchor: "Where Am I?" Spatial Status
+            activity.getCommander().cmd(Commander.SPEAK_SPATIAL_STATUS);
+            return true;
+        } else if (isTop && isRight) {
+            // Top-Right Corner Anchor: Toggle Speech Prompts (TTS On/Off)
+            activity.getCommander().vibrateCornerAnchor();
+            activity.getCommander().cmd(Commander.TURN_ON_OFF_TTS);
+            return true;
+        } else if (isBottom && isLeft) {
+            // Bottom-Left Corner Anchor: Time, Battery, and Free Storage Status
+            activity.getCommander().vibrateCornerAnchor();
+            activity.getCommander().cmd(Commander.SPEAK_DATE_TIME);
+            return true;
+        } else if (isBottom && isRight) {
+            // Bottom-Right Corner Anchor: Instant Voice Recording Trigger/Stop
+            activity.getCommander().vibrateCornerAnchor();
+            if (activity.getCommander().getRecorder() != null && activity.getCommander().getRecorder().isRecording()) {
+                activity.getCommander().cmd(Commander.STOP_RECORD);
+            } else {
+                activity.getCommander().cmd(Commander.START_RECORD);
+            }
+            return true;
+        }
+
+        // Main screen surface: Play / Pause / Stop
         activity.getCommander().cmd(Commander.ONETOUCH);
         return true;
     }
@@ -553,8 +619,8 @@ public class GestureListener implements GestureDetector.OnGestureListener, Gestu
         float density = dm.density;
         int screenWidth = dm.widthPixels;
 
-        // System gesture back-zone: at least 50dp or ~13% of screen width (whichever is larger)
-        float baseMargin = Math.max(50 * density, screenWidth * 0.13f);
+        // System gesture back-zone: 20dp margin to prevent accidental trigger on the bezel edge
+        float baseMargin = 20 * density;
         float leftMargin = baseMargin;
         float rightMargin = baseMargin;
 
@@ -564,8 +630,8 @@ public class GestureListener implements GestureDetector.OnGestureListener, Gestu
                 androidx.core.view.WindowInsetsCompat insets = androidx.core.view.ViewCompat.getRootWindowInsets(decorView);
                 if (insets != null) {
                     androidx.core.graphics.Insets gestureInsets = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemGestures());
-                    if (gestureInsets.left > leftMargin) leftMargin = gestureInsets.left;
-                    if (gestureInsets.right > rightMargin) rightMargin = gestureInsets.right;
+                    if (gestureInsets.left > leftMargin && gestureInsets.left < 36 * density) leftMargin = gestureInsets.left;
+                    if (gestureInsets.right > rightMargin && gestureInsets.right < 36 * density) rightMargin = gestureInsets.right;
                 }
             } catch (Exception ignored) {}
         }
@@ -588,21 +654,9 @@ public class GestureListener implements GestureDetector.OnGestureListener, Gestu
         float density = dm.density;
         int screenHeight = dm.heightPixels;
 
-        float baseMargin = 45 * density;
-        float topMargin = baseMargin;
-        float bottomMargin = baseMargin;
-
-        if (context instanceof android.app.Activity) {
-            try {
-                android.view.View decorView = ((android.app.Activity) context).getWindow().getDecorView();
-                androidx.core.view.WindowInsetsCompat insets = androidx.core.view.ViewCompat.getRootWindowInsets(decorView);
-                if (insets != null) {
-                    androidx.core.graphics.Insets gestureInsets = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemGestures());
-                    if (gestureInsets.top > topMargin) topMargin = gestureInsets.top;
-                    if (gestureInsets.bottom > bottomMargin) bottomMargin = gestureInsets.bottom;
-                }
-            } catch (Exception ignored) {}
-        }
+        // Narrow margins: only avoid accidental pulls of system status bar (top 22dp) or navigation pill (bottom 16dp)
+        float topMargin = 22 * density;
+        float bottomMargin = 16 * density;
 
         float rawY = e.getRawY();
         return (rawY < topMargin || rawY > (screenHeight - bottomMargin));

@@ -253,6 +253,8 @@ public class DialView extends View {
     private Paint ambientFolderTextPaint;
     private float folderWheelScrollOffset = 0f;
     private float fileWheelScrollOffset = 0f;
+    private float interactiveDragDeltaX = 0f;
+    private float interactiveDragDeltaY = 0f;
 
     // Simplest UI: Minimal Split Navigation (Folder on Left, Files on Right) Paints & Layout
     private Paint splitDividerPaint;
@@ -287,6 +289,63 @@ public class DialView extends View {
     private final RectF splitLiveEqBarRect = new RectF();
     private Shader splitDividerShader;
     private float lastDividerH = -1f;
+    // Animated dynamic divider ratio (moves left when playing or focused on files to maximize active file space)
+    private float currentDividerRatio = 0.50f;
+
+    // Full-Card Translucent Progress Bar & Output Volume Graphics
+    private final Path splitCardClipPath = new Path();
+    private final RectF splitProgressFillRect = new RectF();
+    private final RectF splitMeterBarRect = new RectF();
+    private final Path splitWaveformPath = new Path();
+    private Paint splitCardProgressFillPaint;
+    private Paint splitCardProgressNeedlePaint;
+    private Paint splitVolMeterActivePaint;
+    private Paint splitVolMeterInactivePaint;
+    private Paint splitVolMeterPeakPaint;
+    private Paint splitWaveformTracePaint;
+    private TextPaint splitVolTextPaint;
+    private TextPaint splitProgressPctPaint;
+    private LinearGradient splitCardProgressShader;
+    private float lastProgressFillWidth = -1f;
+
+    // Screen Curtain: OLED 0-nit power saver for blind users
+    private boolean isScreenCurtainEnabled = false;
+
+    // Section HUD overlay for 2-finger fast seek
+    private String sectionOverlayChar = null;
+    private String sectionOverlayTitle = null;
+    private String sectionOverlaySub = null;
+    private long sectionOverlayStartTime = 0L;
+    private static final long SECTION_OVERLAY_DURATION = 1500L;
+    private final RectF sectionOverlayRect = new RectF();
+    private Paint sectionOverlayBgPaint;
+    private Paint sectionOverlayBorderPaint;
+    private Paint sectionOverlayGlowPaint;
+    private TextPaint sectionOverlayCharPaint;
+    private TextPaint sectionOverlayTitlePaint;
+    private TextPaint sectionOverlaySubPaint;
+
+    // Animated Onboarding Gesture Tutorial
+    private boolean showGestureTutorial = false;
+    private long gestureTutorialStartTime = 0L;
+    private static final long GESTURE_TUTORIAL_DURATION = 7600L;
+    private Paint gesturePillBgPaint;
+    private Paint gesturePillBorderPaint;
+    private TextPaint gesturePillTitlePaint;
+    private TextPaint gesturePillSubPaint;
+    private Paint gestureFingerCorePaint;
+    private Paint gestureFingerRimPaint;
+    private Paint gestureFingerAuraPaint;
+    private Paint gestureFingerTrailPaint;
+    private final RectF gesturePillRect = new RectF();
+    private final RectF textHelpButtonRect = new RectF();
+
+    // Volume IPC cache to eliminate Binder calls in onDraw
+    private int cachedStreamVolume = -1;
+    private int cachedMaxVolume = -1;
+
+    // Interaction tracking to throttle idle marquee animations
+    private long lastInteractionTime = SystemClock.uptimeMillis();
 
     private boolean isAnimationRunning = false;
     private final Handler eqHandler = new Handler();
@@ -300,10 +359,68 @@ public class DialView extends View {
             boolean active = checkAudioState();
             updateEqData();
             invalidate();
-            // Ambient UI cadence: 30 fps when playing/recording, 25 fps when idle breathing
-            eqHandler.postDelayed(this, active ? 33 : 40);
+
+            if (active) {
+                eqHandler.postDelayed(this, 33);
+            } else {
+                // If inactive, continue loop only until spectrum decay or spring animations settle
+                if (hasActiveEnergy()) {
+                    eqHandler.postDelayed(this, 50); // 20 fps smooth decay to rest
+                } else {
+                    isAnimationRunning = false; // Rest state: stop loop to let CPU sleep
+                }
+            }
         }
     };
+
+    private boolean hasActiveEnergy() {
+        if (showGestureTutorial) {
+            return true;
+        }
+        if (SystemClock.uptimeMillis() - sectionOverlayStartTime < SECTION_OVERLAY_DURATION) {
+            return true;
+        }
+        for (int b = 0; b < NUM_FREQ_BANDS; b++) {
+            if (freqBands[b] > 0.065f || freqPeakBands[b] > 0.065f) return true;
+        }
+        if (Math.abs(folderWheelScrollOffset) > 0.5f || Math.abs(fileWheelScrollOffset) > 0.5f) return true;
+        if (visualizerMode == VISUALIZER_MODE_MINIMAL_SPLIT) {
+            float targetRatio = checkAudioState() ? 0.34f : 0.48f;
+            if (Math.abs(targetRatio - currentDividerRatio) > 0.002f) return true;
+        }
+        return false;
+    }
+
+    public void setScreenCurtainEnabled(boolean enabled) {
+        this.isScreenCurtainEnabled = enabled;
+        if (enabled) {
+            stopAnimation();
+        } else {
+            checkAndStartAnimation();
+        }
+        invalidate();
+    }
+
+    public boolean isScreenCurtainEnabled() {
+        return isScreenCurtainEnabled;
+    }
+
+    public void toggleScreenCurtain() {
+        setScreenCurtainEnabled(!isScreenCurtainEnabled);
+    }
+
+    public void setVolume(int current, int max) {
+        if (this.cachedStreamVolume != current || this.cachedMaxVolume != max) {
+            this.cachedStreamVolume = current;
+            this.cachedMaxVolume = max;
+            postInvalidateOnAnimation();
+        }
+    }
+
+    public void notifyUserInteraction() {
+        this.lastInteractionTime = SystemClock.uptimeMillis();
+        checkAndStartAnimation();
+    }
 
     private void initPaints() {
         bezelOuterPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -837,6 +954,89 @@ public class DialView extends View {
         splitIdlePlayCuePaint.setColor(Color.parseColor("#4D00E5FF"));
         splitIdlePlayCuePaint.setTextAlign(Paint.Align.CENTER);
         splitIdlePlayCuePaint.setLetterSpacing(0.06f);
+
+        splitCardProgressFillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        splitCardProgressFillPaint.setStyle(Paint.Style.FILL);
+
+        splitCardProgressNeedlePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        splitCardProgressNeedlePaint.setStyle(Paint.Style.STROKE);
+        splitCardProgressNeedlePaint.setStrokeWidth(2f);
+        splitCardProgressNeedlePaint.setColor(Color.parseColor("#E0FFFFFF"));
+        splitCardProgressNeedlePaint.setShadowLayer(6f, 0f, 0f, Color.parseColor("#8000E5FF"));
+
+        splitVolMeterActivePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        splitVolMeterActivePaint.setStyle(Paint.Style.FILL);
+        splitVolMeterActivePaint.setColor(Color.parseColor("#9000E5FF"));
+
+        splitVolMeterInactivePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        splitVolMeterInactivePaint.setStyle(Paint.Style.FILL);
+        splitVolMeterInactivePaint.setColor(Color.parseColor("#2200E5FF"));
+
+        splitVolMeterPeakPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        splitVolMeterPeakPaint.setStyle(Paint.Style.FILL);
+        splitVolMeterPeakPaint.setColor(Color.parseColor("#00E676")); // Mint Green for VU headroom
+
+        splitWaveformTracePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        splitWaveformTracePaint.setStyle(Paint.Style.STROKE);
+        splitWaveformTracePaint.setStrokeWidth(1.2f);
+        splitWaveformTracePaint.setColor(Color.parseColor("#4D00E5FF"));
+
+        splitVolTextPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+        splitVolTextPaint.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        splitVolTextPaint.setColor(Color.parseColor("#6600E5FF"));
+        splitVolTextPaint.setTextAlign(Paint.Align.RIGHT);
+
+        splitProgressPctPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+        splitProgressPctPaint.setTypeface(Typeface.create("monospace", Typeface.BOLD));
+        splitProgressPctPaint.setColor(Color.parseColor("#E600E5FF"));
+        splitProgressPctPaint.setTextAlign(Paint.Align.RIGHT);
+
+        sectionOverlayBgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        sectionOverlayBgPaint.setStyle(Paint.Style.FILL);
+
+        sectionOverlayBorderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        sectionOverlayBorderPaint.setStyle(Paint.Style.STROKE);
+
+        sectionOverlayGlowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        sectionOverlayGlowPaint.setStyle(Paint.Style.STROKE);
+
+        sectionOverlayCharPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+        sectionOverlayCharPaint.setTypeface(Typeface.create("sans-serif-black", Typeface.BOLD));
+        sectionOverlayCharPaint.setTextAlign(Paint.Align.CENTER);
+
+        sectionOverlayTitlePaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+        sectionOverlayTitlePaint.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        sectionOverlayTitlePaint.setTextAlign(Paint.Align.CENTER);
+
+        sectionOverlaySubPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+        sectionOverlaySubPaint.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        sectionOverlaySubPaint.setTextAlign(Paint.Align.CENTER);
+
+        gesturePillBgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        gesturePillBgPaint.setStyle(Paint.Style.FILL);
+
+        gesturePillBorderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        gesturePillBorderPaint.setStyle(Paint.Style.STROKE);
+
+        gesturePillTitlePaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+        gesturePillTitlePaint.setTypeface(Typeface.create("sans-serif-black", Typeface.BOLD));
+        gesturePillTitlePaint.setTextAlign(Paint.Align.CENTER);
+
+        gesturePillSubPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+        gesturePillSubPaint.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        gesturePillSubPaint.setTextAlign(Paint.Align.CENTER);
+
+        gestureFingerCorePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        gestureFingerCorePaint.setStyle(Paint.Style.FILL);
+
+        gestureFingerRimPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        gestureFingerRimPaint.setStyle(Paint.Style.STROKE);
+
+        gestureFingerAuraPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        gestureFingerAuraPaint.setStyle(Paint.Style.FILL);
+
+        gestureFingerTrailPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        gestureFingerTrailPaint.setStyle(Paint.Style.FILL);
     }
 
     private void updateAuraShaders(float radius) {
@@ -1108,6 +1308,21 @@ public class DialView extends View {
 
             @Override
             public boolean onTouch(View v, MotionEvent event) {
+                if (showGestureTutorial) {
+                    if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+                        float x = event.getX();
+                        float y = event.getY();
+                        if (isTextHelpButtonTapped(x, y)) {
+                            dismissGestureTutorial();
+                            if (getContext() instanceof MainActivity) {
+                                ((MainActivity) getContext()).showGestureHelpDialog(true);
+                            }
+                        } else {
+                            dismissGestureTutorial();
+                        }
+                    }
+                    return true;
+                }
                 // For ACTION_MOVE
                 float touchX1 = event.getX();
                 float touchY1 = event.getY();
@@ -1421,9 +1636,9 @@ public class DialView extends View {
                                     break;
                                 case LEFT_RIGHT:
                                     if (effectivePointers >= 2)
-                                        cmd(Commander.FAST_SEEK_PREVIOUS_FILE);
+                                        cmd(Commander.FAST_SEEK_NEXT_FILE);
                                     else if(touchCnt == 1) {
-                                        cmd(Commander.PREVIOUS_SONG);
+                                        cmd(Commander.NEXT_SONG);
                                     } else if(touchCnt == 2) {
                                         cmd(Commander.NEXT_BOOKMARK);
                                     } else if(touchCnt >= 3) {
@@ -1445,9 +1660,9 @@ public class DialView extends View {
 //                                    break;
                                 case RIGHT_LEFT:
                                     if (effectivePointers >= 2)
-                                        cmd(Commander.FAST_SEEK_NEXT_FILE);
+                                        cmd(Commander.FAST_SEEK_PREVIOUS_FILE);
                                     else if(touchCnt == 1) {
-                                        cmd(Commander.NEXT_SONG);
+                                        cmd(Commander.PREVIOUS_SONG);
                                     } else if(touchCnt == 2) {
                                         cmd(Commander.PREVIOUS_BOOKMARK);
                                     } else if(touchCnt >= 3) {
@@ -1615,6 +1830,9 @@ public class DialView extends View {
     }
 
     public void checkAndStartAnimation() {
+        if (isScreenCurtainEnabled) {
+            return;
+        }
         if (!isAnimationRunning && getVisibility() == View.VISIBLE) {
             isAnimationRunning = true;
             eqHandler.post(eqAnimationRunnable);
@@ -1871,10 +2089,836 @@ public class DialView extends View {
     @Override
     protected void onDraw(Canvas canvas) {
         drawDial(canvas);
+        drawSectionHUD(canvas);
+        drawGestureTutorialHUD(canvas);
         super.onDraw(canvas);
     }
 
+    public void startGestureTutorial() {
+        if (isScreenCurtainEnabled) return;
+        this.showGestureTutorial = true;
+        this.gestureTutorialStartTime = SystemClock.uptimeMillis();
+        checkAndStartAnimation();
+        postInvalidateOnAnimation();
+    }
+
+    public void dismissGestureTutorial() {
+        if (showGestureTutorial) {
+            showGestureTutorial = false;
+            postInvalidateOnAnimation();
+        }
+    }
+
+    public boolean isGestureTutorialActive() {
+        return showGestureTutorial;
+    }
+
+    public boolean isTextHelpButtonTapped(float x, float y) {
+        if (!showGestureTutorial) return false;
+        float pad = 8f * getResources().getDisplayMetrics().density;
+        return (x >= textHelpButtonRect.left - pad && x <= textHelpButtonRect.right + pad &&
+                y >= textHelpButtonRect.top - pad && y <= textHelpButtonRect.bottom + pad);
+    }
+
+    private void drawGestureTutorialHUD(Canvas canvas) {
+        if (!showGestureTutorial || isScreenCurtainEnabled) return;
+        long elapsed = SystemClock.uptimeMillis() - gestureTutorialStartTime;
+        if (elapsed < 0) return;
+
+        // Master alpha: smooth 300ms fade-in, then stays solid 1.0f indefinitely until dismissed
+        float alpha = (elapsed < 300L) ? Math.max(0f, (float) elapsed / 300f) : 1.0f;
+
+        float density = getResources().getDisplayMetrics().density;
+        float viewW = getMeasuredWidth();
+        float viewH = getMeasuredHeight();
+        if (viewW <= 0 || viewH <= 0) return;
+
+        // 1. Deep window dimming scrim (~88% opacity dark obsidian)
+        canvas.drawColor(Color.argb((int)(0xE0 * alpha), 3, 8, 14));
+
+        float centerX = viewW / 2f;
+        float centerY = viewH * 0.46f;
+
+        // 2. Persistent Top Banner: "FULL-SCREEN GESTURES / WORKS ANYWHERE ON SCREEN"
+        float topBannerW = Math.min(viewW * 0.84f, 270f * density);
+        float topBannerH = 46f * density;
+        float topBannerY = viewH * 0.11f;
+        gesturePillRect.set(centerX - topBannerW / 2f, topBannerY, centerX + topBannerW / 2f, topBannerY + topBannerH);
+        drawPillBadge(canvas, gesturePillRect, "✨ FULL-SCREEN GESTURES", "WORKS ANYWHERE ON THE SCREEN", alpha, density);
+
+        // 3. Multi-Step Animation Sequence (9 Gestures covering all help details)
+        // Step 0: Folders (Swipe Up/Down)
+        // Step 1: Files (Swipe Left/Right)
+        // Step 2: 2-Finger Swipe Left/Right (File Alphabet Section Search)
+        // Step 3: 2-Finger Swipe Up/Down (Folder Month Section Search)
+        // Step 4: 1x Single Tap (Play / Stop)
+        // Step 5: 2x Double Tap (Record)
+        // Step 6: 3x Triple Tap (Bookmark)
+        // Step 7: 3-Finger Triple Tap (Screen Curtain)
+        // Step 8: 1-Finger Long Press (Spoken Audio Info Readout)
+        int totalSteps = 9;
+        long stepDuration = 3200L;
+        long crossfadeDuration = 400L;
+        long cycleDuration = totalSteps * stepDuration;
+        long cycleElapsed = elapsed % cycleDuration;
+        int currentStep = (int) (cycleElapsed / stepDuration);
+        long stepElapsed = cycleElapsed % stepDuration;
+        int nextStep = (currentStep + 1) % totalSteps;
+
+        float currentWeight = 1.0f;
+        float nextWeight = 0.0f;
+        long holdDuration = stepDuration - crossfadeDuration;
+        if (stepElapsed >= holdDuration) {
+            float blend = (float)(stepElapsed - holdDuration) / (float) crossfadeDuration;
+            currentWeight = 1.0f - blend;
+            nextWeight = blend;
+        }
+
+        for (int s = 0; s < totalSteps; s++) {
+            float weight = 0f;
+            if (s == currentStep) weight = currentWeight;
+            else if (s == nextStep) weight = nextWeight;
+
+            if (weight > 0.008f) {
+                float stepAlpha = alpha * weight;
+                switch (s) {
+                    case 0:
+                        drawStepFolders(canvas, centerX, centerY, viewW, viewH, elapsed, stepAlpha, density);
+                        break;
+                    case 1:
+                        drawStepFiles(canvas, centerX, centerY, viewW, viewH, elapsed, stepAlpha, density);
+                        break;
+                    case 2:
+                        drawStepTwoFingerHorizontal(canvas, centerX, centerY, viewW, viewH, elapsed, stepAlpha, density);
+                        break;
+                    case 3:
+                        drawStepTwoFingerVertical(canvas, centerX, centerY, viewW, viewH, elapsed, stepAlpha, density);
+                        break;
+                    case 4:
+                        drawStepSingleTap(canvas, centerX, centerY, viewW, viewH, elapsed, stepAlpha, density);
+                        break;
+                    case 5:
+                        drawStepDoubleTap(canvas, centerX, centerY, viewW, viewH, elapsed, stepAlpha, density);
+                        break;
+                    case 6:
+                        drawStepTripleTap(canvas, centerX, centerY, viewW, viewH, elapsed, stepAlpha, density);
+                        break;
+                    case 7:
+                        drawStepScreenCurtain(canvas, centerX, centerY, viewW, viewH, elapsed, stepAlpha, density);
+                        break;
+                    case 8:
+                        drawStepLongPress(canvas, centerX, centerY, viewW, viewH, elapsed, stepAlpha, density);
+                        break;
+                }
+            }
+        }
+
+        // 4. BOTTOM CONTROLS:
+        // (A) Button: "📖 OPEN FULL TEXT HELP" -> Launches comprehensive text guide
+        // (B) Prompt: "👆 Touch anywhere else to close"
+        float btnW = Math.min(viewW * 0.74f, 225f * density);
+        float btnH = 38f * density;
+        float btnTop = viewH - 128f * density;
+        textHelpButtonRect.set(centerX - btnW / 2f, btnTop, centerX + btnW / 2f, btnTop + btnH);
+
+        // Draw Text Help Button
+        if (gesturePillBgPaint != null) {
+            gesturePillBgPaint.setColor(Color.argb((int)(0xF0 * alpha), 5, 26, 40));
+            canvas.drawRoundRect(textHelpButtonRect, 19f * density, 19f * density, gesturePillBgPaint);
+        }
+        if (gesturePillBorderPaint != null) {
+            gesturePillBorderPaint.setColor(Color.argb((int)(0xFF * alpha), 0, 229, 255));
+            gesturePillBorderPaint.setStrokeWidth(1.8f * density);
+            canvas.drawRoundRect(textHelpButtonRect, 19f * density, 19f * density, gesturePillBorderPaint);
+        }
+        if (gesturePillTitlePaint != null) {
+            gesturePillTitlePaint.setTextSize(11f * density);
+            gesturePillTitlePaint.setColor(Color.argb((int)(0xFF * alpha), 0, 229, 255));
+            gesturePillTitlePaint.setLetterSpacing(0.06f);
+            canvas.drawText("📖 OPEN FULL TEXT HELP", centerX, btnTop + 24f * density, gesturePillTitlePaint);
+        }
+
+        // Touch anywhere else to close
+        float closeTop = btnTop + btnH + 10f * density;
+        if (gesturePillSubPaint != null) {
+            gesturePillSubPaint.setTextSize(10f * density);
+            gesturePillSubPaint.setColor(Color.argb((int)(0xC0 * alpha), 178, 235, 242));
+            gesturePillSubPaint.setLetterSpacing(0.04f);
+            canvas.drawText("👆 Touch anywhere else to close", centerX, closeTop + 16f * density, gesturePillSubPaint);
+        }
+    }
+
+    private void drawStepFolders(Canvas canvas, float centerX, float centerY, float viewW, float viewH, long elapsed, float stepAlpha, float density) {
+        float travelY = 88f * density;
+        long periodY = 1600L;
+        float normY = (float) ((elapsed % periodY) / (double) periodY);
+        float sineY = (float) Math.sin(normY * 2.0 * Math.PI);
+        float fingerX = centerX;
+        float fingerY = centerY + sineY * travelY;
+
+        if (gestureFingerTrailPaint != null) {
+            for (int k = 4; k >= 1; k--) {
+                float tNorm = (float) (((elapsed - k * 45L + periodY) % periodY) / (double) periodY);
+                float tSine = (float) Math.sin(tNorm * 2.0 * Math.PI);
+                float tY = centerY + tSine * travelY;
+                float trailA = stepAlpha * (0.38f - k * 0.07f);
+                float trailR = (22f - k * 3f) * density;
+                gestureFingerTrailPaint.setColor(Color.argb((int)(0xFF * trailA), 0, 229, 255));
+                canvas.drawCircle(fingerX, tY, trailR, gestureFingerTrailPaint);
+            }
+        }
+
+        drawGlowingFingerAvatar(canvas, fingerX, fingerY, stepAlpha, density, 1.0f);
+        drawDirectionArrow(canvas, fingerX, centerY - travelY - 24f * density, 0, stepAlpha, density);   // UP
+        drawDirectionArrow(canvas, fingerX, centerY + travelY + 24f * density, 180, stepAlpha, density); // DOWN
+
+        float badgeW = Math.min(viewW * 0.72f, 220f * density);
+        float badgeH = 46f * density;
+        float badgeTop = centerY - travelY - 76f * density;
+        gesturePillRect.set(centerX - badgeW / 2f, badgeTop, centerX + badgeW / 2f, badgeTop + badgeH);
+        drawPillBadge(canvas, gesturePillRect, "↕ SWIPE UP / DOWN", "BROWSE FOLDERS", stepAlpha, density);
+
+        float stepW = 195f * density;
+        float stepH = 26f * density;
+        float stepTop = centerY + travelY + 36f * density;
+        gesturePillRect.set(centerX - stepW / 2f, stepTop, centerX + stepW / 2f, stepTop + stepH);
+        drawStepPill(canvas, gesturePillRect, "STEP 1 OF 9  ● ○ ○ ○ ○ ○ ○ ○ ○", stepAlpha, density);
+    }
+
+    private void drawStepFiles(Canvas canvas, float centerX, float centerY, float viewW, float viewH, long elapsed, float stepAlpha, float density) {
+        float maxTravelX = viewW * 0.36f;
+        float travelX = Math.min(maxTravelX, 115f * density);
+        long periodX = 1600L;
+        float normX = (float) ((elapsed % periodX) / (double) periodX);
+        float sineX = (float) Math.sin(normX * 2.0 * Math.PI);
+        float fingerX = centerX + sineX * travelX;
+        float fingerY = centerY;
+
+        if (gestureFingerTrailPaint != null) {
+            for (int k = 4; k >= 1; k--) {
+                float tNorm = (float) (((elapsed - k * 45L + periodX) % periodX) / (double) periodX);
+                float tSine = (float) Math.sin(tNorm * 2.0 * Math.PI);
+                float tX = centerX + tSine * travelX;
+                float trailA = stepAlpha * (0.38f - k * 0.07f);
+                float trailR = (22f - k * 3f) * density;
+                gestureFingerTrailPaint.setColor(Color.argb((int)(0xFF * trailA), 0, 229, 255));
+                canvas.drawCircle(tX, fingerY, trailR, gestureFingerTrailPaint);
+            }
+        }
+
+        drawGlowingFingerAvatar(canvas, fingerX, fingerY, stepAlpha, density, 1.0f);
+        drawDirectionArrow(canvas, centerX - travelX - 24f * density, fingerY, 270, stepAlpha, density); // LEFT
+        drawDirectionArrow(canvas, centerX + travelX + 24f * density, fingerY, 90, stepAlpha, density);  // RIGHT
+
+        float badgeW = Math.min(viewW * 0.72f, 220f * density);
+        float badgeH = 46f * density;
+        float badgeTop = centerY - 76f * density;
+        gesturePillRect.set(centerX - badgeW / 2f, badgeTop, centerX + badgeW / 2f, badgeTop + badgeH);
+        drawPillBadge(canvas, gesturePillRect, "↔ SWIPE LEFT / RIGHT", "BROWSE FILES", stepAlpha, density);
+
+        float stepW = 195f * density;
+        float stepH = 26f * density;
+        float stepTop = centerY + 52f * density;
+        gesturePillRect.set(centerX - stepW / 2f, stepTop, centerX + stepW / 2f, stepTop + stepH);
+        drawStepPill(canvas, gesturePillRect, "STEP 2 OF 9  ○ ● ○ ○ ○ ○ ○ ○ ○", stepAlpha, density);
+    }
+
+    private void drawStepTwoFingerHorizontal(Canvas canvas, float centerX, float centerY, float viewW, float viewH, long elapsed, float stepAlpha, float density) {
+        float maxTravelX = viewW * 0.30f;
+        float travelX = Math.min(maxTravelX, 95f * density);
+        long periodX = 1600L;
+        float normX = (float) ((elapsed % periodX) / (double) periodX);
+        float sineX = (float) Math.sin(normX * 2.0 * Math.PI);
+        float spacing = 34f * density;
+        float finger1X = centerX - spacing / 2f + sineX * travelX;
+        float finger2X = centerX + spacing / 2f + sineX * travelX;
+        float fingerY = centerY;
+
+        if (gestureFingerTrailPaint != null) {
+            for (int k = 4; k >= 1; k--) {
+                float tNorm = (float) (((elapsed - k * 45L + periodX) % periodX) / (double) periodX);
+                float tSine = (float) Math.sin(tNorm * 2.0 * Math.PI);
+                float t1X = centerX - spacing / 2f + tSine * travelX;
+                float t2X = centerX + spacing / 2f + tSine * travelX;
+                float trailA = stepAlpha * (0.35f - k * 0.06f);
+                float trailR = (20f - k * 3f) * density;
+                gestureFingerTrailPaint.setColor(Color.argb((int)(0xFF * trailA), 0, 229, 255));
+                canvas.drawCircle(t1X, fingerY, trailR, gestureFingerTrailPaint);
+                canvas.drawCircle(t2X, fingerY, trailR, gestureFingerTrailPaint);
+            }
+        }
+
+        drawGlowingFingerAvatar(canvas, finger1X, fingerY, stepAlpha, density, 1.0f);
+        drawGlowingFingerAvatar(canvas, finger2X, fingerY, stepAlpha, density, 1.0f);
+
+        drawDoubleDirectionArrow(canvas, centerX - spacing / 2f - travelX - 22f * density, fingerY, 270, stepAlpha, density); // LEFT
+        drawDoubleDirectionArrow(canvas, centerX + spacing / 2f + travelX + 22f * density, fingerY, 90, stepAlpha, density);  // RIGHT
+
+        drawActionCallout(canvas, centerX, centerY + 52f * density, "⏩  SECTION SEEK [ A → B → C ]", Color.argb((int)(0xFF * stepAlpha), 0, 229, 255), stepAlpha, density);
+
+        float badgeW = Math.min(viewW * 0.72f, 220f * density);
+        float badgeH = 46f * density;
+        float badgeTop = centerY - 76f * density;
+        gesturePillRect.set(centerX - badgeW / 2f, badgeTop, centerX + badgeW / 2f, badgeTop + badgeH);
+        drawPillBadge(canvas, gesturePillRect, "⏩ 2-FINGER SWIPE L / R", "SEEK FILES BY ALPHABET", stepAlpha, density);
+
+        float stepW = 195f * density;
+        float stepH = 26f * density;
+        float stepTop = centerY + 96f * density;
+        gesturePillRect.set(centerX - stepW / 2f, stepTop, centerX + stepW / 2f, stepTop + stepH);
+        drawStepPill(canvas, gesturePillRect, "STEP 3 OF 9  ○ ○ ● ○ ○ ○ ○ ○ ○", stepAlpha, density);
+    }
+
+    private void drawStepTwoFingerVertical(Canvas canvas, float centerX, float centerY, float viewW, float viewH, long elapsed, float stepAlpha, float density) {
+        float travelY = 82f * density;
+        long periodY = 1600L;
+        float normY = (float) ((elapsed % periodY) / (double) periodY);
+        float sineY = (float) Math.sin(normY * 2.0 * Math.PI);
+        float spacing = 32f * density;
+        float finger1X = centerX - spacing / 2f;
+        float finger2X = centerX + spacing / 2f;
+        float fingerY = centerY + sineY * travelY;
+
+        if (gestureFingerTrailPaint != null) {
+            for (int k = 4; k >= 1; k--) {
+                float tNorm = (float) (((elapsed - k * 45L + periodY) % periodY) / (double) periodY);
+                float tSine = (float) Math.sin(tNorm * 2.0 * Math.PI);
+                float tY = centerY + tSine * travelY;
+                float trailA = stepAlpha * (0.35f - k * 0.06f);
+                float trailR = (20f - k * 3f) * density;
+                gestureFingerTrailPaint.setColor(Color.argb((int)(0xFF * trailA), 0, 229, 255));
+                canvas.drawCircle(finger1X, tY, trailR, gestureFingerTrailPaint);
+                canvas.drawCircle(finger2X, tY, trailR, gestureFingerTrailPaint);
+            }
+        }
+
+        drawGlowingFingerAvatar(canvas, finger1X, fingerY, stepAlpha, density, 1.0f);
+        drawGlowingFingerAvatar(canvas, finger2X, fingerY, stepAlpha, density, 1.0f);
+
+        drawDoubleDirectionArrow(canvas, centerX, centerY - travelY - 24f * density, 0, stepAlpha, density);   // UP
+        drawDoubleDirectionArrow(canvas, centerX, centerY + travelY + 24f * density, 180, stepAlpha, density); // DOWN
+
+        drawActionCallout(canvas, centerX, centerY + 52f * density, "🗓️  SEEK [ JAN → FEB → MAR ]", Color.argb((int)(0xFF * stepAlpha), 0, 229, 255), stepAlpha, density);
+
+        float badgeW = Math.min(viewW * 0.72f, 220f * density);
+        float badgeH = 46f * density;
+        float badgeTop = centerY - travelY - 76f * density;
+        gesturePillRect.set(centerX - badgeW / 2f, badgeTop, centerX + badgeW / 2f, badgeTop + badgeH);
+        drawPillBadge(canvas, gesturePillRect, "⏫ 2-FINGER SWIPE U / D", "SEEK FOLDERS BY MONTH", stepAlpha, density);
+
+        float stepW = 195f * density;
+        float stepH = 26f * density;
+        float stepTop = centerY + travelY + 36f * density;
+        gesturePillRect.set(centerX - stepW / 2f, stepTop, centerX + stepW / 2f, stepTop + stepH);
+        drawStepPill(canvas, gesturePillRect, "STEP 4 OF 9  ○ ○ ○ ● ○ ○ ○ ○ ○", stepAlpha, density);
+    }
+
+    private void drawStepSingleTap(Canvas canvas, float centerX, float centerY, float viewW, float viewH, long elapsed, float stepAlpha, float density) {
+        long period = 1500L;
+        long cycle = elapsed % period;
+        float scale = 1.0f;
+        float rippleR = 0f;
+        float rippleA = 0f;
+
+        if (cycle < 280L) {
+            scale = 1.0f - 0.22f * (float) Math.sin((cycle / 280f) * Math.PI);
+        } else if (cycle < 1000L) {
+            float p = (cycle - 280L) / 720f;
+            rippleR = (20f + p * 48f) * density;
+            rippleA = (1.0f - p) * stepAlpha;
+        }
+
+        if (rippleR > 0 && gesturePillBorderPaint != null) {
+            gesturePillBorderPaint.setColor(Color.argb((int)(0xD0 * rippleA), 0, 229, 255));
+            gesturePillBorderPaint.setStrokeWidth(2.5f * density);
+            canvas.drawCircle(centerX, centerY, rippleR, gesturePillBorderPaint);
+        }
+
+        drawGlowingFingerAvatar(canvas, centerX, centerY, stepAlpha, density, scale);
+
+        boolean isPlay = (elapsed % 3000L < 1500L);
+        String action = isPlay ? "▶  PLAY AUDIO" : "■  STOP PLAYBACK";
+        int actionColor = isPlay ? Color.argb((int)(0xFF * stepAlpha), 0, 230, 118) : Color.argb((int)(0xFF * stepAlpha), 255, 171, 64);
+        drawActionCallout(canvas, centerX, centerY + 52f * density, action, actionColor, stepAlpha, density);
+
+        float badgeW = Math.min(viewW * 0.72f, 220f * density);
+        float badgeH = 46f * density;
+        float badgeTop = centerY - 76f * density;
+        gesturePillRect.set(centerX - badgeW / 2f, badgeTop, centerX + badgeW / 2f, badgeTop + badgeH);
+        drawPillBadge(canvas, gesturePillRect, "▶ 1x SINGLE TAP", "PLAY & STOP AUDIO", stepAlpha, density);
+
+        float stepW = 195f * density;
+        float stepH = 26f * density;
+        float stepTop = centerY + 96f * density;
+        gesturePillRect.set(centerX - stepW / 2f, stepTop, centerX + stepW / 2f, stepTop + stepH);
+        drawStepPill(canvas, gesturePillRect, "STEP 5 OF 9  ○ ○ ○ ○ ● ○ ○ ○ ○", stepAlpha, density);
+    }
+
+    private void drawStepDoubleTap(Canvas canvas, float centerX, float centerY, float viewW, float viewH, long elapsed, float stepAlpha, float density) {
+        long period = 1600L;
+        long cycle = elapsed % period;
+        float scale = 1.0f;
+
+        // Two rapid taps at 180ms and 500ms
+        float r1 = 0f, a1 = 0f;
+        float r2 = 0f, a2 = 0f;
+
+        if (cycle < 220L) {
+            scale = 1.0f - 0.20f * (float) Math.sin((cycle / 220f) * Math.PI);
+        } else if (cycle >= 450L && cycle < 670L) {
+            scale = 1.0f - 0.20f * (float) Math.sin(((cycle - 450L) / 220f) * Math.PI);
+        }
+
+        if (cycle >= 180L && cycle < 850L) {
+            float p1 = (cycle - 180L) / 670f;
+            r1 = (20f + p1 * 44f) * density;
+            a1 = (1.0f - p1) * stepAlpha;
+        }
+        if (cycle >= 500L && cycle < 1170L) {
+            float p2 = (cycle - 500L) / 670f;
+            r2 = (20f + p2 * 44f) * density;
+            a2 = (1.0f - p2) * stepAlpha;
+        }
+
+        if (gesturePillBorderPaint != null) {
+            gesturePillBorderPaint.setStrokeWidth(2.5f * density);
+            if (r1 > 0) {
+                gesturePillBorderPaint.setColor(Color.argb((int)(0xE0 * a1), 255, 23, 68));
+                canvas.drawCircle(centerX, centerY, r1, gesturePillBorderPaint);
+            }
+            if (r2 > 0) {
+                gesturePillBorderPaint.setColor(Color.argb((int)(0xE0 * a2), 255, 82, 82));
+                canvas.drawCircle(centerX, centerY, r2, gesturePillBorderPaint);
+            }
+        }
+
+        drawGlowingFingerAvatar(canvas, centerX, centerY, stepAlpha, density, scale);
+
+        drawActionCallout(canvas, centerX, centerY + 52f * density, "⏺  VOICE RECORDING", Color.argb((int)(0xFF * stepAlpha), 255, 50, 75), stepAlpha, density);
+
+        float badgeW = Math.min(viewW * 0.72f, 220f * density);
+        float badgeH = 46f * density;
+        float badgeTop = centerY - 76f * density;
+        gesturePillRect.set(centerX - badgeW / 2f, badgeTop, centerX + badgeW / 2f, badgeTop + badgeH);
+        drawPillBadge(canvas, gesturePillRect, "⏺ 2x DOUBLE TAP", "START & STOP RECORDING", stepAlpha, density);
+
+        float stepW = 195f * density;
+        float stepH = 26f * density;
+        float stepTop = centerY + 96f * density;
+        gesturePillRect.set(centerX - stepW / 2f, stepTop, centerX + stepW / 2f, stepTop + stepH);
+        drawStepPill(canvas, gesturePillRect, "STEP 6 OF 9  ○ ○ ○ ○ ○ ● ○ ○ ○", stepAlpha, density);
+    }
+
+    private void drawStepTripleTap(Canvas canvas, float centerX, float centerY, float viewW, float viewH, long elapsed, float stepAlpha, float density) {
+        long period = 1800L;
+        long cycle = elapsed % period;
+        float scale = 1.0f;
+
+        // Three rapid taps at 140ms, 420ms, 700ms
+        float r1 = 0f, a1 = 0f;
+        float r2 = 0f, a2 = 0f;
+        float r3 = 0f, a3 = 0f;
+
+        if (cycle < 180L) {
+            scale = 1.0f - 0.20f * (float) Math.sin((cycle / 180f) * Math.PI);
+        } else if (cycle >= 380L && cycle < 560L) {
+            scale = 1.0f - 0.20f * (float) Math.sin(((cycle - 380L) / 180f) * Math.PI);
+        } else if (cycle >= 660L && cycle < 840L) {
+            scale = 1.0f - 0.20f * (float) Math.sin(((cycle - 660L) / 180f) * Math.PI);
+        }
+
+        if (cycle >= 140L && cycle < 700L) {
+            float p1 = (cycle - 140L) / 560f;
+            r1 = (20f + p1 * 38f) * density;
+            a1 = (1.0f - p1) * stepAlpha;
+        }
+        if (cycle >= 420L && cycle < 980L) {
+            float p2 = (cycle - 420L) / 560f;
+            r2 = (20f + p2 * 38f) * density;
+            a2 = (1.0f - p2) * stepAlpha;
+        }
+        if (cycle >= 700L && cycle < 1260L) {
+            float p3 = (cycle - 700L) / 560f;
+            r3 = (20f + p3 * 38f) * density;
+            a3 = (1.0f - p3) * stepAlpha;
+        }
+
+        if (gesturePillBorderPaint != null) {
+            gesturePillBorderPaint.setStrokeWidth(2.5f * density);
+            if (r1 > 0) {
+                gesturePillBorderPaint.setColor(Color.argb((int)(0xE0 * a1), 255, 214, 0));
+                canvas.drawCircle(centerX, centerY, r1, gesturePillBorderPaint);
+            }
+            if (r2 > 0) {
+                gesturePillBorderPaint.setColor(Color.argb((int)(0xE0 * a2), 255, 193, 7));
+                canvas.drawCircle(centerX, centerY, r2, gesturePillBorderPaint);
+            }
+            if (r3 > 0) {
+                gesturePillBorderPaint.setColor(Color.argb((int)(0xE0 * a3), 255, 238, 88));
+                canvas.drawCircle(centerX, centerY, r3, gesturePillBorderPaint);
+            }
+        }
+
+        drawGlowingFingerAvatar(canvas, centerX, centerY, stepAlpha, density, scale);
+
+        drawActionCallout(canvas, centerX, centerY + 52f * density, "★  BOOKMARK ADDED", Color.argb((int)(0xFF * stepAlpha), 255, 214, 0), stepAlpha, density);
+
+        float badgeW = Math.min(viewW * 0.72f, 220f * density);
+        float badgeH = 46f * density;
+        float badgeTop = centerY - 76f * density;
+        gesturePillRect.set(centerX - badgeW / 2f, badgeTop, centerX + badgeW / 2f, badgeTop + badgeH);
+        drawPillBadge(canvas, gesturePillRect, "★ 3x TRIPLE TAP", "ADD AUDIO BOOKMARK", stepAlpha, density);
+
+        float stepW = 195f * density;
+        float stepH = 26f * density;
+        float stepTop = centerY + 96f * density;
+        gesturePillRect.set(centerX - stepW / 2f, stepTop, centerX + stepW / 2f, stepTop + stepH);
+        drawStepPill(canvas, gesturePillRect, "STEP 7 OF 9  ○ ○ ○ ○ ○ ○ ● ○ ○", stepAlpha, density);
+    }
+
+    private void drawStepScreenCurtain(Canvas canvas, float centerX, float centerY, float viewW, float viewH, long elapsed, float stepAlpha, float density) {
+        long period = 1800L;
+        long cycle = elapsed % period;
+        float scale = 1.0f;
+        float spacing = 28f * density;
+        float f1X = centerX - spacing;
+        float f2X = centerX;
+        float f3X = centerX + spacing;
+
+        // Three synchronized taps at 140ms, 420ms, 700ms
+        float r1 = 0f, a1 = 0f;
+        float r2 = 0f, a2 = 0f;
+        float r3 = 0f, a3 = 0f;
+
+        if (cycle < 180L) {
+            scale = 1.0f - 0.20f * (float) Math.sin((cycle / 180f) * Math.PI);
+        } else if (cycle >= 380L && cycle < 560L) {
+            scale = 1.0f - 0.20f * (float) Math.sin(((cycle - 380L) / 180f) * Math.PI);
+        } else if (cycle >= 660L && cycle < 840L) {
+            scale = 1.0f - 0.20f * (float) Math.sin(((cycle - 660L) / 180f) * Math.PI);
+        }
+
+        if (cycle >= 140L && cycle < 700L) {
+            float p1 = (cycle - 140L) / 560f;
+            r1 = (18f + p1 * 32f) * density;
+            a1 = (1.0f - p1) * stepAlpha;
+        }
+        if (cycle >= 420L && cycle < 980L) {
+            float p2 = (cycle - 420L) / 560f;
+            r2 = (18f + p2 * 32f) * density;
+            a2 = (1.0f - p2) * stepAlpha;
+        }
+        if (cycle >= 700L && cycle < 1260L) {
+            float p3 = (cycle - 700L) / 560f;
+            r3 = (18f + p3 * 32f) * density;
+            a3 = (1.0f - p3) * stepAlpha;
+        }
+
+        if (gesturePillBorderPaint != null) {
+            gesturePillBorderPaint.setStrokeWidth(2.0f * density);
+            if (r1 > 0) {
+                gesturePillBorderPaint.setColor(Color.argb((int)(0xD0 * a1), 0, 229, 255));
+                canvas.drawCircle(f1X, centerY, r1, gesturePillBorderPaint);
+                canvas.drawCircle(f2X, centerY, r1, gesturePillBorderPaint);
+                canvas.drawCircle(f3X, centerY, r1, gesturePillBorderPaint);
+            }
+            if (r2 > 0) {
+                gesturePillBorderPaint.setColor(Color.argb((int)(0xD0 * a2), 0, 229, 255));
+                canvas.drawCircle(f1X, centerY, r2, gesturePillBorderPaint);
+                canvas.drawCircle(f2X, centerY, r2, gesturePillBorderPaint);
+                canvas.drawCircle(f3X, centerY, r2, gesturePillBorderPaint);
+            }
+            if (r3 > 0) {
+                gesturePillBorderPaint.setColor(Color.argb((int)(0xD0 * a3), 0, 229, 255));
+                canvas.drawCircle(f1X, centerY, r3, gesturePillBorderPaint);
+                canvas.drawCircle(f2X, centerY, r3, gesturePillBorderPaint);
+                canvas.drawCircle(f3X, centerY, r3, gesturePillBorderPaint);
+            }
+        }
+
+        drawGlowingFingerAvatar(canvas, f1X, centerY, stepAlpha, density, scale);
+        drawGlowingFingerAvatar(canvas, f2X, centerY, stepAlpha, density, scale);
+        drawGlowingFingerAvatar(canvas, f3X, centerY, stepAlpha, density, scale);
+
+        drawActionCallout(canvas, centerX, centerY + 52f * density, "🕶️  SCREEN CURTAIN TOGGLED", Color.argb((int)(0xFF * stepAlpha), 178, 235, 242), stepAlpha, density);
+
+        float badgeW = Math.min(viewW * 0.72f, 220f * density);
+        float badgeH = 46f * density;
+        float badgeTop = centerY - 76f * density;
+        gesturePillRect.set(centerX - badgeW / 2f, badgeTop, centerX + badgeW / 2f, badgeTop + badgeH);
+        drawPillBadge(canvas, gesturePillRect, "🕶️ 3-FINGER TRIPLE TAP", "TOGGLE SCREEN CURTAIN", stepAlpha, density);
+
+        float stepW = 195f * density;
+        float stepH = 26f * density;
+        float stepTop = centerY + 96f * density;
+        gesturePillRect.set(centerX - stepW / 2f, stepTop, centerX + stepW / 2f, stepTop + stepH);
+        drawStepPill(canvas, gesturePillRect, "STEP 8 OF 9  ○ ○ ○ ○ ○ ○ ○ ● ○", stepAlpha, density);
+    }
+
+    private void drawStepLongPress(Canvas canvas, float centerX, float centerY, float viewW, float viewH, long elapsed, float stepAlpha, float density) {
+        long period = 1800L;
+        long cycle = elapsed % period;
+        float pulseA = 0.5f + 0.5f * (float) Math.sin((cycle / (double) period) * 2.0 * Math.PI);
+        float rAura = (32f + pulseA * 14f) * density;
+
+        if (gestureFingerAuraPaint != null) {
+            gestureFingerAuraPaint.setColor(Color.argb((int)(0x40 * pulseA * stepAlpha), 0, 229, 255));
+            canvas.drawCircle(centerX, centerY, rAura, gestureFingerAuraPaint);
+        }
+
+        drawGlowingFingerAvatar(canvas, centerX, centerY, stepAlpha, density, 1.05f);
+
+        drawActionCallout(canvas, centerX, centerY + 52f * density, "🗣️  \"FILENAME, DATE & DURATION\"", Color.argb((int)(0xFF * stepAlpha), 0, 229, 255), stepAlpha, density);
+
+        float badgeW = Math.min(viewW * 0.72f, 220f * density);
+        float badgeH = 46f * density;
+        float badgeTop = centerY - 76f * density;
+        gesturePillRect.set(centerX - badgeW / 2f, badgeTop, centerX + badgeW / 2f, badgeTop + badgeH);
+        drawPillBadge(canvas, gesturePillRect, "👇 1-FINGER LONG PRESS", "SPOKEN AUDIO INFO READOUT", stepAlpha, density);
+
+        float stepW = 195f * density;
+        float stepH = 26f * density;
+        float stepTop = centerY + 96f * density;
+        gesturePillRect.set(centerX - stepW / 2f, stepTop, centerX + stepW / 2f, stepTop + stepH);
+        drawStepPill(canvas, gesturePillRect, "STEP 9 OF 9  ○ ○ ○ ○ ○ ○ ○ ○ ●", stepAlpha, density);
+    }
+
+    private void drawDoubleDirectionArrow(Canvas canvas, float x, float y, float angleDeg, float alpha, float density) {
+        drawDirectionArrow(canvas, x - 4f * density, y, angleDeg, alpha, density);
+        drawDirectionArrow(canvas, x + 4f * density, y, angleDeg, alpha, density);
+    }
+
+    private void drawActionCallout(Canvas canvas, float centerX, float centerY, String text, int textColor, float alpha, float density) {
+        float calloutW = Math.min(getMeasuredWidth() * 0.68f, 195f * density);
+        float calloutH = 30f * density;
+        RectF r = new RectF(centerX - calloutW / 2f, centerY - calloutH / 2f, centerX + calloutW / 2f, centerY + calloutH / 2f);
+
+        if (gesturePillBgPaint != null) {
+            gesturePillBgPaint.setColor(Color.argb((int)(0xE5 * alpha), 4, 15, 24));
+            canvas.drawRoundRect(r, 15f * density, 15f * density, gesturePillBgPaint);
+        }
+        if (gesturePillBorderPaint != null) {
+            gesturePillBorderPaint.setColor(Color.argb((int)(0x90 * alpha), Color.red(textColor), Color.green(textColor), Color.blue(textColor)));
+            gesturePillBorderPaint.setStrokeWidth(1.2f * density);
+            canvas.drawRoundRect(r, 15f * density, 15f * density, gesturePillBorderPaint);
+        }
+        if (gesturePillTitlePaint != null) {
+            gesturePillTitlePaint.setTextSize(10.5f * density);
+            gesturePillTitlePaint.setColor(textColor);
+            gesturePillTitlePaint.setLetterSpacing(0.06f);
+            canvas.drawText(text, centerX, centerY + 4f * density, gesturePillTitlePaint);
+        }
+    }
+
+    private void drawStepPill(Canvas canvas, RectF rect, String text, float alpha, float density) {
+        float cornerR = 13f * density;
+        if (gesturePillBgPaint != null) {
+            gesturePillBgPaint.setColor(Color.argb((int)(0xBB * alpha), 4, 15, 24));
+            canvas.drawRoundRect(rect, cornerR, cornerR, gesturePillBgPaint);
+        }
+        if (gesturePillBorderPaint != null) {
+            gesturePillBorderPaint.setColor(Color.argb((int)(0x50 * alpha), 0, 229, 255));
+            gesturePillBorderPaint.setStrokeWidth(1.0f * density);
+            canvas.drawRoundRect(rect, cornerR, cornerR, gesturePillBorderPaint);
+        }
+        if (gesturePillSubPaint != null) {
+            gesturePillSubPaint.setTextSize(9.5f * density);
+            gesturePillSubPaint.setColor(Color.argb((int)(0xEE * alpha), 0, 229, 255));
+            gesturePillSubPaint.setLetterSpacing(0.06f);
+            canvas.drawText(text, rect.centerX(), rect.top + 17f * density, gesturePillSubPaint);
+        }
+    }
+
+    private void drawGlowingFingerAvatar(Canvas canvas, float x, float y, float alpha, float density) {
+        drawGlowingFingerAvatar(canvas, x, y, alpha, density, 1.0f);
+    }
+
+    private void drawGlowingFingerAvatar(Canvas canvas, float x, float y, float alpha, float density, float scale) {
+        float rAura = 28f * density * scale;
+        float rCore = 19f * density * scale;
+        float rInner = 6.5f * density * scale;
+
+        // 1. Soft radiant aura
+        if (gestureFingerAuraPaint != null) {
+            gestureFingerAuraPaint.setColor(Color.argb((int)(0x30 * alpha), 0, 229, 255));
+            canvas.drawCircle(x, y, rAura, gestureFingerAuraPaint);
+        }
+
+        // 2. Translucent glass circular fingertip body
+        if (gestureFingerRimPaint != null && gestureFingerCorePaint != null) {
+            gestureFingerCorePaint.setColor(Color.argb((int)(0x55 * alpha), 0, 180, 216));
+            canvas.drawCircle(x, y, rCore, gestureFingerCorePaint);
+
+            // 3. Cyberpunk electric cyan rim
+            gestureFingerRimPaint.setColor(Color.argb((int)(0xE6 * alpha), 0, 229, 255));
+            gestureFingerRimPaint.setStrokeWidth(2.2f * density * scale);
+            canvas.drawCircle(x, y, rCore, gestureFingerRimPaint);
+        }
+
+        // 4. Radiant inner white-cyan touch core
+        if (gestureFingerCorePaint != null) {
+            gestureFingerCorePaint.setColor(Color.argb((int)(0xFF * alpha), 255, 255, 255));
+            gestureFingerCorePaint.setShadowLayer(6f * density * scale, 0, 0, Color.argb((int)(0xB0 * alpha), 0, 229, 255));
+            canvas.drawCircle(x, y, rInner, gestureFingerCorePaint);
+            gestureFingerCorePaint.clearShadowLayer();
+        }
+    }
+
+    private void drawDirectionArrow(Canvas canvas, float x, float y, float angleDeg, float alpha, float density) {
+        canvas.save();
+        canvas.translate(x, y);
+        canvas.rotate(angleDeg);
+
+        if (gesturePillBorderPaint != null) {
+            gesturePillBorderPaint.setColor(Color.argb((int)(0x70 * alpha), 0, 229, 255));
+            gesturePillBorderPaint.setStrokeWidth(1.6f * density);
+            float s = 6f * density;
+            canvas.drawLine(-s, s * 0.7f, 0, -s * 0.7f, gesturePillBorderPaint);
+            canvas.drawLine(0, -s * 0.7f, s, s * 0.7f, gesturePillBorderPaint);
+        }
+
+        canvas.restore();
+    }
+
+    private void drawPillBadge(Canvas canvas, RectF rect, String title, String subtitle, float alpha, float density) {
+        float cornerR = 12f * density;
+
+        if (gesturePillBgPaint != null) {
+            gesturePillBgPaint.setColor(Color.argb((int)(0xEE * alpha), 4, 15, 24));
+            canvas.drawRoundRect(rect, cornerR, cornerR, gesturePillBgPaint);
+        }
+
+        if (gesturePillBorderPaint != null) {
+            gesturePillBorderPaint.setColor(Color.argb((int)(0x90 * alpha), 0, 229, 255));
+            gesturePillBorderPaint.setStrokeWidth(1.4f * density);
+            canvas.drawRoundRect(rect, cornerR, cornerR, gesturePillBorderPaint);
+        }
+
+        if (gesturePillTitlePaint != null) {
+            gesturePillTitlePaint.setTextSize(10f * density);
+            gesturePillTitlePaint.setColor(Color.argb((int)(0xFF * alpha), 0, 229, 255));
+            gesturePillTitlePaint.setLetterSpacing(0.06f);
+            canvas.drawText(title, rect.centerX(), rect.top + 19f * density, gesturePillTitlePaint);
+        }
+
+        if (gesturePillSubPaint != null) {
+            gesturePillSubPaint.setTextSize(9f * density);
+            gesturePillSubPaint.setColor(Color.argb((int)(0xCC * alpha), 224, 247, 250));
+            gesturePillSubPaint.setLetterSpacing(0.04f);
+            canvas.drawText(subtitle, rect.centerX(), rect.bottom - 11f * density, gesturePillSubPaint);
+        }
+    }
+
+    public void showSectionOverlay(String sectionChar, String title, String subtitle) {
+        if (isScreenCurtainEnabled || sectionChar == null || sectionChar.isEmpty()) return;
+        this.sectionOverlayChar = sectionChar;
+        this.sectionOverlayTitle = title;
+        this.sectionOverlaySub = subtitle;
+        this.sectionOverlayStartTime = SystemClock.uptimeMillis();
+        checkAndStartAnimation();
+        postInvalidateOnAnimation();
+    }
+
+    private void drawSectionHUD(Canvas canvas) {
+        if (isScreenCurtainEnabled || sectionOverlayChar == null) return;
+        long elapsed = SystemClock.uptimeMillis() - sectionOverlayStartTime;
+        if (elapsed >= SECTION_OVERLAY_DURATION || elapsed < 0) return;
+
+        // Smooth alpha curve: solid 1.0 for 1000ms, then smooth decay over final 500ms
+        float alpha = 1.0f;
+        if (elapsed > 1000L) {
+            alpha = Math.max(0f, 1.0f - (float)(elapsed - 1000L) / 500f);
+        }
+
+        // Snappy scale pop-in animation (slight overshoot settle during first 180ms)
+        float popProgress = Math.min(1.0f, elapsed / 180f);
+        float scale = 0.85f + 0.15f * (float) Math.sin(popProgress * Math.PI / 2.0);
+
+        float density = getResources().getDisplayMetrics().density;
+        float viewW = getMeasuredWidth();
+        float viewH = getMeasuredHeight();
+        float cX = viewW / 2f;
+        float cY = viewH / 2f;
+
+        canvas.save();
+        canvas.scale(scale, scale, cX, cY);
+
+        boolean isShortChar = sectionOverlayChar.length() <= 2;
+        float cardW = (isShortChar ? 140f : Math.max(160f, sectionOverlayChar.length() * 22f + 50f)) * density;
+        float cardH = 140f * density;
+        float cornerR = 20f * density;
+
+        sectionOverlayRect.set(cX - cardW / 2f, cY - cardH / 2f, cX + cardW / 2f, cY + cardH / 2f);
+
+        // 1. Outer soft neon aura
+        if (sectionOverlayGlowPaint != null) {
+            sectionOverlayGlowPaint.setColor(Color.argb((int)(0x2D * alpha), 0, 229, 255));
+            sectionOverlayGlowPaint.setStrokeWidth(5f * density);
+            canvas.drawRoundRect(sectionOverlayRect, cornerR, cornerR, sectionOverlayGlowPaint);
+        }
+
+        // 2. Obsidian glass background
+        if (sectionOverlayBgPaint != null) {
+            sectionOverlayBgPaint.setColor(Color.argb((int)(0xEB * alpha), 4, 15, 24));
+            canvas.drawRoundRect(sectionOverlayRect, cornerR, cornerR, sectionOverlayBgPaint);
+        }
+
+        // 3. Cyberpunk cyan border rim
+        if (sectionOverlayBorderPaint != null) {
+            sectionOverlayBorderPaint.setColor(Color.argb((int)(0x90 * alpha), 0, 229, 255));
+            sectionOverlayBorderPaint.setStrokeWidth(1.8f * density);
+            canvas.drawRoundRect(sectionOverlayRect, cornerR, cornerR, sectionOverlayBorderPaint);
+
+            // 4. Subtle top glass highlight
+            sectionOverlayBorderPaint.setColor(Color.argb((int)(0x35 * alpha), 255, 255, 255));
+            sectionOverlayBorderPaint.setStrokeWidth(1.0f * density);
+            canvas.drawLine(
+                    sectionOverlayRect.left + cornerR * 0.8f,
+                    sectionOverlayRect.top + 3f * density,
+                    sectionOverlayRect.right - cornerR * 0.8f,
+                    sectionOverlayRect.top + 3f * density,
+                    sectionOverlayBorderPaint
+            );
+        }
+
+        // 5. Header Title (e.g. "FILE SECTION" or "FOLDER SECTION")
+        if (sectionOverlayTitle != null && !sectionOverlayTitle.isEmpty() && sectionOverlayTitlePaint != null) {
+            sectionOverlayTitlePaint.setTextSize(10.5f * density);
+            sectionOverlayTitlePaint.setColor(Color.argb((int)(0xB0 * alpha), 0, 229, 255));
+            sectionOverlayTitlePaint.setLetterSpacing(0.12f);
+            canvas.drawText(sectionOverlayTitle, cX, sectionOverlayRect.top + 24f * density, sectionOverlayTitlePaint);
+        }
+
+        // 6. Giant Main Section Character (e.g. "B", "2 PM", "AUG 2023")
+        if (sectionOverlayCharPaint != null) {
+            float charSize = (isShortChar ? 56f : (sectionOverlayChar.length() <= 5 ? 36f : 24f)) * density;
+            sectionOverlayCharPaint.setTextSize(charSize);
+            sectionOverlayCharPaint.setColor(Color.argb((int)(0xFF * alpha), 255, 255, 255));
+            sectionOverlayCharPaint.setShadowLayer(8f * density, 0, 0, Color.argb((int)(0xB0 * alpha), 0, 229, 255));
+
+            Paint.FontMetrics fm = sectionOverlayCharPaint.getFontMetrics();
+            float charBaseline = cY - (fm.ascent + fm.descent) / 2f + (sectionOverlaySub != null ? -4f * density : 4f * density);
+            canvas.drawText(sectionOverlayChar, cX, charBaseline, sectionOverlayCharPaint);
+            sectionOverlayCharPaint.clearShadowLayer();
+        }
+
+        // 7. Subtitle badge (e.g. "File 12 of 48", folder name)
+        if (sectionOverlaySub != null && !sectionOverlaySub.isEmpty() && sectionOverlaySubPaint != null) {
+            sectionOverlaySubPaint.setTextSize(9.5f * density);
+            sectionOverlaySubPaint.setColor(Color.argb((int)(0x85 * alpha), 178, 235, 242));
+            sectionOverlaySubPaint.setLetterSpacing(0.04f);
+            canvas.drawText(sectionOverlaySub, cX, sectionOverlayRect.bottom - 16f * density, sectionOverlaySubPaint);
+        }
+
+        canvas.restore();
+    }
+
     private void drawDial(Canvas canvas) {
+        if (isScreenCurtainEnabled) {
+            canvas.drawColor(Color.BLACK);
+            return;
+        }
+
         float radius = Math.min(getMeasuredWidth(), getMeasuredHeight()) / 2f;
         if (radius <= 0) return;
 
@@ -2901,19 +3945,32 @@ public class DialView extends View {
         invalidate();
     }
 
+    /**
+     * Provide immediate, tactile visual feedback during finger drag prior to gesture fire.
+     */
+    public void setInteractiveDragDelta(float dx, float dy) {
+        if (Math.abs(this.interactiveDragDeltaX - dx) > 0.5f || Math.abs(this.interactiveDragDeltaY - dy) > 0.5f) {
+            this.interactiveDragDeltaX = dx;
+            this.interactiveDragDeltaY = dy;
+            invalidate();
+        }
+    }
+
     private float getMediaVolumeFraction() {
-        try {
-            if (getContext() != null) {
-                AudioManager am = (AudioManager) getContext().getSystemService(Context.AUDIO_SERVICE);
-                if (am != null) {
-                    int cur = am.getStreamVolume(AudioManager.STREAM_MUSIC);
-                    int max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
-                    if (max > 0) {
-                        return Math.max(0.15f, Math.min(1.0f, (float) cur / (float) max));
+        if (cachedStreamVolume < 0 || cachedMaxVolume <= 0) {
+            try {
+                if (getContext() != null) {
+                    AudioManager am = (AudioManager) getContext().getSystemService(Context.AUDIO_SERVICE);
+                    if (am != null) {
+                        cachedStreamVolume = am.getStreamVolume(AudioManager.STREAM_MUSIC);
+                        cachedMaxVolume = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
                     }
                 }
-            }
-        } catch (Exception ignored) {}
+            } catch (Exception ignored) {}
+        }
+        if (cachedMaxVolume > 0 && cachedStreamVolume >= 0) {
+            return Math.max(0.15f, Math.min(1.0f, (float) cachedStreamVolume / (float) cachedMaxVolume));
+        }
         return 0.80f;
     }
 
@@ -3049,7 +4106,7 @@ public class DialView extends View {
             ambientFolderTextPaint.setAlpha(alpha);
 
             float textBaselineOffset = -(ambientFolderTextPaint.descent() + ambientFolderTextPaint.ascent()) / 2f;
-            float yPos = centerY + (offset * stepDistance) + folderWheelScrollOffset + textBaselineOffset;
+            float yPos = centerY + (offset * stepDistance) + folderWheelScrollOffset + (interactiveDragDeltaY * 0.40f) + textBaselineOffset;
 
             // Flow text if it exceeds maximum width instead of truncation
             float itemClipLeft = centerX - maxTextWidth / 2f;
@@ -3121,7 +4178,7 @@ public class DialView extends View {
             ambientFolderTextPaint.setAlpha(alpha);
 
             float textBaselineOffset = -(ambientFolderTextPaint.descent() + ambientFolderTextPaint.ascent()) / 2f;
-            float xPos = centerX + (offset * stepDistanceX) + fileWheelScrollOffset;
+            float xPos = centerX + (offset * stepDistanceX) + fileWheelScrollOffset + (interactiveDragDeltaX * 0.40f);
             float yPos = centerY + textBaselineOffset;
 
             // Only draw if within visible canvas bounds
@@ -3154,12 +4211,33 @@ public class DialView extends View {
         float listTopY = headerY + 14f * density;
         float listBottomY = bottomY - 4f * density;
         float centerY = (listTopY + listBottomY) * 0.5f;
-        float dividerX = w / 2f;
+
+        // Dynamic smooth animation of the center division bar:
+        // Moves left to ~34% width when playing or recording to maximize room for active playing file info,
+        // EQ spectrum, VU meters, and track details. Returns gracefully toward center (48%) when browsing folders.
+        float targetRatio;
+        if (isPlaying || isRecording) {
+            targetRatio = 0.34f;
+        } else if (wheelMode == WHEEL_MODE_FILE) {
+            targetRatio = 0.38f;
+        } else {
+            targetRatio = 0.48f;
+        }
+
+        float ratioDiff = targetRatio - currentDividerRatio;
+        if (Math.abs(ratioDiff) > 0.0015f) {
+            currentDividerRatio += ratioDiff * 0.16f;
+            postInvalidateOnAnimation();
+        } else {
+            currentDividerRatio = targetRatio;
+        }
+
+        float dividerX = w * currentDividerRatio;
 
         // 1. Center Hairline Divider with Top & Bottom Fade
         if (splitDividerShader == null || Math.abs(lastDividerH - availableH) > 2f) {
             lastDividerH = availableH;
-            splitDividerShader = new LinearGradient(dividerX, topY + 4f * density, dividerX, bottomY,
+            splitDividerShader = new LinearGradient(0f, topY + 4f * density, 0f, bottomY,
                     new int[]{0x0000E5FF, 0x3800E5FF, 0x5000E5FF, 0x3800E5FF, 0x0000E5FF},
                     new float[]{0f, 0.15f, 0.50f, 0.85f, 1.0f},
                     Shader.TileMode.CLAMP);
@@ -3170,12 +4248,13 @@ public class DialView extends View {
         // Subtle center nexus diamond pip at divider center
         drawDiamond(canvas, dividerX, centerY, 3.0f * density, splitNexusPaint);
 
-        // Column geometry
-        float colPadding = 10f * density;
-        float colWidth = dividerX - (colPadding * 2f);
-        float leftCenterX = colPadding + colWidth / 2f;
-        float rightCenterX = dividerX + colPadding + colWidth / 2f;
-        float cardH = 50f * density;
+        // Column geometry (independently calculated for left and right columns)
+        float colPadding = 8f * density;
+        float leftColWidth = Math.max(50f * density, dividerX - (colPadding * 2f));
+        float rightColWidth = Math.max(80f * density, (w - dividerX) - (colPadding * 2f));
+        float leftCenterX = colPadding + leftColWidth / 2f;
+        float rightCenterX = dividerX + colPadding + rightColWidth / 2f;
+        float cardH = 54f * density;
         float cardCornerR = 11f * density;
         float stepY = 36f * density;
 
@@ -3190,14 +4269,21 @@ public class DialView extends View {
         if (curFolder == null || curFolder.isEmpty()) curFolder = "STANDBY";
 
         // Left Header
-        splitFolderHeaderPaint.setTextSize(11f * density);
-        splitFolderBadgePaint.setTextSize(9.5f * density);
-        splitCuePaint.setTextSize(9f * density);
+        float folderHdrSize = (leftColWidth < 120f * density) ? 8.5f * density : 10f * density;
+        float folderBadgeSize = (leftColWidth < 120f * density) ? 8.0f * density : 8.5f * density;
+        splitFolderHeaderPaint.setTextSize(folderHdrSize);
+        splitFolderBadgePaint.setTextSize(folderBadgeSize);
+        splitCuePaint.setTextSize(8f * density);
 
-        canvas.drawText("FOLDERS", leftCenterX - 24f * density, headerY, splitFolderHeaderPaint);
-        String folderCountBadge = (totalFolders > 0) ? String.format(Locale.US, "%02d / %02d", curFolderIdx, totalFolders) : "-- / --";
-        canvas.drawText(folderCountBadge, leftCenterX + 30f * density, headerY, splitFolderBadgePaint);
-        canvas.drawText("▲▼", leftCenterX + colWidth / 2f - 6f * density, headerY, splitCuePaint);
+        splitFolderHeaderPaint.setTextAlign(Paint.Align.LEFT);
+        canvas.drawText("FOLDERS", leftCenterX - leftColWidth / 2f + 4f * density, headerY, splitFolderHeaderPaint);
+
+        String folderCountBadge = (totalFolders > 0) ? String.format(Locale.US, "%d/%d", curFolderIdx, totalFolders) : "--/--";
+        splitFolderBadgePaint.setTextAlign(Paint.Align.RIGHT);
+        canvas.drawText(folderCountBadge, leftCenterX + leftColWidth / 2f - 14f * density, headerY, splitFolderBadgePaint);
+
+        splitCuePaint.setTextAlign(Paint.Align.RIGHT);
+        canvas.drawText("▲▼", leftCenterX + leftColWidth / 2f - 2f * density, headerY, splitCuePaint);
 
         // Left Ambient Items (with scroll inertia and canvas clipping)
         if (Math.abs(folderWheelScrollOffset) > 0.5f) {
@@ -3222,19 +4308,19 @@ public class DialView extends View {
                 splitFolderItemTextPaint.setAlpha(alpha);
                 splitFolderItemTextPaint.setTextSize(itemTextSize);
 
-                float yItem = centerY + (offset * stepY) + folderWheelScrollOffset;
+                float yItem = centerY + (offset * stepY) + folderWheelScrollOffset + (interactiveDragDeltaY * 0.40f);
                 String itemText = (offset < 0 ? "▲ " : "▼ ") + name;
                 float baseOffset = -(splitFolderItemTextPaint.descent() + splitFolderItemTextPaint.ascent()) / 2f;
-                float itemClipL = leftCenterX - colWidth / 2f + 6f * density;
-                float itemClipR = leftCenterX + colWidth / 2f - 6f * density;
+                float itemClipL = leftCenterX - leftColWidth / 2f + 6f * density;
+                float itemClipR = leftCenterX + leftColWidth / 2f - 6f * density;
                 drawFlowingText(canvas, itemText, itemClipL, itemClipR, yItem + baseOffset, splitFolderItemTextPaint, offset, true);
             }
         }
         canvas.restore();
 
         // Active Folder Card (Center Left)
-        splitFolderCardRect.set(leftCenterX - colWidth / 2f, centerY - cardH / 2f,
-                                leftCenterX + colWidth / 2f, centerY + cardH / 2f);
+        splitFolderCardRect.set(leftCenterX - leftColWidth / 2f, centerY - cardH / 2f,
+                                leftCenterX + leftColWidth / 2f, centerY + cardH / 2f);
         canvas.drawRoundRect(splitFolderCardRect, cardCornerR, cardCornerR, splitFolderActiveCapsulePaint);
         canvas.drawRoundRect(splitFolderCardRect, cardCornerR, cardCornerR, splitFolderActiveBorderPaint);
         // Vertical left accent stripe
@@ -3243,22 +4329,22 @@ public class DialView extends View {
                              2f * density, 2f * density, splitFolderAccentStripePaint);
 
         // Active Folder Name (Flows smoothly if longer than available card width)
-        splitFolderActiveTextPaint.setTextSize(15f * density);
+        splitFolderActiveTextPaint.setTextSize(14f * density);
         float folderTextY = centerY - 4f * density - (splitFolderActiveTextPaint.descent() + splitFolderActiveTextPaint.ascent()) / 2f;
-        float folderClipL = splitFolderCardRect.left + 9f * density;
-        float folderClipR = splitFolderCardRect.right - 8f * density;
-        drawFlowingText(canvas, curFolder, folderClipL, folderClipR, folderTextY, splitFolderActiveTextPaint, 0, true);
+        float folderClipL = splitFolderCardRect.left + 8f * density;
+        float folderClipR = splitFolderCardRect.right - 6f * density;
+        drawFlowingText(canvas, curFolder, folderClipL, folderClipR, folderTextY, splitFolderActiveTextPaint, 0, true, true);
 
         // Active Folder Subtitle
         int filesInFolder = (rec != null) ? rec.getAudibleFilesCount() : 0;
         String folderSub;
         if (isRecording) {
-            folderSub = "TARGET REC FOLDER";
+            folderSub = "REC FOLDER";
         } else {
-            folderSub = (filesInFolder > 0) ? (filesInFolder + " AUDIO FILES") : "ACTIVE FOLDER";
+            folderSub = (filesInFolder > 0) ? (filesInFolder + " FILES") : "EMPTY";
         }
-        splitFolderSubPaint.setTextSize(8.5f * density);
-        canvas.drawText(folderSub, leftCenterX + 3f * density, centerY + 16f * density, splitFolderSubPaint);
+        splitFolderSubPaint.setTextSize(8f * density);
+        canvas.drawText(folderSub, leftCenterX + 2f * density, centerY + 16f * density, splitFolderSubPaint);
 
 
         // --- RIGHT COLUMN: FILES ---
@@ -3270,15 +4356,19 @@ public class DialView extends View {
         // Right Header
         splitFileHeaderPaint.setTextSize(11f * density);
         splitFileBadgePaint.setTextSize(9.5f * density);
-        canvas.drawText("FILES", rightCenterX - 22f * density, headerY, splitFileHeaderPaint);
+        splitFileHeaderPaint.setTextAlign(Paint.Align.LEFT);
+        canvas.drawText("FILES", rightCenterX - rightColWidth / 2f + 4f * density, headerY, splitFileHeaderPaint);
+
+        splitFileBadgePaint.setTextAlign(Paint.Align.RIGHT);
+        splitCuePaint.setTextAlign(Paint.Align.RIGHT);
         if (isRecording) {
             splitFileBadgePaint.setColor(Color.parseColor("#FF1744"));
-            canvas.drawText("● RECORDING", rightCenterX + 26f * density, headerY, splitFileBadgePaint);
+            canvas.drawText("● RECORDING", rightCenterX + rightColWidth / 2f - 6f * density, headerY, splitFileBadgePaint);
         } else {
             String fileCountBadge = (totalFiles > 0) ? String.format(Locale.US, "%02d / %02d", curFileIdx, totalFiles) : "-- / --";
             splitFileBadgePaint.setColor(Color.parseColor("#00E5FF"));
-            canvas.drawText(fileCountBadge, rightCenterX + 28f * density, headerY, splitFileBadgePaint);
-            canvas.drawText("◀▶", rightCenterX + colWidth / 2f - 6f * density, headerY, splitCuePaint);
+            canvas.drawText(fileCountBadge, rightCenterX + rightColWidth / 2f - 22f * density, headerY, splitFileBadgePaint);
+            canvas.drawText("◀▶", rightCenterX + rightColWidth / 2f - 4f * density, headerY, splitCuePaint);
         }
 
         // Right Ambient Items (with scroll inertia and canvas clipping)
@@ -3304,21 +4394,215 @@ public class DialView extends View {
                 splitFileItemTextPaint.setAlpha(alpha);
                 splitFileItemTextPaint.setTextSize(itemTextSize);
 
-                float yItem = centerY + (offset * stepY) + fileWheelScrollOffset;
+                float yItem = centerY + (offset * stepY) + fileWheelScrollOffset + (interactiveDragDeltaX * 0.40f);
                 String itemText = (offset < 0 ? "◀ " : "▶ ") + name;
                 float baseOffset = -(splitFileItemTextPaint.descent() + splitFileItemTextPaint.ascent()) / 2f;
-                float itemClipL = rightCenterX - colWidth / 2f + 6f * density;
-                float itemClipR = rightCenterX + colWidth / 2f - 6f * density;
+                float itemClipL = rightCenterX - rightColWidth / 2f + 6f * density;
+                float itemClipR = rightCenterX + rightColWidth / 2f - 6f * density;
                 drawFlowingText(canvas, itemText, itemClipL, itemClipR, yItem + baseOffset, splitFileItemTextPaint, offset + 100, true);
             }
         }
         canvas.restore();
 
         // Active File Card (Center Right)
-        splitFileCardRect.set(rightCenterX - colWidth / 2f, centerY - cardH / 2f,
-                              rightCenterX + colWidth / 2f, centerY + cardH / 2f);
-        canvas.drawRoundRect(splitFileCardRect, cardCornerR, cardCornerR, splitFileActiveCapsulePaint);
+        splitFileCardRect.set(rightCenterX - rightColWidth / 2f, centerY - cardH / 2f,
+                              rightCenterX + rightColWidth / 2f, centerY + cardH / 2f);
 
+        // Pre-clip the card interior so progress fill and volume graphics stay within rounded borders
+        splitCardClipPath.reset();
+        splitCardClipPath.addRoundRect(splitFileCardRect, cardCornerR, cardCornerR, Path.Direction.CW);
+
+        canvas.save();
+        canvas.clipPath(splitCardClipPath);
+
+        // 1. Base translucent dark glass card background
+        canvas.drawRect(splitFileCardRect, splitFileActiveCapsulePaint);
+
+        if (isPlaying) {
+            // 2. Full-Card Translucent Progress Bar Fill (0% -> 100%)
+            float progressWidth = splitFileCardRect.width() * Math.max(0f, Math.min(1.0f, playbackProgressFraction));
+            float progressX = splitFileCardRect.left + progressWidth;
+
+            if (progressWidth > 0f) {
+                splitProgressFillRect.set(splitFileCardRect.left, splitFileCardRect.top, progressX, splitFileCardRect.bottom);
+                if (splitCardProgressShader == null || Math.abs(lastProgressFillWidth - progressWidth) > 3f) {
+                    lastProgressFillWidth = progressWidth;
+                    splitCardProgressShader = new LinearGradient(
+                            splitFileCardRect.left, splitFileCardRect.centerY(),
+                            progressX, splitFileCardRect.centerY(),
+                            new int[]{0x2200E5FF, 0x3600E5FF, 0x5800E5FF},
+                            new float[]{0f, 0.70f, 1.0f},
+                            Shader.TileMode.CLAMP);
+                    splitCardProgressFillPaint.setShader(splitCardProgressShader);
+                }
+                canvas.drawRect(splitProgressFillRect, splitCardProgressFillPaint);
+
+                // Luminous vertical playhead needle line
+                canvas.drawLine(progressX, splitFileCardRect.top, progressX, splitFileCardRect.bottom, splitCardProgressNeedlePaint);
+            }
+
+            // 3. Real-time Output Volume & Dynamics Graphics
+            int streamVolume = cachedStreamVolume;
+            int maxVolume = cachedMaxVolume;
+            if (streamVolume < 0 || maxVolume <= 0) {
+                try {
+                    AudioManager am = (AudioManager) getContext().getSystemService(Context.AUDIO_SERVICE);
+                    if (am != null) {
+                        cachedStreamVolume = am.getStreamVolume(AudioManager.STREAM_MUSIC);
+                        cachedMaxVolume = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+                        streamVolume = cachedStreamVolume;
+                        maxVolume = cachedMaxVolume;
+                    }
+                } catch (Exception ignored) {}
+            }
+            if (maxVolume <= 0) maxVolume = 15;
+            if (streamVolume < 0) streamVolume = 0;
+            float volRatio = (maxVolume > 0) ? ((float) streamVolume / (float) maxVolume) : 0.75f;
+
+            // Stereo VU / Output Level Meter on the Right Edge of Card
+            float vuWidth = 24f * density;
+            float leftContentMargin = splitFileCardRect.left + 9f * density;
+            float rightContentMargin = splitFileCardRect.right - vuWidth - 4f * density;
+            float spectrumW = rightContentMargin - leftContentMargin;
+
+            float vuLeft = splitFileCardRect.right - vuWidth + 2f * density;
+            float vuTop = splitFileCardRect.top + 7f * density;
+            float vuBottom = splitFileCardRect.bottom - 7f * density;
+            float vuH = vuBottom - vuTop;
+            int numVuSegments = 6;
+            float segSpacing = 1.4f * density;
+            float segH = (vuH - (numVuSegments - 1) * segSpacing) / numVuSegments;
+            float chW = 3.4f * density;
+            float chSpacing = 2.4f * density;
+
+            // Stereo dynamic level calculation
+            float bassKick = (freqBands[0] + freqBands[1] + freqBands[2]) / 3f;
+            float trebleR = (freqBands[8] + freqBands[12] + freqBands[16]) / 3f;
+            float liveLevelL = Math.min(1.0f, (bassKick * 0.75f + volRatio * 0.25f) * 1.15f);
+            float liveLevelR = Math.min(1.0f, (trebleR * 0.75f + volRatio * 0.25f) * 1.15f);
+
+            for (int ch = 0; ch < 2; ch++) {
+                float chX = vuLeft + ch * (chW + chSpacing);
+                float curLevel = (ch == 0) ? liveLevelL : liveLevelR;
+                int litSegments = Math.round(curLevel * numVuSegments);
+
+                for (int s = 0; s < numVuSegments; s++) {
+                    float sy = vuBottom - (s + 1) * segH - s * segSpacing;
+                    splitMeterBarRect.set(chX, sy, chX + chW, sy + segH);
+
+                    boolean isLit = (s < litSegments);
+                    if (isLit) {
+                        if (s >= numVuSegments - 1) {
+                            canvas.drawRoundRect(splitMeterBarRect, 0.8f * density, 0.8f * density, splitVolMeterPeakPaint);
+                        } else {
+                            canvas.drawRoundRect(splitMeterBarRect, 0.8f * density, 0.8f * density, splitVolMeterActivePaint);
+                        }
+                    } else {
+                        canvas.drawRoundRect(splitMeterBarRect, 0.8f * density, 0.8f * density, splitVolMeterInactivePaint);
+                    }
+                }
+            }
+
+            // Output Volume dB / % Label below VU
+            splitVolTextPaint.setTextSize(7.5f * density);
+            int volPct = Math.round(volRatio * 100);
+            canvas.drawText("VOL " + volPct + "%", splitFileCardRect.right - 5f * density, splitFileCardRect.bottom - 2.5f * density, splitVolTextPaint);
+
+            // Translucent Multi-Band Equalizer Spectrum across the card lower area
+            int numBars = 16;
+            float barSpacing = 2.0f * density;
+            float totalBarSpacing = (numBars - 1) * barSpacing;
+            float barW = Math.max(2.0f * density, (spectrumW - totalBarSpacing) / numBars);
+            float eqBaseY = splitFileCardRect.bottom - 2.5f * density;
+            float maxBarH = 8.5f * density;
+            float minBarH = 1.8f * density;
+
+            splitWaveformPath.reset();
+            boolean waveStarted = false;
+
+            for (int b = 0; b < numBars; b++) {
+                int freqIdx = Math.min(NUM_FREQ_BANDS - 1, b * 2);
+                float audio = (freqIdx < NUM_FREQ_BANDS) ? freqBands[freqIdx] : 0.2f;
+                float wavePulse = 0.5f + 0.5f * (float) Math.sin(waveTime * 3.6f + b * 0.95f);
+                float hBar = minBarH + (0.30f * wavePulse + 0.70f * audio) * maxBarH * (0.4f + 0.6f * volRatio);
+
+                float bx = leftContentMargin + b * (barW + barSpacing);
+                splitMeterBarRect.set(bx, eqBaseY - hBar, bx + barW, eqBaseY);
+
+                // If bar is within the played progress zone, draw it in bright illuminated cyan; otherwise subtle muted cyan
+                boolean inProgress = (bx + barW <= progressX);
+                Paint barPaint = inProgress ? splitVolMeterActivePaint : splitVolMeterInactivePaint;
+                canvas.drawRoundRect(splitMeterBarRect, 1.0f * density, 1.0f * density, barPaint);
+
+                // Connect peaks into flowing acoustic waveform trace
+                float peakX = bx + barW / 2f;
+                float peakY = eqBaseY - hBar;
+                if (!waveStarted) {
+                    splitWaveformPath.moveTo(peakX, peakY);
+                    waveStarted = true;
+                } else {
+                    splitWaveformPath.lineTo(peakX, peakY);
+                }
+            }
+            canvas.drawPath(splitWaveformPath, splitWaveformTracePaint);
+
+            // Elapsed / Total Time Text floating cleanly on top
+            int duration = (rec != null) ? rec.getDurationMillis() : 0;
+            int currentPos = (rec != null) ? rec.getCurrentPositionMillis() : 0;
+            String timeStr = formatMs(currentPos) + " / " + formatMs(duration);
+            splitTimeTextPaint.setTextSize(8.5f * density);
+            splitTimeTextPaint.setTextAlign(Paint.Align.LEFT);
+            canvas.drawText(timeStr, leftContentMargin, centerY + 16.5f * density, splitTimeTextPaint);
+
+            // Progress % readout on the right
+            int pct = Math.round(playbackProgressFraction * 100);
+            splitProgressPctPaint.setTextSize(9f * density);
+            canvas.drawText(pct + "%", rightContentMargin, centerY + 16.5f * density, splitProgressPctPaint);
+
+        } else if (isRecording) {
+            // Recording elapsed time and dynamic live microphone input VU level
+            long startTime = (rec != null) ? rec.getRecordStartTimeMillis() : 0L;
+            long elapsed = (startTime > 0) ? (System.currentTimeMillis() - startTime) : 0L;
+
+            // Pulsing full-card recording translucent fill in crimson
+            float recFillProgress = (float) ((elapsed % 60000L) / 60000.0);
+            float recProgressW = splitFileCardRect.width() * Math.max(0.05f, recFillProgress);
+            splitProgressFillRect.set(splitFileCardRect.left, splitFileCardRect.top, splitFileCardRect.left + recProgressW, splitFileCardRect.bottom);
+            canvas.drawRect(splitProgressFillRect, splitRecHaloPaint);
+
+            // Dynamic live mic input level bars across bottom
+            float leftContentMargin = splitFileCardRect.left + 9f * density;
+            float eqBaseY = splitFileCardRect.bottom - 4.5f * density;
+            int numBars = 14;
+            float barSpacing = 2.0f * density;
+            float availW = splitFileCardRect.width() - 18f * density;
+            float barW = Math.max(2.0f * density, (availW - (numBars - 1) * barSpacing) / numBars);
+
+            for (int b = 0; b < numBars; b++) {
+                int freqIdx = Math.min(NUM_FREQ_BANDS - 1, b * 2);
+                float audio = (freqIdx < NUM_FREQ_BANDS) ? freqBands[freqIdx] : 0.25f;
+                float wavePulse = 0.5f + 0.5f * (float) Math.sin(waveTime * 5.0f + b * 1.1f);
+                float hBar = 2f * density + (0.35f * wavePulse + 0.65f * audio) * 12f * density;
+                float bx = leftContentMargin + b * (barW + barSpacing);
+                splitMeterBarRect.set(bx, eqBaseY - hBar, bx + barW, eqBaseY);
+                canvas.drawRoundRect(splitMeterBarRect, 1.0f * density, 1.0f * density, splitRecCorePaint);
+            }
+
+            String recTimeStr = "● REC  " + formatMs((int) elapsed);
+            splitRecTextPaint.setTextSize(9f * density);
+            splitRecTextPaint.setTextAlign(Paint.Align.LEFT);
+            canvas.drawText(recTimeStr, leftContentMargin, centerY + 18.5f * density, splitRecTextPaint);
+
+        } else {
+            // Idle Standby: Subtle stationary play prompt "▶  TAP TO PLAY"
+            splitIdlePlayCuePaint.setTextSize(9f * density);
+            splitIdlePlayCuePaint.setTextAlign(Paint.Align.CENTER);
+            canvas.drawText("▶  TAP TO PLAY", rightCenterX, centerY + 17f * density, splitIdlePlayCuePaint);
+        }
+
+        canvas.restore(); // Restore clip path
+
+        // 4. Outer Border & Left Accent Stripe
         if (isRecording) {
             float pulse = 0.55f + 0.45f * (float) Math.sin(waveTime * 4.2f);
             int borderAlpha = (int) (180 + 75 * pulse);
@@ -3343,7 +4627,7 @@ public class DialView extends View {
                              splitFileCardRect.left + 6.0f * density, splitFileCardRect.bottom - 8f * density,
                              2f * density, 2f * density, splitFileAccentStripePaint);
 
-        // Active File Name (Flows smoothly if longer than available card width)
+        // 5. Active File Name (Flows smoothly if longer than available card width)
         String displayFileName;
         if (isRecording) {
             String recName = (rec != null) ? rec.getCurrentRecordingFileName() : null;
@@ -3361,87 +4645,10 @@ public class DialView extends View {
         }
 
         splitFileActiveTextPaint.setTextSize(15f * density);
-        float fileTextY = centerY - 5f * density - (splitFileActiveTextPaint.descent() + splitFileActiveTextPaint.ascent()) / 2f;
+        float fileTextY = centerY - 6.5f * density - (splitFileActiveTextPaint.descent() + splitFileActiveTextPaint.ascent()) / 2f;
         float fileClipL = splitFileCardRect.left + 9f * density;
-        float fileClipR = splitFileCardRect.right - 8f * density;
-        drawFlowingText(canvas, displayFileName, fileClipL, fileClipR, fileTextY, splitFileActiveTextPaint, 0, true);
-
-        // --- SUPER MANDATORY MINIMAL UX ANIMATIONS ---
-        if (isPlaying) {
-            // 1. Sleek 5-Bar Live Dynamic Audio Equalizer + Track Time
-            int duration = (rec != null) ? rec.getDurationMillis() : 0;
-            int currentPos = (rec != null) ? rec.getCurrentPositionMillis() : 0;
-            String timeStr = formatMs(currentPos) + " / " + formatMs(duration);
-            splitTimeTextPaint.setTextSize(8.5f * density);
-            splitTimeTextPaint.setTextAlign(Paint.Align.LEFT);
-            float timeTextWidth = splitTimeTextPaint.measureText(timeStr);
-
-            float barW = 2.6f * density;
-            float barSpacing = 2.2f * density;
-            float eqTotalW = 5 * barW + 4 * barSpacing;
-            float totalBlockW = eqTotalW + 7f * density + timeTextWidth;
-            float blockStartX = rightCenterX - totalBlockW / 2f;
-
-            float eqStartX = blockStartX;
-            float eqBaseY = centerY + 18.5f * density;
-            float maxBarH = 10f * density;
-            float minBarH = 2.5f * density;
-
-            for (int b = 0; b < 5; b++) {
-                int freqIdx = b * 6;
-                float audio = (freqIdx < NUM_FREQ_BANDS) ? freqBands[freqIdx] : 0.2f;
-                float wavePulse = 0.5f + 0.5f * (float) Math.sin(waveTime * 3.8f + b * 1.15f);
-                float hBar = minBarH + (0.35f * wavePulse + 0.65f * audio) * maxBarH;
-
-                float bx = eqStartX + b * (barW + barSpacing);
-                splitLiveEqBarRect.set(bx, eqBaseY - hBar, bx + barW, eqBaseY);
-                canvas.drawRoundRect(splitLiveEqBarRect, 1.3f * density, 1.3f * density, splitLiveEqPaint);
-            }
-
-            // Time elapsed / duration text cleanly to the right of mini EQ
-            canvas.drawText(timeStr, blockStartX + eqTotalW + 7f * density, centerY + 16.5f * density, splitTimeTextPaint);
-
-            // 2. Slender Playback Progress Bar along bottom of the active file card
-            float progressTrackLeft = splitFileCardRect.left + 10f * density;
-            float progressTrackRight = splitFileCardRect.right - 10f * density;
-            float progressTrackY = splitFileCardRect.bottom - 3.8f * density;
-            float progressW = progressTrackRight - progressTrackLeft;
-
-            canvas.drawLine(progressTrackLeft, progressTrackY, progressTrackRight, progressTrackY, splitProgressBgPaint);
-            float fillW = Math.max(0f, Math.min(progressW, progressW * playbackProgressFraction));
-            if (fillW > 0) {
-                canvas.drawLine(progressTrackLeft, progressTrackY, progressTrackLeft + fillW, progressTrackY, splitProgressFillPaint);
-                drawDiamond(canvas, progressTrackLeft + fillW, progressTrackY, 2.2f * density, splitPlayheadPipPaint);
-            }
-
-        } else if (isRecording) {
-            // Recording Time elapsed & Pulsing Beacon
-            long startTime = (rec != null) ? rec.getRecordStartTimeMillis() : 0L;
-            long elapsed = (startTime > 0) ? (System.currentTimeMillis() - startTime) : 0L;
-            String recTimeStr = "REC  " + formatMs((int) elapsed);
-            splitRecTextPaint.setTextSize(9f * density);
-            splitRecTextPaint.setTextAlign(Paint.Align.LEFT);
-            float recTextW = splitRecTextPaint.measureText(recTimeStr);
-
-            float beaconTotalW = 14f * density + recTextW;
-            float beaconStartX = rightCenterX - beaconTotalW / 2f;
-            float beaconX = beaconStartX + 3.5f * density;
-            float beaconY = centerY + 13.5f * density;
-
-            float pulseAlpha = 0.55f + 0.45f * (float) Math.sin(waveTime * 4.2f);
-            splitRecHaloPaint.setAlpha((int) (pulseAlpha * 90));
-            canvas.drawCircle(beaconX, beaconY, 6.0f * density, splitRecHaloPaint);
-            splitRecCorePaint.setAlpha((int) (pulseAlpha * 255));
-            canvas.drawCircle(beaconX, beaconY, 3.0f * density, splitRecCorePaint);
-
-            canvas.drawText(recTimeStr, beaconStartX + 14f * density, centerY + 16.5f * density, splitRecTextPaint);
-
-        } else {
-            // Idle Standby: Subtle stationary play prompt "▶  TAP TO PLAY"
-            splitIdlePlayCuePaint.setTextSize(9f * density);
-            splitIdlePlayCuePaint.setTextAlign(Paint.Align.CENTER);
-            canvas.drawText("▶  TAP TO PLAY", rightCenterX, centerY + 16f * density, splitIdlePlayCuePaint);
-        }
+        float fileClipR = splitFileCardRect.right - (isPlaying ? 30f * density : 8f * density);
+        drawFlowingText(canvas, displayFileName, fileClipL, fileClipR, fileTextY, splitFileActiveTextPaint, 0, true, true);
     }
 
     /**
@@ -3453,6 +4660,11 @@ public class DialView extends View {
      */
     private void drawFlowingText(Canvas canvas, String text, float clipLeft, float clipRight,
                                 float baselineY, Paint paint, int staggerId, boolean centerIfFits) {
+        drawFlowingText(canvas, text, clipLeft, clipRight, baselineY, paint, staggerId, centerIfFits, false);
+    }
+
+    private void drawFlowingText(Canvas canvas, String text, float clipLeft, float clipRight,
+                                float baselineY, Paint paint, int staggerId, boolean centerIfFits, boolean allowMarquee) {
         if (text == null || text.isEmpty()) return;
         float availableW = clipRight - clipLeft;
         if (availableW <= 0) return;
@@ -3471,9 +4683,39 @@ public class DialView extends View {
             return;
         }
 
-        // Text exceeds space: Smooth ping-pong flow revealing the entire name
-        float overflow = textW - availableW;
         float density = getResources().getDisplayMetrics().density;
+
+        // If marquee is not requested (e.g. ambient items), cleanly clip text statically without animation loop
+        if (!allowMarquee) {
+            Paint.Align prevAlign = paint.getTextAlign();
+            paint.setTextAlign(Paint.Align.LEFT);
+            canvas.save();
+            canvas.clipRect(clipLeft, baselineY + paint.ascent() - 2f * density,
+                            clipRight, baselineY + paint.descent() + 2f * density);
+            canvas.drawText(text, clipLeft, baselineY, paint);
+            canvas.restore();
+            paint.setTextAlign(prevAlign);
+            return;
+        }
+
+        // Active text exceeds space: check if user is idle or audio is stopped
+        boolean isAudioActive = checkAudioState();
+        boolean isUserRecentlyActive = (SystemClock.uptimeMillis() - lastInteractionTime < 12000L);
+        if (!isAudioActive && !isUserRecentlyActive) {
+            // Idle rest state: display start of text without triggering continuous invalidation
+            Paint.Align prevAlign = paint.getTextAlign();
+            paint.setTextAlign(Paint.Align.LEFT);
+            canvas.save();
+            canvas.clipRect(clipLeft, baselineY + paint.ascent() - 2f * density,
+                            clipRight, baselineY + paint.descent() + 2f * density);
+            canvas.drawText(text, clipLeft, baselineY, paint);
+            canvas.restore();
+            paint.setTextAlign(prevAlign);
+            return;
+        }
+
+        // Active marquee animation loop
+        float overflow = textW - availableW;
         float speed = 25f * density; // 25 dp/sec smooth readable flow
         float pauseStartMs = 1500f;  // 1.5s pause to read beginning
         float pauseEndMs = 1200f;    // 1.2s pause to read end

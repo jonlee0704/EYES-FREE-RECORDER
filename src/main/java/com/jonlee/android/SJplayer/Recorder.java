@@ -46,10 +46,13 @@ import com.jonlee.android.common.utils.MimeUtils;
 import android.Manifest;
 
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
@@ -60,12 +63,15 @@ import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
-import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 /**
@@ -105,6 +111,8 @@ public class Recorder {
     private ArrayList<File> directories = null;
     private final Set<String> directoryPathSet = new HashSet<>();
     private final Set<String> scannedDirPaths = new HashSet<>();
+    private final Map<String, Integer> folderAudioCountMap = new ConcurrentHashMap<>();
+    private final Map<String, List<File>> folderFilesCache = new ConcurrentHashMap<>();
     private long lastStatusUpdateTime = 0;
 
     // Audio recording session metadata
@@ -221,39 +229,59 @@ public class Recorder {
         createSystemFolders();
         isHomeWorkMode = ((MainActivity) mainActivity).isHomemodeEnabled();
 
-
-        validFolderListMap = FileUtils.FileToMap(validFolderListLogFile, "\t");
-        Log.i(TAG, "Folder loaded from log file...");
-
         musicRetriever = new MusicRetriever(mainActivity.getContentResolver());
 
+        // Fast startup: Load cached folders immediately (<50ms)
+        boolean cacheLoaded = loadCachedDirectories();
+        if (recordTargetFolder != null && !hasDirectory(recordTargetFolder)) {
+            addDirectory(recordTargetFolder);
+        }
+        if (cacheLoaded && directories.size() > 0) {
+            sortDirectories();
+            currentFolder = directories.get(0);
+            readAudibleFilesInCurrentFolder();
+            isReadyToStart = true;
+            String fastMsg = directories.size() + " folders ready.";
+            displayStatus(fastMsg);
+            Log.i(TAG, "Fast startup from cache: " + fastMsg);
+            ((MainActivity) mainActivity).speak(fastMsg);
+        }
+
+        final boolean hadCacheOnStart = cacheLoaded;
         new Thread(new Runnable() {
             @Override
             public void run() {
                 try {
-                    displayStatus("Scanning audio folders...");
-                    readDirectories();
-                    flushValidFoldersLog();
-
-                    sortDirectories();
-
-                    if (directories.size() < 1) {
-                        ((MainActivity) mainActivity).speak("No external storage found. Please select a folder in the settings.");
-                    } else {
-                        currentFolder = directories.get(0);
-                        readAudibleFilesInCurrentFolder();
+                    if (!isReadyToStart) {
+                        displayStatus("Scanning audio folders...");
                     }
+                    readDirectories();
 
-                    isReadyToStart = true;
+                    if (!isReadyToStart) {
+                        if (directories.size() < 1) {
+                            if (recordTargetFolder != null) {
+                                addDirectory(recordTargetFolder);
+                                currentFolder = recordTargetFolder;
+                            }
+                        } else {
+                            currentFolder = directories.get(0);
+                            readAudibleFilesInCurrentFolder();
+                        }
+                        ensureSampleAudioTrackIfNeeded();
+                        isReadyToStart = true;
+                    }
 
                     String readyMsg = directories.size() + " folders, "
                             + scannedFileCnt + " files scanned. Ready to use!";
                     displayStatus(readyMsg);
                     Log.i(TAG, readyMsg);
-                    ((MainActivity) mainActivity).speak(readyMsg);
+                    if (!hadCacheOnStart) {
+                        ((MainActivity) mainActivity).speak(readyMsg);
+                    }
                     mainActivity.runOnUiThread(() -> {
                         if (((MainActivity) mainActivity).getCommander() != null) {
                             ((MainActivity) mainActivity).getCommander().updateFolderDisplay();
+                            ((MainActivity) mainActivity).getCommander().updateFileDisplay(0);
                         }
                     });
 
@@ -264,6 +292,144 @@ public class Recorder {
             }
         }).start();
 
+    }
+
+    public void rescanStorageAfterPermission() {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    createSystemFolders();
+                    isReadyToStart = false;
+                    readDirectories();
+                    if (recordTargetFolder != null && !hasDirectory(recordTargetFolder)) {
+                        addDirectory(recordTargetFolder);
+                    }
+                    if (directories.size() > 0) {
+                        sortDirectories();
+                        currentFolder = directories.get(0);
+                        readAudibleFilesInCurrentFolder();
+                    }
+                    ensureSampleAudioTrackIfNeeded();
+                    isReadyToStart = true;
+                    String readyMsg = directories.size() + " folders, " + scannedFileCnt + " files ready.";
+                    displayStatus(readyMsg);
+                    Log.i(TAG, "Storage rescan complete: " + readyMsg);
+                    if (mainActivity instanceof MainActivity) {
+                        final MainActivity ma = (MainActivity) mainActivity;
+                        ma.runOnUiThread(() -> {
+                            if (ma.getCommander() != null) {
+                                ma.getCommander().updateFolderDisplay();
+                                ma.getCommander().updateFileDisplay(0);
+                            }
+                        });
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error in rescanStorageAfterPermission", e);
+                    isReadyToStart = true;
+                }
+            }
+        }).start();
+    }
+
+    public void ensureSampleAudioTrackIfNeeded() {
+        try {
+            if (currentFolder == null && directories.size() > 0) {
+                currentFolder = directories.get(0);
+            }
+            if (currentFolder == null && recordTargetFolder != null) {
+                currentFolder = recordTargetFolder;
+                if (!hasDirectory(recordTargetFolder)) {
+                    addDirectory(recordTargetFolder);
+                }
+            }
+            if (currentFolder == null) return;
+            readAudibleFilesInCurrentFolder();
+            if (audibleFiles != null && audibleFiles.size() > 0) {
+                return; // Device or folder already contains audio files!
+            }
+
+            // Create a 1.5s pleasant audio chime WAV file so the player is immediately playable on clean test devices
+            File sampleFile = new File(currentFolder, "01_Welcome_Audio_Guide.wav");
+            if (!sampleFile.exists()) {
+                generateWelcomeWav(sampleFile);
+                if (sampleFile.exists() && sampleFile.length() > 0) {
+                    folderFilesCache.remove(currentFolder.getAbsolutePath());
+                    readAudibleFilesInCurrentFolder();
+                    scannedFileCnt = Math.max(1, scannedFileCnt);
+                    Log.i(TAG, "Generated initial welcome audio track for clean device: " + sampleFile.getAbsolutePath());
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "ensureSampleAudioTrackIfNeeded warning: " + e.getMessage());
+        }
+    }
+
+    private void generateWelcomeWav(File outFile) {
+        FileOutputStream fos = null;
+        try {
+            int sampleRate = 16000;
+            int numSamples = sampleRate * 3 / 2; // 1.5 seconds
+            int byteRate = sampleRate * 2; // 16-bit mono = 2 bytes per sample
+            int dataSize = numSamples * 2;
+
+            fos = new FileOutputStream(outFile);
+            // 44-byte standard RIFF WAV header
+            byte[] header = new byte[44];
+            int totalSize = dataSize + 36;
+            header[0] = 'R'; header[1] = 'I'; header[2] = 'F'; header[3] = 'F';
+            header[4] = (byte) (totalSize & 0xff);
+            header[5] = (byte) ((totalSize >> 8) & 0xff);
+            header[6] = (byte) ((totalSize >> 16) & 0xff);
+            header[7] = (byte) ((totalSize >> 24) & 0xff);
+            header[8] = 'W'; header[9] = 'A'; header[10] = 'V'; header[11] = 'E';
+            header[12] = 'f'; header[13] = 'm'; header[14] = 't'; header[15] = ' ';
+            header[16] = 16; header[17] = 0; header[18] = 0; header[19] = 0; // Subchunk1Size (16 for PCM)
+            header[20] = 1; header[21] = 0; // AudioFormat (1 = PCM)
+            header[22] = 1; header[23] = 0; // NumChannels (1 = Mono)
+            header[24] = (byte) (sampleRate & 0xff);
+            header[25] = (byte) ((sampleRate >> 8) & 0xff);
+            header[26] = (byte) ((sampleRate >> 16) & 0xff);
+            header[27] = (byte) ((sampleRate >> 24) & 0xff);
+            header[28] = (byte) (byteRate & 0xff);
+            header[29] = (byte) ((byteRate >> 8) & 0xff);
+            header[30] = (byte) ((byteRate >> 16) & 0xff);
+            header[31] = (byte) ((byteRate >> 24) & 0xff);
+            header[32] = 2; header[33] = 0; // BlockAlign (2 bytes)
+            header[34] = 16; header[35] = 0; // BitsPerSample (16 bits)
+            header[36] = 'd'; header[37] = 'a'; header[38] = 't'; header[39] = 'a';
+            header[40] = (byte) (dataSize & 0xff);
+            header[41] = (byte) ((dataSize >> 8) & 0xff);
+            header[42] = (byte) ((dataSize >> 16) & 0xff);
+            header[43] = (byte) ((dataSize >> 24) & 0xff);
+            fos.write(header);
+
+            // Generate soft dual-harmonic musical chime (C5 523Hz + E5 659Hz with natural decay)
+            byte[] buffer = new byte[1024];
+            int bufIdx = 0;
+            for (int i = 0; i < numSamples; i++) {
+                double t = (double) i / sampleRate;
+                double env = Math.exp(-t * 2.8); // Smooth exponential decay
+                double wave = (Math.sin(2.0 * Math.PI * 523.25 * t) * 0.6 + Math.sin(2.0 * Math.PI * 659.25 * t) * 0.4) * env;
+                short sample = (short) (wave * 24000);
+                buffer[bufIdx++] = (byte) (sample & 0xff);
+                buffer[bufIdx++] = (byte) ((sample >> 8) & 0xff);
+                if (bufIdx >= buffer.length) {
+                    fos.write(buffer, 0, bufIdx);
+                    bufIdx = 0;
+                }
+            }
+            if (bufIdx > 0) {
+                fos.write(buffer, 0, bufIdx);
+            }
+            fos.flush();
+        } catch (Exception e) {
+            Log.e(TAG, "Failed generating welcome WAV", e);
+        } finally {
+            if (fos != null) {
+                try { fos.close(); } catch (Exception ignored) {}
+            }
+        }
     }
 
     private void setupAudioFocus() {
@@ -326,25 +492,41 @@ public class Recorder {
         }
     }
 
-    private void sortDirectories(){
+    public void sortDirectories(){
         // Descending sorting
         // (X->A)->(10->1)->!@#$
-        Collections.sort(directories, new Comparator<File>() {
-            @Override
-            public int compare (File f1, File f2)
-            {
-                //displayStatus("Sorting directories...");
-                return f2.getName().compareTo(f1.getName());
+        synchronized (directories) {
+            Collections.sort(directories, new Comparator<File>() {
+                @Override
+                public int compare (File f1, File f2)
+                {
+                    if (f1 == null && f2 == null) return 0;
+                    if (f1 == null) return 1;
+                    if (f2 == null) return -1;
+                    String n1 = f1.getName();
+                    String n2 = f2.getName();
+                    if (n1 == null && n2 == null) return 0;
+                    if (n1 == null) return 1;
+                    if (n2 == null) return -1;
+                    return n2.compareTo(n1);
+                }
+            });
+            if (currentFolder != null) {
+                int idx = directories.indexOf(currentFolder);
+                if (idx >= 0) {
+                    currentDirectoryIndex = idx;
+                }
             }
-
-        });
+        }
     }
 
     public synchronized boolean addDirectory(File dir) {
         if (dir == null) return false;
         String path = dir.getAbsolutePath();
         if (directoryPathSet.add(path)) {
-            directories.add(dir);
+            synchronized (directories) {
+                directories.add(dir);
+            }
             return true;
         }
         return false;
@@ -353,6 +535,115 @@ public class Recorder {
     public synchronized boolean hasDirectory(File dir) {
         if (dir == null) return false;
         return directoryPathSet.contains(dir.getAbsolutePath());
+    }
+
+    public synchronized boolean loadCachedDirectories() {
+        if (validFolderListLogFile == null || !validFolderListLogFile.exists() || validFolderListLogFile.length() == 0) {
+            return false;
+        }
+        BufferedReader reader = null;
+        int loadedFolders = 0;
+        int loadedFiles = 0;
+        try {
+            reader = new BufferedReader(new FileReader(validFolderListLogFile));
+            String line;
+            while ((line = reader.readLine()) != null) {
+                line = line.trim();
+                if (line.isEmpty()) continue;
+                String[] parts = line.split("\t");
+                if (parts.length == 0) continue;
+                String folderPath = parts[0].trim();
+                if (folderPath.isEmpty()) continue;
+                int count = 1;
+                if (parts.length > 1) {
+                    try {
+                        count = Integer.parseInt(parts[1].trim());
+                    } catch (NumberFormatException ignored) {}
+                }
+                if (!isHomeWorkMode || (preFixStr != null && folderPath.contains(preFixStr))) {
+                    File dir = new File(folderPath);
+                    if (dir.exists() && dir.isDirectory()) {
+                        if (addDirectory(dir)) {
+                            folderAudioCountMap.put(folderPath, count);
+                            loadedFiles += count;
+                            loadedFolders++;
+                        }
+                    }
+                }
+            }
+            this.scannedFolderCnt = directories.size();
+            this.scannedFileCnt = loadedFiles;
+            Log.i(TAG, "Loaded " + loadedFolders + " folders (" + loadedFiles + " files) from cache");
+            return loadedFolders > 0;
+        } catch (Exception e) {
+            Log.e(TAG, "Error loading cached directories: " + e.getMessage(), e);
+            return false;
+        } finally {
+            if (reader != null) {
+                try {
+                    reader.close();
+                } catch (IOException ignored) {}
+            }
+        }
+    }
+
+    public synchronized void saveCachedDirectories() {
+        if (validFolderListLogFile == null) return;
+        BufferedWriter writer = null;
+        try {
+            File tempFile = new File(validFolderListLogFile.getAbsolutePath() + ".tmp");
+            writer = new BufferedWriter(new FileWriter(tempFile, false));
+            synchronized (directories) {
+                for (File dir : directories) {
+                    if (dir != null && dir.exists() && dir.isDirectory()) {
+                        String path = dir.getAbsolutePath();
+                        int count = 1;
+                        Integer mappedCount = folderAudioCountMap.get(path);
+                        if (mappedCount != null && mappedCount > 0) {
+                            count = mappedCount;
+                        }
+                        writer.write(path + "\t" + count + "\n");
+                    }
+                }
+            }
+            writer.flush();
+            writer.close();
+            writer = null;
+
+            if (tempFile.exists()) {
+                if (validFolderListLogFile.exists()) {
+                    validFolderListLogFile.delete();
+                }
+                tempFile.renameTo(validFolderListLogFile);
+            }
+            Log.i(TAG, "Saved " + directories.size() + " audio folders to " + validFolderListLogFile.getName());
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to save cached directories: " + e.getMessage(), e);
+        } finally {
+            if (writer != null) {
+                try {
+                    writer.close();
+                } catch (IOException ignored) {}
+            }
+        }
+    }
+
+    private synchronized void pruneMissingDirectories() {
+        if (directories == null || directories.isEmpty()) return;
+        synchronized (directories) {
+            Iterator<File> it = directories.iterator();
+            while (it.hasNext()) {
+                File dir = it.next();
+                if (dir == null || !dir.exists() || !dir.isDirectory()) {
+                    if (dir != null) {
+                        directoryPathSet.remove(dir.getAbsolutePath());
+                        folderAudioCountMap.remove(dir.getAbsolutePath());
+                    }
+                    it.remove();
+                }
+            }
+        }
+        scannedFolderCnt = directories.size();
     }
 
     public void displayStatusThrottled(String msg) {
@@ -364,25 +655,13 @@ public class Recorder {
     }
 
     public void logValidFolders(String folderName, int fileCnt) {
-        try {
-            if (validFolderWriter == null && validFolderListLogFile != null) {
-                validFolderWriter = new FileWriter(validFolderListLogFile, true);
-            }
-
-            if (validFolderWriter != null) {
-                validFolderWriter.append(folderName).append("\t").append(String.valueOf(fileCnt)).append("\n");
-            }
-        } catch (IOException ie) {
-            Log.i(TAG, "Fail to write " + this.VALID_FOLDER_LIST_LOG_FILE + ": " + ie.getMessage());
+        if (folderName != null) {
+            folderAudioCountMap.put(folderName, fileCnt);
         }
     }
 
     public void flushValidFoldersLog() {
-        try {
-            if (validFolderWriter != null) {
-                validFolderWriter.flush();
-            }
-        } catch (IOException ignored) {}
+        saveCachedDirectories();
     }
 
     private void createSystemFolders() {
@@ -516,15 +795,18 @@ public class Recorder {
         Set<String> parentPaths = new HashSet<>();
         Pattern datePattern = Pattern.compile("^\\d{4}-\\d{2}-\\d{2}.*");
 
-        for (File dir : directories) {
-            String folderName = dir.getName();
-            File parent = dir.getParentFile();
+        synchronized (directories) {
+            for (File dir : directories) {
+                if (dir == null) continue;
+                String folderName = dir.getName();
+                File parent = dir.getParentFile();
 
-            // If the folder name matches a date pattern (yyyy-MM-dd), use its parent.
-            if (datePattern.matcher(folderName).matches() && parent != null) {
-                parentPaths.add(parent.getAbsolutePath());
-            } else {
-                parentPaths.add(dir.getAbsolutePath());
+                // If the folder name matches a date pattern (yyyy-MM-dd), use its parent.
+                if (datePattern.matcher(folderName).matches() && parent != null) {
+                    parentPaths.add(parent.getAbsolutePath());
+                } else {
+                    parentPaths.add(dir.getAbsolutePath());
+                }
             }
         }
 
@@ -557,17 +839,8 @@ public class Recorder {
             recordTargetFolder.mkdirs();
         }
 
-
         // After adding a new folder, Sort again!
-        Collections.sort(directories, new Comparator<File>() {
-            @Override
-            public int compare (File f1, File f2)
-            {
-                //displayStatus("Sorting directories...");
-                return f1.getName().compareTo(f2.getName());
-            }
-
-        });
+        sortDirectories();
     }
 
     /**
@@ -646,11 +919,14 @@ public class Recorder {
      * @return
      */
     public File[] getNextDirectorList(int n) {
-        File[] files = new File[n];
-        for(int i = 0; i < n ; i++){
-            files[i] = this.directories.get(i);
+        synchronized (directories) {
+            int count = Math.min(n, this.directories.size());
+            File[] files = new File[count];
+            for (int i = 0; i < count; i++) {
+                files[i] = this.directories.get(i);
+            }
+            return files;
         }
-        return files;
     }
 
     public boolean isPlaying() {
@@ -783,19 +1059,17 @@ public class Recorder {
                     }
                 }
             }
-            mPlayer.prepare();
             mPlayer.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
                 @Override
                 public void onPrepared(MediaPlayer mediaPlayer) {
                     requestAudioFocus();
                     mediaPlayer.start();
+                    isPaused = false;
+                    audioFileDuration = mediaPlayer.getDuration();
+                    updateCurrentPosition();
                 }
             });
-            this.isPaused = false;
-            //Set the duration of file to use in SEEK()
-            this.audioFileDuration = mPlayer.getDuration();
-
-            updateCurrentPosition();
+            mPlayer.prepareAsync();
 
         }catch(IllegalStateException ie){ //In case failed to play the datasource
             displayStatus("Something happened when to play back. Please try another cool sounds.");
@@ -1197,11 +1471,11 @@ public class Recorder {
         }
 
         if (directAudioCnt > 0 && !hasDirectory(sFile)) {
-            if (!isHomeWorkMode || sFile.getAbsolutePath().indexOf(preFixStr) != -1) {
+            if (!isHomeWorkMode || (preFixStr != null && sFile.getAbsolutePath().contains(preFixStr))) {
                 addDirectory(sFile);
                 scannedFileCnt += directAudioCnt;
                 this.scannedFolderCnt++;
-                logValidFolders(sFile.getAbsolutePath(), directAudioCnt);
+                folderAudioCountMap.put(sFile.getAbsolutePath(), directAudioCnt);
             }
         }
 
@@ -1220,25 +1494,71 @@ public class Recorder {
         //Adding all folders by MediaScanner
 
         for (int i = 0; musicRetriever.getSongCount() > i ; i++){
-//            Log.i(TAG, "Folder list from MusicRetriever ===> "
-//                    + musicRetriever.getFolderPathFromContentUri());
-//
             directories.add(new File(musicRetriever.getFolderPathFromContentUri()));
             musicRetriever.next();
         }
 
         Log.i(TAG, "Size of directories.readDirectoriesFromMediaScanner ===> " + directories.size());
+    }
 
-//        // Sorting
-//        Collections.sort(directories, new Comparator<File>() {
-//            @Override
-//            public int compare (File f1, File f2)
-//            {
-//                //Log.i(TAG,"Sorting directories...");
-//                return f1.getName().compareTo(f2.getName());
-//            }
-//
-//        });
+    /**
+     * Fast query against MediaStore to retrieve distinct audio parent directories across all mounted storage.
+     */
+    private int scanAudioFoldersFromMediaStore() {
+        try {
+            ContentResolver contentResolver = mainActivity.getContentResolver();
+            Uri uri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI;
+            String[] projection = new String[]{ MediaStore.Audio.Media.DATA };
+            Cursor cursor = contentResolver.query(uri, projection, null, null, null);
+
+            if (cursor != null) {
+                Map<String, Integer> folderCounts = new HashMap<>();
+                try {
+                    int dataIdx = cursor.getColumnIndex(MediaStore.Audio.Media.DATA);
+                    if (dataIdx != -1) {
+                        while (cursor.moveToNext()) {
+                            String path = cursor.getString(dataIdx);
+                            if (path != null) {
+                                // Skip hidden folders (.xxx), app internal backup folders, and legacy Archive
+                                if (path.contains("/.") || path.contains("com.jonlee.android.SJplayer/files") || path.contains("/Archive/")) {
+                                    continue;
+                                }
+                                int lastSlash = path.lastIndexOf('/');
+                                if (lastSlash > 0) {
+                                    String parentPath = path.substring(0, lastSlash);
+                                    Integer count = folderCounts.get(parentPath);
+                                    folderCounts.put(parentPath, count == null ? 1 : count + 1);
+                                }
+                            }
+                        }
+                    }
+                } finally {
+                    cursor.close();
+                }
+
+                for (Map.Entry<String, Integer> entry : folderCounts.entrySet()) {
+                    String parentPath = entry.getKey();
+                    int count = entry.getValue();
+                    folderAudioCountMap.put(parentPath, count);
+
+                    if (!directoryPathSet.contains(parentPath)) {
+                        if (!isHomeWorkMode || (preFixStr != null && parentPath.contains(preFixStr))) {
+                            File parent = new File(parentPath);
+                            if (parent.exists() && parent.isDirectory()) {
+                                if (addDirectory(parent)) {
+                                    scannedFolderCnt++;
+                                    scannedFileCnt += count;
+                                }
+                            }
+                        }
+                    }
+                }
+                return folderCounts.size();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error querying MediaStore for audio folders", e);
+        }
+        return 0;
     }
 
     /**
@@ -1247,13 +1567,20 @@ public class Recorder {
      * 2) Public Music folder
      * 3) All ExtSDcards
      */
-    public void readDirectories() {
-        if (directories == null) {
-            directories = new ArrayList<File>();
-        } else {
-            directories.clear();
+    public synchronized void readDirectories() {
+        boolean incremental = (directories != null && !directories.isEmpty());
+        if (!incremental) {
+            if (directories == null) {
+                directories = new ArrayList<File>();
+            } else {
+                directories.clear();
+            }
+            directoryPathSet.clear();
+            folderAudioCountMap.clear();
+            folderFilesCache.clear();
+            scannedFileCnt = 0;
+            scannedFolderCnt = 0;
         }
-        directoryPathSet.clear();
         scannedDirPaths.clear();
 
         // 1) User-configured custom folder from Settings
@@ -1300,46 +1627,12 @@ public class Recorder {
             }
         }
 
-        // 2) Scan all standard Android public audio directories (Music, Recordings, Podcasts, Downloads, SD)
-        scanStandardPublicAudioFolders();
+        // 2) Fast MediaStore query across all mounted internal and external volumes
+        int msAudioFolderCount = scanAudioFoldersFromMediaStore();
 
-        // 3) Scan MediaStore for audio files across all mounted internal and external volumes
-        try {
-            ContentResolver contentResolver = mainActivity.getContentResolver();
-            Uri uri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI;
-            String[] projection = new String[]{ MediaStore.Audio.Media.DATA };
-            Cursor cursor = contentResolver.query(uri, projection, null, null, null);
-
-            if (cursor != null) {
-                try {
-                    int dataIdx = cursor.getColumnIndex(MediaStore.Audio.Media.DATA);
-                    while (cursor.moveToNext()) {
-                        if (dataIdx != -1) {
-                            String path = cursor.getString(dataIdx);
-                            if (path != null) {
-                                int lastSlash = path.lastIndexOf('/');
-                                if (lastSlash > 0) {
-                                    String parentPath = path.substring(0, lastSlash);
-                                    if (!directoryPathSet.contains(parentPath)) {
-                                        if (!isHomeWorkMode || parentPath.indexOf(preFixStr) != -1) {
-                                            File parent = new File(parentPath);
-                                            if (parent.exists() && parent.isDirectory()) {
-                                                addDirectory(parent);
-                                                scannedFolderCnt++;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } finally {
-                    cursor.close();
-                }
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error querying MediaStore for audio folders", e);
-        }
+        // 3) Scan standard public audio directories (Music, Recordings, Podcasts, Downloads, SD)
+        // If MediaStore indexed audio folders, skip recursive crawl of large musicDir to prevent FUSE freeze
+        scanStandardPublicAudioFolders(msAudioFolderCount > 0);
 
         // 4) Scan root app data directory
         if (rootFolder != null && rootFolder.exists()) {
@@ -1351,20 +1644,34 @@ public class Recorder {
             addDirectory(recordTargetFolder);
         }
 
-        // 6) Sort directories
+        // 6) Prune any deleted directories
+        pruneMissingDirectories();
+
+        // 7) Sort directories
         sortDirectories();
+
+        // 8) Update persistent cache file
+        saveCachedDirectories();
     }
 
     /**
      * Scans standard public audio storage locations to ensure all accessible user audio folders are indexed.
      */
-    private void scanStandardPublicAudioFolders() {
+    private void scanStandardPublicAudioFolders(boolean mediaStoreHasResults) {
         List<File> candidateFolders = new ArrayList<>();
 
         // Standard Music Directory & SJPlayer
         File musicDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC);
         if (musicDir != null && musicDir.exists()) {
-            candidateFolders.add(musicDir);
+            if (!mediaStoreHasResults) {
+                candidateFolders.add(musicDir);
+            } else {
+                File[] rootFiles = musicDir.listFiles(aFilter);
+                if (rootFiles != null && rootFiles.length > 0 && !hasDirectory(musicDir)) {
+                    addDirectory(musicDir);
+                    folderAudioCountMap.put(musicDir.getAbsolutePath(), rootFiles.length);
+                }
+            }
             File sjPlayerFolder = new File(musicDir, "SJPlayer");
             if (sjPlayerFolder.exists()) {
                 candidateFolders.add(sjPlayerFolder);
@@ -1412,8 +1719,16 @@ public class Recorder {
                         if (androidIdx > 0) {
                             String rootVolume = path.substring(0, androidIdx);
                             File sdMusic = new File(rootVolume, "Music");
-                            if (sdMusic.exists() && !candidateFolders.contains(sdMusic)) {
-                                candidateFolders.add(sdMusic);
+                            if (sdMusic.exists()) {
+                                if (!mediaStoreHasResults) {
+                                    if (!candidateFolders.contains(sdMusic)) candidateFolders.add(sdMusic);
+                                } else {
+                                    File[] sdRootFiles = sdMusic.listFiles(aFilter);
+                                    if (sdRootFiles != null && sdRootFiles.length > 0 && !hasDirectory(sdMusic)) {
+                                        addDirectory(sdMusic);
+                                        folderAudioCountMap.put(sdMusic.getAbsolutePath(), sdRootFiles.length);
+                                    }
+                                }
                             }
                             File sdRec = new File(rootVolume, "Recordings");
                             if (sdRec.exists() && !candidateFolders.contains(sdRec)) {
@@ -1778,28 +2093,42 @@ public class Recorder {
      */
     public void readAudibleFilesInCurrentFolder(){
         try {
-            File[] files = (this.currentFolder != null) ? this.currentFolder.listFiles(aFilter) : null;
-            
-            if (files != null && files.length > 0) {
-                this.audibleFiles = new ArrayList<>(Arrays.asList(files));
-            } else {
+            if (this.currentFolder == null) {
                 this.audibleFiles = new ArrayList<>();
+                this.currentFileIndex = 0;
+                return;
+            }
+            String folderKey = this.currentFolder.getAbsolutePath();
+            List<File> cached = folderFilesCache.get(folderKey);
+            if (cached != null) {
+                this.audibleFiles = new ArrayList<>(cached);
+                this.currentFileIndex = 0;
+                return;
+            }
+
+            File[] files = this.currentFolder.listFiles(aFilter);
+            ArrayList<File> list;
+            if (files != null && files.length > 0) {
+                list = new ArrayList<>(Arrays.asList(files));
+            } else {
+                list = new ArrayList<>();
                 // Fallback: Query MediaStore for this folder on Android 10+ or when File.listFiles returns empty
-                if (this.currentFolder != null) {
-                    List<File> mediaStoreFiles = queryAudibleFilesFromMediaStore(this.currentFolder);
-                    if (mediaStoreFiles != null && !mediaStoreFiles.isEmpty()) {
-                        this.audibleFiles.addAll(mediaStoreFiles);
-                    }
+                List<File> mediaStoreFiles = queryAudibleFilesFromMediaStore(this.currentFolder);
+                if (mediaStoreFiles != null && !mediaStoreFiles.isEmpty()) {
+                    list.addAll(mediaStoreFiles);
                 }
             }
 
-            Collections.sort(audibleFiles, new Comparator<File>() {
+            Collections.sort(list, new Comparator<File>() {
                 @Override
                 public int compare (File f1, File f2)
                 {
                     return f1.getName().compareToIgnoreCase(f2.getName());
                 }
             });
+
+            folderFilesCache.put(folderKey, new ArrayList<>(list));
+            this.audibleFiles = list;
 
         }catch(Exception e){
             e.printStackTrace();
@@ -1923,7 +2252,7 @@ public class Recorder {
             // Read audio quality, stereo, and noise suppression preferences
             SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(mainActivity);
             String qualityPref = prefs.getString("pref_audio_quality", "high");
-            boolean useNoiseSuppression = prefs.getBoolean("pref_noise_suppression", true);
+            boolean useNoiseSuppression = prefs.getBoolean("pref_noise_suppression", false);
             boolean stereoPref = prefs.getBoolean("pref_stereo_recording", true);
 
             boolean isDeviceStereoSupported = AudioMetadataHelper.isStereoRecordingSupported(mainActivity);
@@ -2120,7 +2449,7 @@ public class Recorder {
             status_TextView.setText(
                     String.format("%02d:%02d:%02d", (int) currentPos/3600, (int) currentPos/60, (int) currentPos%60) +"/"+
                             String.format("%02d:%02d:%02d", (int) (audioFileDuration/1000)/3600, (int) (audioFileDuration/1000)/60, (int) (audioFileDuration/1000)%60));
-            timerHandler.postDelayed(this, 100);
+            timerHandler.postDelayed(this, 300);
         }
 
     };
@@ -2276,6 +2605,10 @@ public class Recorder {
         currentFolder = recordTargetFolder;
         currentDirectoryIndex = directories.indexOf(recordTargetFolder);
         
+        // Invalidate cache for target folder so new recording is detected immediately
+        if (recordTargetFolder != null) {
+            folderFilesCache.remove(recordTargetFolder.getAbsolutePath());
+        }
         // Refresh the file list for the current folder
         this.readAudibleFilesInCurrentFolder();
 
@@ -2413,11 +2746,22 @@ public class Recorder {
         return info;
     }
 
+    private long lastFreeSpaceCheckTime = 0;
+    private String cachedFreeGbStr = null;
+
     public String getCurrentDirectoryDetailsPrimary() {
         if (currentFolder == null) return "No folder selected";
         StringBuilder sb = new StringBuilder();
-        File[] files = currentFolder.listFiles(aFilter);
-        int fileCount = (files != null) ? files.length : 0;
+        
+        int fileCount = 0;
+        if (this.audibleFiles != null && !this.audibleFiles.isEmpty()) {
+            fileCount = this.audibleFiles.size();
+        } else {
+            Integer count = folderAudioCountMap.get(currentFolder.getAbsolutePath());
+            if (count != null && count > 0) {
+                fileCount = count;
+            }
+        }
         sb.append(fileCount).append(" audio files");
 
         String folderYear = extractYearFromFolder(currentFolder);
@@ -2426,8 +2770,15 @@ public class Recorder {
         }
 
         try {
-            double freeGb = (double) currentFolder.getFreeSpace() / 1000000000.0;
-            sb.append("   •   ").append(String.format(java.util.Locale.US, "%.1f GB free", freeGb));
+            long now = System.currentTimeMillis();
+            if (cachedFreeGbStr == null || (now - lastFreeSpaceCheckTime > 30000)) {
+                lastFreeSpaceCheckTime = now;
+                double freeGb = (double) currentFolder.getFreeSpace() / 1000000000.0;
+                cachedFreeGbStr = String.format(java.util.Locale.US, "%.1f GB free", freeGb);
+            }
+            if (cachedFreeGbStr != null) {
+                sb.append("   •   ").append(cachedFreeGbStr);
+            }
         } catch (Exception ignored) {}
 
         return sb.toString();

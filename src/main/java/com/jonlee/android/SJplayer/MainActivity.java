@@ -217,9 +217,12 @@ public class MainActivity extends SampleActivityBase {
                 AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
                 if (am != null) {
                     int cur = am.getStreamVolume(AudioManager.STREAM_MUSIC);
+                    int max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+                    if (commander != null && commander.dialView != null) {
+                        commander.dialView.setVolume(cur, max);
+                    }
                     if (lastVolumeLevel != -1 && cur != lastVolumeLevel) {
                         lastVolumeLevel = cur;
-                        int max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
                         int pct = max > 0 ? (cur * 100) / max : 0;
                         alwaysSpeak("Volume " + pct + " percent");
                     } else if (lastVolumeLevel == -1) {
@@ -267,9 +270,15 @@ public class MainActivity extends SampleActivityBase {
             savedVisualizerMode = DialView.VISUALIZER_MODE_MINIMAL_SPLIT;
         }
         boolean hapticPulse = sharedPref.getBoolean("pref_haptic_audio_pulse", true);
+        boolean screenCurtain = sharedPref.getBoolean("pref_screen_curtain", false);
         if (commander.dialView != null) {
             commander.dialView.setVisualizerMode(savedVisualizerMode);
             commander.dialView.setHapticPulseEnabled(hapticPulse);
+            commander.dialView.setScreenCurtainEnabled(screenCurtain);
+            if (amInit != null) {
+                commander.dialView.setVolume(amInit.getStreamVolume(AudioManager.STREAM_MUSIC),
+                                             amInit.getStreamMaxVolume(AudioManager.STREAM_MUSIC));
+            }
         }
         updateVisualizerModeUI(savedVisualizerMode);
 
@@ -280,13 +289,13 @@ public class MainActivity extends SampleActivityBase {
                 new TopButtonNarrativeProvider() {
                     @Override
                     public String getNarrative() {
-                        return "Help guide. Tap to view guide. Long press on help page to hear full details.";
+                        return "Help guide. Tap for animated gesture guide. Long press for detailed text.";
                     }
                 },
                 new Runnable() {
                     @Override
                     public void run() {
-                        showGestureHelpDialog(false);
+                        triggerGestureTutorial();
                     }
                 });
 
@@ -295,7 +304,7 @@ public class MainActivity extends SampleActivityBase {
             gestureHintBar.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    showGestureHelpDialog(false);
+                    triggerGestureTutorial();
                 }
             });
             gestureHintBar.setOnLongClickListener(new View.OnLongClickListener() {
@@ -388,6 +397,9 @@ public class MainActivity extends SampleActivityBase {
                     case MotionEvent.ACTION_DOWN:
                         isDownInside = true;
                         v.animate().scaleX(1.12f).scaleY(1.12f).setDuration(120).start();
+                        if (commander != null) {
+                            commander.vibrateTick();
+                        }
                         if (narrativeProvider != null) {
                             String narrative = narrativeProvider.getNarrative();
                             if (narrative != null && !narrative.isEmpty()) {
@@ -412,6 +424,9 @@ public class MainActivity extends SampleActivityBase {
                         v.animate().scaleX(1.0f).scaleY(1.0f).setDuration(150).start();
                         if (isDownInside) {
                             isDownInside = false;
+                            if (commander != null) {
+                                commander.vibrateClick();
+                            }
                             v.performClick();
                             if (onReleaseAction != null) {
                                 onReleaseAction.run();
@@ -445,8 +460,6 @@ public class MainActivity extends SampleActivityBase {
             mainLayout.setClickable(true);
             mainLayout.setFocusable(true);
             mainLayout.setOnTouchListener(new View.OnTouchListener() {
-                private boolean isDownInEdgeZone = false;
-
                 @Override
                 public boolean onTouch(View v, MotionEvent event) {
                     int action = event.getActionMasked();
@@ -457,12 +470,6 @@ public class MainActivity extends SampleActivityBase {
                     float rawY = event.getRawY();
 
                     if (action == MotionEvent.ACTION_DOWN) {
-                        isDownInEdgeZone = isHorizontalEdgeTouch(event);
-                        if (isDownInEdgeZone) {
-                            Log.d(TAG, "Touch DOWN in horizontal edge zone, passing to system navigation: rawX=" + rawX);
-                            return false;
-                        }
-
                         wheelDownX = rawX;
                         wheelDownY = rawY;
                         wheelLastStepY = rawY;
@@ -471,27 +478,31 @@ public class MainActivity extends SampleActivityBase {
                         // Schedule long-press activation for wheel controller scrubbing
                         wheelScrubHandler.removeCallbacksAndMessages(null);
                         wheelScrubHandler.postDelayed(() -> {
-                            if (!isDownInEdgeZone && event.getPointerCount() == 1) {
+                            if (event.getPointerCount() == 1) {
                                 isWheelScrubbing = true;
                                 if (commander != null) {
-                                    commander.vibrate(25);
+                                    commander.vibrateClick();
                                 }
                                 showFolderWheel(0);
                             }
                         }, 280);
 
-                    } else if (isDownInEdgeZone) {
-                        if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
-                            isDownInEdgeZone = false;
-                        }
-                        return false;
                     } else if (action == MotionEvent.ACTION_MOVE) {
                         float density = getResources().getDisplayMetrics().density;
                         float deltaX = rawX - wheelDownX;
+                        float deltaY = rawY - wheelDownY;
 
-                        // If user moved significantly horizontally, cancel long-press wheel mode
-                        if (!isWheelScrubbing && Math.abs(deltaX) > 28 * density) {
+                        // If user moved intentional distance (swipe), cancel stationary long-press wheel timer immediately
+                        float touchSlop = 10 * density;
+                        if (!isWheelScrubbing && (Math.abs(deltaX) > touchSlop || Math.abs(deltaY) > touchSlop)) {
                             wheelScrubHandler.removeCallbacksAndMessages(null);
+                        }
+
+                        // Provide immediate, tactile visual feedback by tracking finger displacement in DialView
+                        if (!isWheelScrubbing && commander != null && commander.dialView != null) {
+                            if (gestureListener != null && !gestureListener.isFired()) {
+                                commander.dialView.setInteractiveDragDelta(deltaX, deltaY);
+                            }
                         }
 
                         // Multi-finger touch cancels single-finger wheel scrubbing
@@ -502,14 +513,17 @@ public class MainActivity extends SampleActivityBase {
 
                         if (isWheelScrubbing) {
                             float deltaStepY = rawY - wheelLastStepY;
-                            float stepThreshold = 32 * density; // responsive step per ~32dp vertical drag
+                            float stepThreshold = 30 * density; // responsive step per ~30dp vertical drag
                             long now = System.currentTimeMillis();
 
-                            if (Math.abs(deltaStepY) >= stepThreshold && (now - lastWheelStepTime > 110)) {
+                            if (Math.abs(deltaStepY) >= stepThreshold && (now - lastWheelStepTime > 100)) {
                                 lastWheelStepTime = now;
                                 wheelLastStepY = rawY;
 
                                 boolean isFileMode = (commander != null && commander.getDisplayMode() == Commander.DISPLAY_MODE_FILE);
+                                if (commander != null) {
+                                    commander.vibrateTick();
+                                }
                                 if (deltaStepY < 0) {
                                     // Dragging up -> Next item (rolls drum upward, pulling lower item up)
                                     if (commander != null) {
@@ -526,10 +540,13 @@ public class MainActivity extends SampleActivityBase {
                         }
                     } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
                         wheelScrubHandler.removeCallbacksAndMessages(null);
+                        if (commander != null && commander.dialView != null) {
+                            commander.dialView.setInteractiveDragDelta(0, 0);
+                        }
                         if (isWheelScrubbing) {
                             isWheelScrubbing = false;
                             if (commander != null) {
-                                commander.vibrate(15);
+                                commander.vibrateTick();
                             }
                             scheduleFolderWheelFadeOut();
                             return true;
@@ -609,6 +626,12 @@ public class MainActivity extends SampleActivityBase {
     private long twoFingerDownTime = 0L;
     private int twoFingerMaxPointerCount = 0;
 
+    private boolean isThreeFingerGesture = false;
+    private boolean threeFingerActionFired = false;
+    private long threeFingerDownTime = 0L;
+    private int threeFingerTapCount = 0;
+    private long lastThreeFingerTapTime = 0L;
+
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
         if (!isTermsOfServiceAccepted()) {
@@ -619,9 +642,29 @@ public class MainActivity extends SampleActivityBase {
         float density = getResources().getDisplayMetrics().density;
 
         if (action == MotionEvent.ACTION_DOWN) {
+            if (commander != null && commander.dialView != null) {
+                commander.dialView.notifyUserInteraction();
+                if (commander.dialView.isGestureTutorialActive()) {
+                    float x = ev.getX();
+                    float y = ev.getY();
+                    if (commander.dialView.isTextHelpButtonTapped(x, y)) {
+                        commander.dialView.dismissGestureTutorial();
+                        showGestureHelpDialog(true);
+                    } else {
+                        commander.dialView.dismissGestureTutorial();
+                    }
+                    return true;
+                }
+            }
+            long now = System.currentTimeMillis();
+            if (now - lastThreeFingerTapTime > 650L) {
+                threeFingerTapCount = 0;
+            }
             isTwoFingerGesture = false;
             twoFingerActionFired = false;
             twoFingerMaxPointerCount = 1;
+            isThreeFingerGesture = false;
+            threeFingerActionFired = false;
         } else if (pointerCount == 2) {
             if (!isTwoFingerGesture && !twoFingerActionFired) {
                 isTwoFingerGesture = true;
@@ -636,9 +679,17 @@ public class MainActivity extends SampleActivityBase {
                 isWheelScrubbing = false;
                 Log.d(TAG, "2-finger tracking started: centroid=(" + twoFingerStartX + "," + twoFingerStartY + ")");
             }
-        } else if (pointerCount > 2) {
+        } else if (pointerCount >= 3) {
             isTwoFingerGesture = false;
             twoFingerMaxPointerCount = Math.max(twoFingerMaxPointerCount, pointerCount);
+            if (!isThreeFingerGesture && !threeFingerActionFired) {
+                isThreeFingerGesture = true;
+                threeFingerActionFired = false;
+                threeFingerDownTime = System.currentTimeMillis();
+                wheelScrubHandler.removeCallbacksAndMessages(null);
+                isWheelScrubbing = false;
+                Log.d(TAG, "3-finger tracking started for Screen Curtain toggle");
+            }
         }
 
         if (isTwoFingerGesture && !twoFingerActionFired) {
@@ -657,15 +708,19 @@ public class MainActivity extends SampleActivityBase {
                     Log.i(TAG, "Two-finger swipe detected: deltaX=" + deltaX + ", deltaY=" + deltaY);
                     if (commander != null) {
                         if (absY > absX) {
-                            // Vertical swipe across FOLDERS
+                            // Vertical swipe across FOLDERS:
+                            // deltaY < 0 = moving UP -> Next folder section
+                            // deltaY > 0 = moving DOWN -> Previous folder section
                             if (deltaY < 0) {
                                 commander.cmd(Commander.FAST_SEEK_NEXT_FOLDER);
                             } else {
                                 commander.cmd(Commander.FAST_SEEK_PREVIOUS_FOLDER);
                             }
                         } else {
-                            // Horizontal swipe across FILES
-                            if (deltaX < 0) {
+                            // Horizontal swipe across FILES:
+                            // deltaX > 0 = moving RIGHT -> Next file section (alphabet forward A -> B -> C)
+                            // deltaX < 0 = moving LEFT -> Previous file section (alphabet backward C -> B -> A)
+                            if (deltaX > 0) {
                                 commander.cmd(Commander.FAST_SEEK_NEXT_FILE);
                             } else {
                                 commander.cmd(Commander.FAST_SEEK_PREVIOUS_FILE);
@@ -714,7 +769,7 @@ public class MainActivity extends SampleActivityBase {
                                 commander.cmd(Commander.FAST_SEEK_PREVIOUS_FOLDER);
                             }
                         } else {
-                            if (deltaX < 0) {
+                            if (deltaX > 0) {
                                 commander.cmd(Commander.FAST_SEEK_NEXT_FILE);
                             } else {
                                 commander.cmd(Commander.FAST_SEEK_PREVIOUS_FILE);
@@ -722,15 +777,53 @@ public class MainActivity extends SampleActivityBase {
                         }
                     }
                 } else if (twoFingerMaxPointerCount == 2 && absX < 8 * density && absY < 8 * density && (System.currentTimeMillis() - twoFingerDownTime) < 400) {
-                    // Stationary 2-finger tap -> Add Bookmark
-                    twoFingerActionFired = true;
-                    Log.i(TAG, "Two-finger tap detected: adding bookmark");
-                    if (commander != null) {
-                        commander.cmd(Commander.ADD_BOOKMARK);
+                    if (threeFingerTapCount == 0 && (System.currentTimeMillis() - lastThreeFingerTapTime > 650L)) {
+                        // Stationary 2-finger tap -> Add Bookmark
+                        twoFingerActionFired = true;
+                        Log.i(TAG, "Two-finger tap detected: adding bookmark");
+                        if (commander != null) {
+                            commander.cmd(Commander.ADD_BOOKMARK);
+                        }
                     }
                 }
 
                 if (twoFingerActionFired) {
+                    MotionEvent cancelEvent = MotionEvent.obtain(ev);
+                    cancelEvent.setAction(MotionEvent.ACTION_CANCEL);
+                    super.dispatchTouchEvent(cancelEvent);
+                    cancelEvent.recycle();
+                    return true;
+                }
+            }
+        }
+
+        if (action == MotionEvent.ACTION_POINTER_UP || action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            if (isThreeFingerGesture && !threeFingerActionFired && twoFingerMaxPointerCount >= 3) {
+                isThreeFingerGesture = false;
+                threeFingerActionFired = true;
+                long now = System.currentTimeMillis();
+                long duration = now - threeFingerDownTime;
+                if (duration < 450) {
+                    if (now - lastThreeFingerTapTime <= 650L) {
+                        threeFingerTapCount++;
+                    } else {
+                        threeFingerTapCount = 1;
+                    }
+                    lastThreeFingerTapTime = now;
+
+                    if (threeFingerTapCount >= 3) {
+                        threeFingerTapCount = 0;
+                        Log.i(TAG, "Three-finger triple-tap detected: toggling Screen Curtain");
+                        if (commander != null) {
+                            commander.cmd(Commander.TOGGLE_SCREEN_CURTAIN);
+                        }
+                    } else {
+                        // Light tactile feedback on intermediate taps
+                        if (commander != null) {
+                            commander.vibrateTick();
+                        }
+                    }
+
                     MotionEvent cancelEvent = MotionEvent.obtain(ev);
                     cancelEvent.setAction(MotionEvent.ACTION_CANCEL);
                     super.dispatchTouchEvent(cancelEvent);
@@ -754,7 +847,7 @@ public class MainActivity extends SampleActivityBase {
                         if (absY > absX) {
                             commander.cmd(deltaY < 0 ? Commander.FAST_SEEK_NEXT_FOLDER : Commander.FAST_SEEK_PREVIOUS_FOLDER);
                         } else {
-                            commander.cmd(deltaX < 0 ? Commander.FAST_SEEK_NEXT_FILE : Commander.FAST_SEEK_PREVIOUS_FILE);
+                            commander.cmd(deltaX > 0 ? Commander.FAST_SEEK_NEXT_FILE : Commander.FAST_SEEK_PREVIOUS_FILE);
                         }
                     }
                 } else if (absX < 8 * density && absY < 8 * density && (System.currentTimeMillis() - twoFingerDownTime) < 400) {
@@ -837,8 +930,8 @@ public class MainActivity extends SampleActivityBase {
                         "Double tap starts recording a new audio file, or stops recording if already in progress. " +
                         "Triple tap adds a bookmark at the current playback position.",
                 "Track and folder navigation: " +
-                        "Swipe left to jump to the next track. " +
-                        "Swipe right to jump to the previous track. " +
+                        "Swipe right to jump to the next track. " +
+                        "Swipe left to jump to the previous track. " +
                         "Swipe up or down to switch folders. " +
                         "Long press and swipe up or down to activate the rotary wheel controller for continuous folder browsing with ambient preview. " +
                         "Swipe left or right and hold for continuous fast forward or rewind.",
@@ -846,6 +939,7 @@ public class MainActivity extends SampleActivityBase {
                         "Two finger swipe left or right performs fast seek across files by alphabet letter. " +
                         "Two finger swipe up or down performs fast seek across folders by month for date folders, or by alphabet letter. " +
                         "Two finger tap quickly adds a bookmark. " +
+                        "Three finger triple tap toggles screen curtain to turn display completely black for total privacy and battery savings. " +
                         "One finger long press speaks the file name, date, duration, and recording location. " +
                         "Two finger long press announces the current time and battery level. " +
                         "Three finger long press marks or unmarks the track as a favorite. " +
@@ -924,18 +1018,19 @@ public class MainActivity extends SampleActivityBase {
                 "• <b>3x Tap (Triple Tap)</b>: Add Bookmark at current playback time.<br/>" +
                 "<br/>" +
                 "<font color=\"#FFD54F\"><b>↔ TRACK &amp; FOLDER NAVIGATION (SWIPES)</b></font><br/>" +
-                "• <b>Swipe Left</b>: Next track / audio file.<br/>" +
-                "• <b>Swipe Right</b>: Previous track / audio file.<br/>" +
+                "• <b>Swipe Right</b>: Next track / audio file.<br/>" +
+                "• <b>Swipe Left</b>: Previous track / audio file.<br/>" +
                 "• <b>Swipe Up/Down</b>: Previous / Next folder (ambient wheel display).<br/>" +
                 "• <b>Long Press &amp; Swipe Up/Down</b>: Rotary Wheel Controller — drag continuously through folders with ambient previous &amp; next preview.<br/>" +
                 "• <b>Swipe Left/Right &amp; Hold</b>: Continuous Fast Forward / Rewind.<br/>" +
                 "<br/>" +
                 "<font color=\"#00E5FF\"><b>✦ MULTI-FINGER ACCESSIBILITY SHORTCUTS</b></font><br/>" +
+                "• <b>3-Finger Triple Tap</b>: Toggle Screen Curtain (pure black display for privacy &amp; battery savings).<br/>" +
                 "• <b>1-Finger Long Press</b>: Voice readout of File Name, Date, Duration &amp; Location.<br/>" +
                 "• <b>2-Finger Long Press</b>: Voice readout of Current Time &amp; Battery Level.<br/>" +
                 "• <b>3-Finger Long Press</b>: Mark / Unmark track as Favorite.<br/>" +
                 "• <b>2-Finger Tap</b>: Quick Bookmark (alternate shortcut).<br/>" +
-                "• <b>2-Finger Swipe Left / Right</b>: Jump to Next / Previous Bookmark.<br/>" +
+                "• <b>2-Finger Swipe Right / Left</b>: Jump to Next / Previous Bookmark.<br/>" +
                 "• <b>3-Finger Swipe Down</b>: Open Settings.<br/>" +
                 "• <b>3-Finger Swipe Up</b>: Start / Stop Cloud Backup.<br/>" +
                 "• <b>4-Finger Swipe Right &amp; Hold</b>: Delete current audio file.<br/>" +
@@ -1354,16 +1449,37 @@ public class MainActivity extends SampleActivityBase {
                 permissionsToRequest.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
             }
         }
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            permissionsToRequest.add(Manifest.permission.ACCESS_FINE_LOCATION);
-        }
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            permissionsToRequest.add(Manifest.permission.ACCESS_COARSE_LOCATION);
-        }
 
         if (!permissionsToRequest.isEmpty()) {
-            speak("Welcome to EYES-FREE VOICE RECORDER. Please grant microphone, storage, and location permissions on screen to get started.");
-            ActivityCompat.requestPermissions(this, permissionsToRequest.toArray(new String[0]), 0);
+            speak("Welcome to EYES-FREE VOICE RECORDER. Please grant microphone and audio storage permissions on screen to get started.");
+            ActivityCompat.requestPermissions(this, permissionsToRequest.toArray(new String[0]), 101);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        boolean anyStorageGranted = false;
+        boolean micGranted = false;
+
+        for (int i = 0; i < permissions.length; i++) {
+            if (grantResults[i] == PackageManager.PERMISSION_GRANTED) {
+                if (Manifest.permission.RECORD_AUDIO.equals(permissions[i])) {
+                    micGranted = true;
+                } else if (Manifest.permission.READ_MEDIA_AUDIO.equals(permissions[i])
+                        || Manifest.permission.READ_EXTERNAL_STORAGE.equals(permissions[i])) {
+                    anyStorageGranted = true;
+                }
+            }
+        }
+
+        if (anyStorageGranted || micGranted) {
+            alwaysSpeak("Permissions granted. Initializing audio library.");
+            if (commander != null && commander.getRecorder() != null) {
+                commander.getRecorder().rescanStorageAfterPermission();
+            }
+        } else {
+            alwaysSpeak("Some permissions were denied. You can record or select audio folders in Settings.");
         }
     }
 
@@ -1727,6 +1843,9 @@ public class MainActivity extends SampleActivityBase {
                         am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI);
                         int cur = am.getStreamVolume(AudioManager.STREAM_MUSIC);
                         int max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+                        if (commander != null && commander.dialView != null) {
+                            commander.dialView.setVolume(cur, max);
+                        }
                         int pct = max > 0 ? (cur * 100) / max : 0;
                         lastVolumeLevel = cur;
                         alwaysSpeak("Volume " + pct + " percent");
@@ -1739,6 +1858,9 @@ public class MainActivity extends SampleActivityBase {
                         am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI);
                         int cur = am.getStreamVolume(AudioManager.STREAM_MUSIC);
                         int max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+                        if (commander != null && commander.dialView != null) {
+                            commander.dialView.setVolume(cur, max);
+                        }
                         int pct = max > 0 ? (cur * 100) / max : 0;
                         lastVolumeLevel = cur;
                         alwaysSpeak("Volume " + pct + " percent");
@@ -1887,11 +2009,35 @@ public class MainActivity extends SampleActivityBase {
                         volumeObserver);
             } catch (Exception ignored) {}
         }
+        if (commander != null && commander.dialView != null) {
+            AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
+            if (am != null) {
+                commander.dialView.setVolume(am.getStreamVolume(AudioManager.STREAM_MUSIC),
+                                             am.getStreamMaxVolume(AudioManager.STREAM_MUSIC));
+            }
+            commander.dialView.setScreenCurtainEnabled(sharedPref.getBoolean("pref_screen_curtain", false));
+        }
+        if (sharedPref != null && sharedPref.getBoolean("pending_replay_gesture_tutorial", false)) {
+            sharedPref.edit().putBoolean("pending_replay_gesture_tutorial", false).apply();
+            new Handler(Looper.getMainLooper()).postDelayed(this::triggerGestureTutorial, 400L);
+        }
+    }
+
+    public void triggerGestureTutorial() {
+        runOnUiThread(() -> {
+            if (commander != null && commander.dialView != null) {
+                commander.dialView.startGestureTutorial();
+                alwaysSpeak("Gesture Guide. Swipe up or down for folders. Swipe left or right for files. Tap once to play. Double tap to record. Triple tap to bookmark. Two fingers swipe for fast seek. Touch anywhere to close.");
+            }
+        });
     }
 
     @Override
     protected void onPause() {
         super.onPause();
+        if (commander != null && commander.dialView != null) {
+            commander.dialView.stopAnimation();
+        }
         try {
             unregisterReceiver(mBatInfoReceiver);
         } catch (Exception ignored) {}
@@ -1923,6 +2069,9 @@ public class MainActivity extends SampleActivityBase {
         if (recorder != null) {
             recorder.stopRecording();
             recorder.stopPlaying();
+        }
+        if (commander != null) {
+            commander.release();
         }
         if (ttobj != null) {
             ttobj.stop();

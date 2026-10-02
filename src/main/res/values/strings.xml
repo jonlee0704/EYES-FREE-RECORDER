@@ -324,4 +324,7 @@
         <item>3</item>
     </string-array>
 
+    <string name="pref_title_screen_curtain">Screen Curtain (OLED Battery Saver)</string>
+    <string name="pref_summary_screen_curtain">Turns display pixels completely off for maximum battery life while keeping non-visual touch, haptics, and audio active</string>
+
 </resources>

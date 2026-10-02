@@ -10,6 +10,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.Resources;
 import android.graphics.Color;
+import android.media.AudioManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
@@ -20,6 +21,7 @@ import android.preference.Preference;
 import android.preference.PreferenceManager;
 import android.speech.tts.TextToSpeech;
 import androidx.core.app.NotificationCompat;
+import android.view.HapticFeedbackConstants;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
@@ -96,6 +98,8 @@ public class Commander{
     public final static int FAST_SEEK_PREVIOUS_FOLDER = 46;
     public final static int FAST_SEEK_NEXT_FILE = 47;
     public final static int FAST_SEEK_PREVIOUS_FILE = 48;
+    public final static int SPEAK_SPATIAL_STATUS = 49;
+    public final static int TOGGLE_SCREEN_CURTAIN = 50;
 
 
 
@@ -103,15 +107,16 @@ public class Commander{
     public final static int NOTHING = 100;
 
     public Recorder recorder = null;
+    public SoundscapeHelper soundscapeHelper = null;
 
     //public TextToSpeech ttobj = null;
 
-    //Vibrate strenth;'
+    // Modern tactile haptic strengths
     private int vibrateStrenth = 0;
-    // Default one
-    private final int VIBRATOR_STRENTH = 100;
-    private final int VIBRATOR_STRENTH_MID = 50;
-    private final int VIBRATE_STRENGTH_WEAK = 40;
+    // Default crisp haptic click duration
+    private final int VIBRATOR_STRENTH = 25;
+    private final int VIBRATOR_STRENTH_MID = 20;
+    private final int VIBRATE_STRENGTH_WEAK = 12;
 
     private Thread trackPosUpdater = null;
     public TextView main_TextView = null;
@@ -235,6 +240,7 @@ public class Commander{
 
         // Create Recorder
         recorder = new Recorder(mainActivity);
+        soundscapeHelper = new SoundscapeHelper(mainActivity);
         updateFolderDisplay();
     }
 
@@ -250,6 +256,72 @@ public class Commander{
 
     private void speak(String w, float pitch) {
         (mainActivity).speak(w, pitch);
+    }
+
+    /**
+     * Speaks comprehensive spatial orientation context:
+     * Folder X of Y, Folder Name, File A of B, File Name, Playback state, and Volume.
+     * Serves as the primary tactile "Where Am I?" anchor for blind users.
+     */
+    public void speakSpatialStatus() {
+        if (recorder == null) return;
+        vibrateCornerAnchor();
+
+        StringBuilder sb = new StringBuilder();
+
+        int dirTotal = recorder.getTotalDirectoriesCount();
+        int dirIdx = recorder.getCurrentDirectoryIndex() + 1;
+        String dirName = recorder.getCurrentDirectoryName();
+        if (dirName == null || dirName.isEmpty()) {
+            dirName = "None";
+        }
+        sb.append("Folder ").append(dirIdx).append(" of ").append(dirTotal).append(", ").append(dirName).append(". ");
+
+        int fileTotal = recorder.getAudibleFilesCount();
+        if (fileTotal > 0) {
+            int fileIdx = recorder.getCurrentFileIndex() + 1;
+            String fileName = recorder.getCurrentFileName();
+            if (fileName != null && fileName.contains(".")) {
+                fileName = fileName.substring(0, fileName.lastIndexOf('.'));
+            }
+            sb.append("File ").append(fileIdx).append(" of ").append(fileTotal).append(", ").append(fileName).append(". ");
+        } else {
+            sb.append("Folder is empty. ");
+        }
+
+        if (recorder.isRecording()) {
+            sb.append("Currently recording. ");
+        } else if (recorder.isPlaying()) {
+            sb.append("Playing. ");
+        } else if (recorder.isPaused()) {
+            sb.append("Paused. ");
+        } else {
+            sb.append("Stopped. ");
+        }
+
+        try {
+            if (mainActivity != null) {
+                AudioManager am = (AudioManager) mainActivity.getSystemService(Context.AUDIO_SERVICE);
+                if (am != null) {
+                    int vol = am.getStreamVolume(AudioManager.STREAM_MUSIC);
+                    int maxVol = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+                    int volPercent = (maxVol > 0) ? (vol * 100 / maxVol) : 0;
+                    sb.append("Volume ").append(volPercent).append(" percent.");
+                }
+            }
+        } catch (Exception ignored) {}
+
+        String msg = sb.toString();
+        this.displayText(msg);
+        this.displayNotification(msg, R.drawable.ic_action_about);
+        this.alwaysSpeak(msg);
+    }
+
+    public void release() {
+        if (soundscapeHelper != null) {
+            soundscapeHelper.release();
+            soundscapeHelper = null;
+        }
     }
 
     public Recorder getRecorder(){
@@ -280,18 +352,251 @@ public class Commander{
 
 
 
-    public void vibrate(int s){
-        try{
+    /**
+     * Helper to dispatch custom amplitude-modulated haptic waveforms for expressive,
+     * natural tactile feedback designed specifically for blind users.
+     */
+    private void playHapticWaveform(long[] timings, int[] amplitudes, int fallbackPredefinedEffect, int fallbackOneShotMs) {
+        try {
+            if (mainActivity == null) return;
             Vibrator v = (Vibrator) mainActivity.getSystemService(Context.VIBRATOR_SERVICE);
-            if (v != null && v.hasVibrator()) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    v.vibrate(VibrationEffect.createOneShot(s, VibrationEffect.DEFAULT_AMPLITUDE));
+            if (v == null || !v.hasVibrator()) return;
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                if (v.hasAmplitudeControl() && timings != null && amplitudes != null && timings.length == amplitudes.length) {
+                    v.vibrate(VibrationEffect.createWaveform(timings, amplitudes, -1));
+                    return;
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && fallbackPredefinedEffect != -1) {
+                    v.vibrate(VibrationEffect.createPredefined(fallbackPredefinedEffect));
+                    return;
+                }
+                if (timings != null) {
+                    v.vibrate(VibrationEffect.createWaveform(timings, -1));
+                    return;
+                }
+                v.vibrate(VibrationEffect.createOneShot(fallbackOneShotMs, VibrationEffect.DEFAULT_AMPLITUDE));
+            } else {
+                if (timings != null) {
+                    v.vibrate(timings, -1);
                 } else {
-                    v.vibrate(s);
+                    v.vibrate(fallbackOneShotMs);
                 }
             }
-        }catch(Exception e) {
-            // Do nothing
+        } catch (Exception ignored) {}
+    }
+
+    /**
+     * Next Track (Swipe Right):
+     * Physical feel: Forward rolling double-tick (soft lead pulse into crisp detent click).
+     */
+    public void vibrateNextTrack() {
+        if (soundscapeHelper != null) {
+            soundscapeHelper.playNextTrack();
+        }
+        if (mainActivity != null && mainActivity.getWindow() != null) {
+            View decor = mainActivity.getWindow().getDecorView();
+            if (decor != null) {
+                decor.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+            }
+        }
+        long[] timings = { 0, 14, 20, 20 };
+        int[] amplitudes = { 0, 110, 0, 255 };
+        playHapticWaveform(timings, amplitudes, Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ? VibrationEffect.EFFECT_CLICK : -1, 22);
+    }
+
+    /**
+     * Previous Track (Swipe Left):
+     * Physical feel: Backward stepping double-tick (crisp detent click followed by soft trailing release).
+     */
+    public void vibratePrevTrack() {
+        if (soundscapeHelper != null) {
+            soundscapeHelper.playPrevTrack();
+        }
+        if (mainActivity != null && mainActivity.getWindow() != null) {
+            View decor = mainActivity.getWindow().getDecorView();
+            if (decor != null) {
+                decor.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+            }
+        }
+        long[] timings = { 0, 20, 20, 12 };
+        int[] amplitudes = { 0, 255, 0, 100 };
+        playHapticWaveform(timings, amplitudes, Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ? VibrationEffect.EFFECT_CLICK : -1, 22);
+    }
+
+    /**
+     * Next Folder (Swipe Up):
+     * Physical feel: Heavy mechanical gear shift upward (firm preparatory pulse into authoritative latch).
+     * Noticeably heavier and more resonant than track navigation so blind users instantly know they switched folders.
+     */
+    public void vibrateNextFolder() {
+        if (soundscapeHelper != null) {
+            soundscapeHelper.playNextFolder();
+        }
+        if (mainActivity != null && mainActivity.getWindow() != null) {
+            View decor = mainActivity.getWindow().getDecorView();
+            if (decor != null) {
+                decor.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+            }
+        }
+        long[] timings = { 0, 28, 24, 34 };
+        int[] amplitudes = { 0, 180, 0, 255 };
+        playHapticWaveform(timings, amplitudes, Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ? VibrationEffect.EFFECT_HEAVY_CLICK : -1, 35);
+    }
+
+    /**
+     * Previous Folder (Swipe Down):
+     * Physical feel: Heavy mechanical gear shift downward (heavy strike followed by deep settling release).
+     */
+    public void vibratePrevFolder() {
+        if (soundscapeHelper != null) {
+            soundscapeHelper.playPrevFolder();
+        }
+        if (mainActivity != null && mainActivity.getWindow() != null) {
+            View decor = mainActivity.getWindow().getDecorView();
+            if (decor != null) {
+                decor.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+            }
+        }
+        long[] timings = { 0, 34, 24, 22 };
+        int[] amplitudes = { 0, 255, 0, 150 };
+        playHapticWaveform(timings, amplitudes, Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ? VibrationEffect.EFFECT_HEAVY_CLICK : -1, 35);
+    }
+
+    /**
+     * Corner Anchor Touch:
+     * Physical feel: Crisp resonant double-pulse indicating tactile corner boundary lock.
+     */
+    public void vibrateCornerAnchor() {
+        if (soundscapeHelper != null) {
+            soundscapeHelper.playCorner();
+        }
+        if (mainActivity != null && mainActivity.getWindow() != null) {
+            View decor = mainActivity.getWindow().getDecorView();
+            if (decor != null) {
+                decor.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+            }
+        }
+        long[] timings = { 0, 16, 22, 28 };
+        int[] amplitudes = { 0, 180, 0, 255 };
+        playHapticWaveform(timings, amplitudes, Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ? VibrationEffect.EFFECT_CLICK : -1, 30);
+    }
+
+    /**
+     * Playback Started / Resumed (Single Tap):
+     * Physical feel: Energetic upward ignition pulse (thrum into bright resonant click).
+     */
+    public void vibratePlay() {
+        if (mainActivity != null && mainActivity.getWindow() != null) {
+            View decor = mainActivity.getWindow().getDecorView();
+            if (decor != null) {
+                decor.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+            }
+        }
+        long[] timings = { 0, 16, 18, 26 };
+        int[] amplitudes = { 0, 130, 0, 255 };
+        playHapticWaveform(timings, amplitudes, Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ? VibrationEffect.EFFECT_CLICK : -1, 24);
+    }
+
+    /**
+     * Playback Paused / Stopped (Single Tap):
+     * Physical feel: Damping deceleration brake (solid brake strike resolving into soft resting thud).
+     */
+    public void vibratePause() {
+        if (mainActivity != null && mainActivity.getWindow() != null) {
+            View decor = mainActivity.getWindow().getDecorView();
+            if (decor != null) {
+                decor.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+            }
+        }
+        long[] timings = { 0, 24, 20, 14 };
+        int[] amplitudes = { 0, 230, 0, 80 };
+        playHapticWaveform(timings, amplitudes, Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ? VibrationEffect.EFFECT_DOUBLE_CLICK : -1, 24);
+    }
+
+    /**
+     * Fast Seek (2-finger swipe):
+     * Physical feel: Rapid 3-tooth ratchet burst indicating accelerated leap.
+     */
+    public void vibrateFastSeek() {
+        long[] timings = { 0, 10, 16, 12, 16, 16 };
+        int[] amplitudes = { 0, 160, 0, 200, 0, 255 };
+        playHapticWaveform(timings, amplitudes, Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ? VibrationEffect.EFFECT_DOUBLE_CLICK : -1, 30);
+    }
+
+    /**
+     * Recording Started:
+     * Physical feel: Unmistakable 3-pulse crescendo alert ensuring blind user knows microphone is live.
+     */
+    public void vibrateRecordStart() {
+        long[] timings = { 0, 25, 25, 35, 25, 55 };
+        int[] amplitudes = { 0, 160, 0, 210, 0, 255 };
+        playHapticWaveform(timings, amplitudes, Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ? VibrationEffect.EFFECT_HEAVY_CLICK : -1, 60);
+    }
+
+    /**
+     * Recording Stopped / Saved:
+     * Physical feel: Reassuring solid latch-lock shut.
+     */
+    public void vibrateRecordStop() {
+        long[] timings = { 0, 38, 28, 26 };
+        int[] amplitudes = { 0, 255, 0, 140 };
+        playHapticWaveform(timings, amplitudes, Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ? VibrationEffect.EFFECT_DOUBLE_CLICK : -1, 40);
+    }
+
+    /**
+     * Boundary / Empty Folder:
+     * Physical feel: Soft double bump (like hitting a rubber bumper).
+     */
+    public void vibrateBoundary() {
+        long[] timings = { 0, 28, 35, 28 };
+        int[] amplitudes = { 0, 140, 0, 140 };
+        playHapticWaveform(timings, amplitudes, Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ? VibrationEffect.EFFECT_DOUBLE_CLICK : -1, 30);
+    }
+
+    /**
+     * Spoken File Info Query (Double Tap):
+     * Physical feel: Light crisp double-tap.
+     */
+    public void vibrateFileInfo() {
+        long[] timings = { 0, 14, 22, 14 };
+        int[] amplitudes = { 0, 190, 0, 190 };
+        playHapticWaveform(timings, amplitudes, Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ? VibrationEffect.EFFECT_CLICK : -1, 18);
+    }
+
+    /**
+     * Jog-Wheel / Continuous Scrub Detent:
+     * Physical feel: Fine rotary detent click (like an analog precision knob).
+     */
+    public void vibrateTick() {
+        try {
+            if (mainActivity != null && mainActivity.getWindow() != null) {
+                View decor = mainActivity.getWindow().getDecorView();
+                if (decor != null) {
+                    decor.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                }
+            }
+            long[] timings = { 0, 7 };
+            int[] amplitudes = { 0, 95 };
+            playHapticWaveform(timings, amplitudes, Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ? VibrationEffect.EFFECT_TICK : -1, 8);
+        } catch (Exception ignored) {}
+    }
+
+    public void vibrateClick() {
+        vibrateNextTrack();
+    }
+
+    public void vibrateHeavy() {
+        vibrateNextFolder();
+    }
+
+    public void vibrate(int s){
+        if (s <= 15) {
+            vibrateTick();
+        } else if (s <= 50) {
+            vibrateClick();
+        } else {
+            vibrateHeavy();
         }
     }
 
@@ -488,11 +793,12 @@ public class Commander{
             Log.i(TAG, "Command in isRecording ===>" + c);
             if (c == Commander.ADD_BOOKMARK) {
                 int markIdx = recorder.addRecordingBookmark();
-                vibrate(80);
+                vibrateTick();
                 alwaysSpeak("Bookmark " + markIdx + " added");
                 displayText("Bookmark " + markIdx + " added");
                 return true;
             } else if (c == Commander.STOP_RECORD || c == Commander.ONETOUCH || c == Commander.STOP_PLAYBACK) {
+                vibrateRecordStop();
                 recorder.stopRecording();
                 cmdStr = getResources().getString(R.string.STOP_RECORD);
                 speak(getResources().getString(R.string.STOP_RECORD));
@@ -500,20 +806,21 @@ public class Commander{
                 this.displayNotification(cmdStr, R.drawable.ic_action_stop);
                 updateFolderDisplay();
                 updateFileDisplay(0);
+                return true;
             } else {
+                vibrateBoundary();
                 cmdStr = getResources().getString(R.string.ON_AIR);
                 imageView.setImageResource(R.drawable.ic_action_record);
                 this.displayNotification(cmdStr, R.drawable.ic_action_record);
+                return true;
             }
-            displayText(cmdStr);
-            vibrate(this.VIBRATOR_STRENTH);
         } else {
             Log.i(TAG, "Command in else-isRecording ===>" + c);
 
             switch (c) {
                 case Commander.START_RECORD:
                     progressBarVisible(false);
-                    vibrate(VIBRATOR_STRENTH);
+                    vibrateRecordStart();
 
                     if(mainActivity.isHomemodeEnabled()) {
                         speak(getResources().getString(R.string.HOMEWORK_MODE_ENABLED));
@@ -525,32 +832,23 @@ public class Commander{
                     recorder.stopPlaying();
 
                     cmdStr = getResources().getString(R.string.START_RECORD);
-                    //Blocking SingleTab during it's waitinf for TTS.isSpeaking()
+                    // Blocking SingleTab during it's waiting for TTS.isSpeaking()
                     recorder.isRecording(true);
                     displayText(cmdStr);
-                    //Waiting for until tts ends up.
                     speak(getResources().getString(R.string.START_RECORD));
 
-//                    new Thread(new Runnable() {
-//                        public void run() {
-                            // TODO Need to use Handler for all commander work not to impact MainThread.
-                            // Does Recorder need to be Thread(Runnable) class?
-                            try {
-                                Thread.sleep(500);
-                            }catch (Exception e){
-                                // In case of Exception, stopping to talk.
-                                Log.i(TAG, e.toString());
-                            }
-                            // In case upper code fails to catch up, then it stops speaking
+                    final String recordCmdStr = cmdStr;
+                    new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
                             alwaysSpeak("");
-                            vibrate(VIBRATOR_STRENTH);
                             recorder.startRecording();
-//                        }
-//                    }).start();
-                    imageView.setImageResource(R.drawable.ic_action_mic);
-                    displayNotification(cmdStr, R.drawable.ic_action_mic);
-                    updateFolderDisplay();
-                    updateFileDisplay(0);
+                            imageView.setImageResource(R.drawable.ic_action_mic);
+                            displayNotification(recordCmdStr, R.drawable.ic_action_mic);
+                            updateFolderDisplay();
+                            updateFileDisplay(0);
+                        }
+                    }, 400);
 
                     break;
                 case Commander.ONETOUCH:
@@ -559,21 +857,22 @@ public class Commander{
                         break;
                     }
 
-                    vibrate(this.VIBRATOR_STRENTH);
-
                     Log.i(TAG, "isPaused:"+recorder.isPaused()+":isPlaying:"+recorder.isPlaying());
                     if (recorder.isPlaying()) {
+                        vibratePause();
                         recorder.pause();
                         cmdStr = getResources().getString(R.string.PAUSE);
                         imageView.setImageResource(R.drawable.ic_action_stop);
                         speak(cmdStr);
                         this.displayNotification(cmdStr, R.drawable.ic_action_stop);
                     } else if (recorder.isPaused()) {
+                        vibratePlay();
                         recorder.resume();
                         this.updateFileDisplay(0);
                         this.displayNotification(recorder.getCurrentFileDisplayInformation(), R.drawable.ic_action_play);
                         imageView.setImageResource(R.drawable.ic_action_play);
                     } else if(!recorder.isPlaying() && !recorder.isPaused()) {
+                        vibratePlay();
                         recorder.startPlaying();
                         this.updateFileDisplay(0);
                         this.displayNotification(recorder.getCurrentFileDisplayInformation(), R.drawable.ic_action_play);
@@ -581,8 +880,8 @@ public class Commander{
                     }
                     break;
                 case Commander.STOP_PLAYBACK:
-                    vibrate(this.VIBRATOR_STRENTH);
                     if (recorder.isPlaying() || recorder.isPaused()) {
+                        vibratePause();
                         recorder.stopPlaying();
                         cmdStr = getResources().getString(R.string.STOP_PLAYBACK);
                         this.updateFileDisplay(0);
@@ -592,11 +891,10 @@ public class Commander{
                     }
                     break;
                 case Commander.NEXT_SONG:
-                    vibrate(this.VIBRATOR_STRENTH);
-
                     cmdStr = getResources().getString(R.string.NEXT_SONG);
                     recorder.stopPlaying();
                     if(recorder.nextSong()) {
+                        vibrateNextTrack();
                         recorder.startPlaying();
                         this.updateFileDisplay(1);
                         imageView.setImageResource(R.drawable.ic_action_play);
@@ -604,99 +902,136 @@ public class Commander{
                         this.displayNotification(recorder.getCurrentFileDisplayInformation(), R.drawable.ic_action_play);
 
                     } else{
+                        vibrateBoundary();
                         this.displayText("No file exists in this folder");
                         imageView.setImageResource(R.drawable.ic_action_about);
                         this.displayNotification(cmdStr, R.drawable.ic_action_about);
                     }
                     break;
                 case Commander.PREVIOUS_SONG:
-                    vibrate(this.VIBRATOR_STRENTH);
-
                     cmdStr = getResources().getString(R.string.PREVIOUS_SONG);
                     recorder.stopPlaying();
                     if(recorder.previousSong()) {
+                        vibratePrevTrack();
                         recorder.startPlaying();
                         this.updateFileDisplay(-1);
                         imageView.setImageResource(R.drawable.ic_action_play);
-                        //albumImageView.setImageResource(new MediaStore.Images());
                         this.displayNotification(recorder.getCurrentFileDisplayInformation(), R.drawable.ic_action_play);
 
                     } else{
+                        vibrateBoundary();
                         imageView.setImageResource(R.drawable.ic_action_about);
                         this.displayNotification(cmdStr, R.drawable.ic_action_about);
                     }
                     break;
                 case Commander.FAST_SEEK_NEXT_FOLDER:
                     progressBarVisible(false);
-                    vibrate(100);
+                    vibrateFastSeek();
                     recorder.stopPlaying();
                     if (recorder.fastSeekFolder(1)) {
                         folderMoveCnt++;
                         String folderName = recorder.getCurrentDirectoryName();
                         String announce = getFolderGroupingAnnouncement(folderName);
                         alwaysSpeak(announce);
-                        this.updateFolderDisplay();
                         this.displayText(announce + "\n" + folderName);
                         if (mainActivity != null) {
                             mainActivity.showFolderWheel(1);
-                        } else if (dialView != null) {
-                            dialView.onFolderChanged(1);
+                        } else {
+                            this.updateFolderDisplay();
+                            if (dialView != null) {
+                                dialView.onFolderChanged(1);
+                            }
                         }
+                        this.updateFileDisplay(0);
                         imageView.setImageResource(R.drawable.ic_action_collection);
                         this.displayNotification(folderName, R.drawable.ic_action_collection);
+                        if (dialView != null) {
+                            String fSecChar = getFolderSectionCharacter(folderName);
+                            dialView.showSectionOverlay(fSecChar, "FOLDER SECTION", "Folder " + (recorder.getCurrentDirectoryIndex() + 1) + " of " + recorder.getTotalDirectoriesCount());
+                        }
                     } else {
+                        vibrateBoundary();
                         String folderName = recorder.getCurrentDirectoryName();
                         String announce = getFolderGroupingAnnouncement(folderName);
                         alwaysSpeak("Only one folder section: " + announce);
                         this.displayText("Single section: " + announce + "\n" + folderName);
+                        if (dialView != null) {
+                            String fSecChar = getFolderSectionCharacter(folderName);
+                            dialView.showSectionOverlay(fSecChar, "FOLDER SECTION", "Single Section");
+                        }
                     }
                     break;
                 case Commander.FAST_SEEK_PREVIOUS_FOLDER:
                     progressBarVisible(false);
-                    vibrate(100);
+                    vibrateFastSeek();
                     recorder.stopPlaying();
                     if (recorder.fastSeekFolder(-1)) {
                         folderMoveCnt++;
                         String folderName = recorder.getCurrentDirectoryName();
                         String announce = getFolderGroupingAnnouncement(folderName);
                         alwaysSpeak(announce);
-                        this.updateFolderDisplay();
                         this.displayText(announce + "\n" + folderName);
                         if (mainActivity != null) {
                             mainActivity.showFolderWheel(-1);
-                        } else if (dialView != null) {
-                            dialView.onFolderChanged(-1);
+                        } else {
+                            this.updateFolderDisplay();
+                            if (dialView != null) {
+                                dialView.onFolderChanged(-1);
+                            }
                         }
+                        this.updateFileDisplay(0);
                         imageView.setImageResource(R.drawable.ic_action_collection);
                         this.displayNotification(folderName, R.drawable.ic_action_collection);
+                        if (dialView != null) {
+                            String fSecChar = getFolderSectionCharacter(folderName);
+                            dialView.showSectionOverlay(fSecChar, "FOLDER SECTION", "Folder " + (recorder.getCurrentDirectoryIndex() + 1) + " of " + recorder.getTotalDirectoriesCount());
+                        }
                     } else {
+                        vibrateBoundary();
                         String folderName = recorder.getCurrentDirectoryName();
                         String announce = getFolderGroupingAnnouncement(folderName);
                         alwaysSpeak("Only one folder section: " + announce);
                         this.displayText("Single section: " + announce + "\n" + folderName);
+                        if (dialView != null) {
+                            String fSecChar = getFolderSectionCharacter(folderName);
+                            dialView.showSectionOverlay(fSecChar, "FOLDER SECTION", "Single Section");
+                        }
                     }
                     break;
                 case Commander.FAST_SEEK_NEXT_FILE:
-                    vibrate(100);
+                    vibrateFastSeek();
+                    boolean wasPlayingNext = (recorder != null && recorder.isPlaying());
                     recorder.stopPlaying();
                     if (recorder.fastSeekFile(1)) {
-                        recorder.startPlaying();
+                        if (wasPlayingNext) {
+                            recorder.startPlaying();
+                        }
                         this.updateFileDisplay(1);
-                        imageView.setImageResource(R.drawable.ic_action_play);
-                        this.displayNotification(recorder.getCurrentFileDisplayInformation(), R.drawable.ic_action_play);
+                        imageView.setImageResource(wasPlayingNext ? R.drawable.ic_action_play : R.drawable.ic_action_stop);
+                        this.displayNotification(recorder.getCurrentFileDisplayInformation(), wasPlayingNext ? R.drawable.ic_action_play : R.drawable.ic_action_stop);
 
                         String fileName = recorder.getCurrentFileName();
                         int fIdx = recorder.getCurrentFileIndex() + 1;
                         int fTotal = recorder.getAudibleFilesCount();
-                        String announce = getFileGroupingAnnouncement(fileName) + (fTotal > 1 ? ", File " + fIdx + " of " + fTotal : "");
+                        String announce = getFileGroupingAnnouncement(fileName) + ": " + fileName + (fTotal > 1 ? ", File " + fIdx + " of " + fTotal : "");
                         alwaysSpeak(announce);
                         this.displayText(announce + "\n" + fileName);
+                        if (dialView != null) {
+                            String secChar = getFileSectionCharacter(fileName);
+                            dialView.showSectionOverlay(secChar, "FILE SECTION", "File " + fIdx + " of " + fTotal);
+                        }
                     } else if (recorder.getAudibleFilesCount() > 0) {
+                        vibrateBoundary();
                         String fileName = recorder.getCurrentFileName();
                         String announce = getFileGroupingAnnouncement(fileName);
-                        alwaysSpeak("Only one section in folder: " + announce);
+                        alwaysSpeak("Only one section in folder: " + announce + ", " + fileName);
                         this.displayText("Single section: " + announce + "\n" + fileName);
+                        if (dialView != null) {
+                            String secChar = getFileSectionCharacter(fileName);
+                            dialView.showSectionOverlay(secChar, "FILE SECTION", "Single Section");
+                        }
                     } else {
+                        vibrateBoundary();
                         alwaysSpeak("No files in this folder");
                         this.displayText("No files in this folder");
                         imageView.setImageResource(R.drawable.ic_action_about);
@@ -704,26 +1039,39 @@ public class Commander{
                     }
                     break;
                 case Commander.FAST_SEEK_PREVIOUS_FILE:
-                    vibrate(100);
+                    vibrateFastSeek();
+                    boolean wasPlayingPrev = (recorder != null && recorder.isPlaying());
                     recorder.stopPlaying();
                     if (recorder.fastSeekFile(-1)) {
-                        recorder.startPlaying();
+                        if (wasPlayingPrev) {
+                            recorder.startPlaying();
+                        }
                         this.updateFileDisplay(-1);
-                        imageView.setImageResource(R.drawable.ic_action_play);
-                        this.displayNotification(recorder.getCurrentFileDisplayInformation(), R.drawable.ic_action_play);
+                        imageView.setImageResource(wasPlayingPrev ? R.drawable.ic_action_play : R.drawable.ic_action_stop);
+                        this.displayNotification(recorder.getCurrentFileDisplayInformation(), wasPlayingPrev ? R.drawable.ic_action_play : R.drawable.ic_action_stop);
 
                         String fileName = recorder.getCurrentFileName();
                         int fIdx = recorder.getCurrentFileIndex() + 1;
                         int fTotal = recorder.getAudibleFilesCount();
-                        String announce = getFileGroupingAnnouncement(fileName) + (fTotal > 1 ? ", File " + fIdx + " of " + fTotal : "");
+                        String announce = getFileGroupingAnnouncement(fileName) + ": " + fileName + (fTotal > 1 ? ", File " + fIdx + " of " + fTotal : "");
                         alwaysSpeak(announce);
                         this.displayText(announce + "\n" + fileName);
+                        if (dialView != null) {
+                            String secChar = getFileSectionCharacter(fileName);
+                            dialView.showSectionOverlay(secChar, "FILE SECTION", "File " + fIdx + " of " + fTotal);
+                        }
                     } else if (recorder.getAudibleFilesCount() > 0) {
+                        vibrateBoundary();
                         String fileName = recorder.getCurrentFileName();
                         String announce = getFileGroupingAnnouncement(fileName);
-                        alwaysSpeak("Only one section in folder: " + announce);
+                        alwaysSpeak("Only one section in folder: " + announce + ", " + fileName);
                         this.displayText("Single section: " + announce + "\n" + fileName);
+                        if (dialView != null) {
+                            String secChar = getFileSectionCharacter(fileName);
+                            dialView.showSectionOverlay(secChar, "FILE SECTION", "Single Section");
+                        }
                     } else {
+                        vibrateBoundary();
                         alwaysSpeak("No files in this folder");
                         this.displayText("No files in this folder");
                         imageView.setImageResource(R.drawable.ic_action_about);
@@ -733,7 +1081,7 @@ public class Commander{
                 case Commander.NEXT_FOLDER:
                     progressBarVisible(false);
 
-                    vibrate(this.VIBRATOR_STRENTH);
+                    vibrateNextFolder();
 
                     recorder.stopPlaying();
                     recorder.nextFolder();
@@ -742,11 +1090,13 @@ public class Commander{
                     this.speakStopPoking("Folder " + recorder.getCurrentDirectoryName());
                     this.speakMathTest("Folder " + recorder.getCurrentDirectoryName());
                     speak("Folder " + getSpokenDirectoryName(recorder.getCurrentDirectoryName()));
-                    this.updateFolderDisplay();
                     if (mainActivity != null) {
                         mainActivity.showFolderWheel(1);
-                    } else if (dialView != null) {
-                        dialView.onFolderChanged(1);
+                    } else {
+                        this.updateFolderDisplay();
+                        if (dialView != null) {
+                            dialView.onFolderChanged(1);
+                        }
                     }
                     imageView.setImageResource(R.drawable.ic_action_collection);
 
@@ -757,7 +1107,7 @@ public class Commander{
                 case Commander.PREVIOUS_FOLDER:
                     progressBarVisible(false);
 
-                    vibrate(this.VIBRATOR_STRENTH);
+                    vibratePrevFolder();
 
                     recorder.stopPlaying();
                     recorder.previousFolder();
@@ -766,11 +1116,13 @@ public class Commander{
                     this.speakStopPoking("Folder " + recorder.getCurrentDirectoryName());
                     this.speakMathTest("Folder " + recorder.getCurrentDirectoryName());
                     speak("Folder " + getSpokenDirectoryName(recorder.getCurrentDirectoryName()));
-                    this.updateFolderDisplay();
                     if (mainActivity != null) {
                         mainActivity.showFolderWheel(-1);
-                    } else if (dialView != null) {
-                        dialView.onFolderChanged(-1);
+                    } else {
+                        this.updateFolderDisplay();
+                        if (dialView != null) {
+                            dialView.onFolderChanged(-1);
+                        }
                     }
                     imageView.setImageResource(R.drawable.ic_action_collection);
 
@@ -782,7 +1134,7 @@ public class Commander{
                 case Commander.FF_FOLDER:
                     progressBarVisible(false);
 
-                    vibrate(VIBRATOR_STRENTH_MID);
+                    vibrateNextFolder();
                     recorder.stopPlaying();
                     recorder.nextFolder();
 
@@ -805,7 +1157,7 @@ public class Commander{
                     folderMoveCnt++;
                     progressBarVisible(false);
 
-                    vibrate(VIBRATOR_STRENTH_MID);
+                    vibratePrevFolder();
 
                     recorder.stopPlaying();
                     recorder.previousFolder();
@@ -825,7 +1177,7 @@ public class Commander{
                     this.displayNotification(recorder.getCurrentDirectoryName(), R.drawable.ic_action_collection);
                     break;
                 case Commander.FAST_FORWARD_2X:
-                    vibrate(VIBRATE_STRENGTH_WEAK);
+                    vibrateFastSeek();
 
                     if(!recorder.isPlaying())
                         recorder.startPlaying();
@@ -838,7 +1190,7 @@ public class Commander{
                     //this.trackPos_TextView.setText(recorder.getPosition());
                     break;
                 case Commander.FAST_BACKWARD_2X:
-                    vibrate(VIBRATE_STRENGTH_WEAK);
+                    vibrateFastSeek();
 
                     if(!recorder.isPlaying())
                         recorder.startPlaying();
@@ -850,7 +1202,7 @@ public class Commander{
                     //this.trackPos_TextView.setText(recorder.getPosition());
                     break;
                 case Commander.FAST_FORWARD_3X:
-                    vibrate(VIBRATE_STRENGTH_WEAK);
+                    vibrateFastSeek();
 
                     if(!recorder.isPlaying())
                         recorder.startPlaying();
@@ -863,7 +1215,7 @@ public class Commander{
 
                     break;
                 case Commander.FAST_BACKWARD_3X:
-                    vibrate(VIBRATE_STRENGTH_WEAK);
+                    vibrateFastSeek();
 
                     if(!recorder.isPlaying())
                         recorder.startPlaying();
@@ -876,7 +1228,7 @@ public class Commander{
 
                     break;
                 case Commander.SPEAK_FILE_INFO:
-                    vibrate(this.VIBRATOR_STRENTH);
+                    vibrateFileInfo();
                     imageView.setImageResource(R.drawable.ic_action_about);
                     String fileInfo = recorder.getCurrentFileDisplayInformation();
                     this.displayText(fileInfo);
@@ -884,7 +1236,7 @@ public class Commander{
                     this.alwaysSpeak(fileInfo);
                     break;
                 case Commander.SPEAK_DATE_TIME:
-                    vibrate(this.VIBRATOR_STRENTH);
+                    vibrateFileInfo();
                     imageView.setImageResource(R.drawable.ic_action_about);
                     this.displayNotification(recorder.getCurrentFileDisplayInformation(), R.drawable.ic_action_about);
                     String storageInfo = getAvailableStorageString();
@@ -892,6 +1244,27 @@ public class Commander{
                             + ((MainActivity) mainActivity).getBatteryLevel() + " percent."
                             + (storageInfo.isEmpty() ? "" : " " + storageInfo + ".");
                     this.alwaysSpeak(temp);
+                    break;
+                case Commander.SPEAK_SPATIAL_STATUS:
+                    speakSpatialStatus();
+                    break;
+                case Commander.TOGGLE_SCREEN_CURTAIN:
+                    if (dialView != null) {
+                        dialView.toggleScreenCurtain();
+                        boolean curtainActive = dialView.isScreenCurtainEnabled();
+                        try {
+                            if (mainActivity != null) {
+                                PreferenceManager.getDefaultSharedPreferences(mainActivity)
+                                        .edit()
+                                        .putBoolean("pref_screen_curtain", curtainActive)
+                                        .apply();
+                            }
+                        } catch (Exception ignored) {}
+                        vibrateCornerAnchor();
+                        if (mainActivity != null) {
+                            ((MainActivity) mainActivity).alwaysSpeak(curtainActive ? "Screen curtain on" : "Screen curtain off");
+                        }
+                    }
                     break;
                 case Commander.BREAK_500MS:
                     try {
@@ -1273,6 +1646,45 @@ public class Commander{
         } else {
             return key;
         }
+    }
+
+    public static String getFileSectionCharacter(String fileName) {
+        if (fileName == null || fileName.trim().isEmpty()) {
+            return "#";
+        }
+        String key = Recorder.getFileGroupingKey(fileName);
+        if (key.startsWith("HOUR_")) {
+            try {
+                int hour = Integer.parseInt(key.substring(5));
+                String ampm = hour >= 12 ? "PM" : "AM";
+                int h12 = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+                return h12 + " " + ampm;
+            } catch (Exception e) {
+                return key.substring(5) + "h";
+            }
+        }
+        if (key.length() >= 5 && key.contains("-")) {
+            return key.substring(key.indexOf("-") + 1);
+        }
+        return key.toUpperCase(Locale.US);
+    }
+
+    public static String getFolderSectionCharacter(String folderName) {
+        if (folderName == null || folderName.trim().isEmpty()) {
+            return "#";
+        }
+        String key = Recorder.getFolderGroupingKey(folderName);
+        if (key.length() == 7 && key.charAt(4) == '-') { // YYYY-MM
+            try {
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM", Locale.US);
+                Date d = sdf.parse(key);
+                SimpleDateFormat monthFmt = new SimpleDateFormat("MMM yyyy", Locale.US);
+                return monthFmt.format(d).toUpperCase(Locale.US);
+            } catch (Exception e) {
+                return key;
+            }
+        }
+        return key.toUpperCase(Locale.US);
     }
 
 }

@@ -300,13 +300,46 @@ public class SettingsActivity extends AppCompatActivity {
                     "pref_noise_suppression",
                     "isNavModeEnabled",
                     "isAutoSyncEnabled",
-                    "isMATHTESTEnabled"
+                    "isMATHTESTEnabled",
+                    "pref_screen_curtain"
             };
             for (String key : switchPreferenceKeys) {
                 Preference p = findPreference(key);
                 if (p != null) {
                     p.setOnPreferenceChangeListener(sBindPreferenceSummaryToValueListener);
                 }
+            }
+
+            Preference curtainPref = findPreference("pref_screen_curtain");
+            if (curtainPref != null) {
+                curtainPref.setOnPreferenceChangeListener((preference, value) -> {
+                    boolean handled = sBindPreferenceSummaryToValueListener.onPreferenceChange(preference, value);
+                    boolean curtainOn = Boolean.TRUE.equals(value);
+                    MainActivity main = MainActivity.getInstance();
+                    if (main != null) {
+                        if (main.getCommander() != null && main.getCommander().dialView != null) {
+                            main.getCommander().dialView.setScreenCurtainEnabled(curtainOn);
+                        }
+                        main.alwaysSpeak(curtainOn ? "Screen curtain on" : "Screen curtain off");
+                    }
+                    return handled;
+                });
+            }
+
+            Preference replayTutorialPref = findPreference("pref_replay_gesture_tutorial");
+            if (replayTutorialPref != null) {
+                replayTutorialPref.setOnPreferenceClickListener(p -> {
+                    speak("Starting gesture tutorial");
+                    vibrate(p.getContext(), 40);
+                    PreferenceManager.getDefaultSharedPreferences(p.getContext())
+                            .edit().putBoolean("pending_replay_gesture_tutorial", true).apply();
+                    MainActivity main = MainActivity.getInstance();
+                    if (main != null) {
+                        main.triggerGestureTutorial();
+                    }
+                    requireActivity().finish();
+                    return true;
+                });
             }
 
             // Bind EditTextPreferences
