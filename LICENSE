@@ -1,0 +1,20 @@
+PROPRIETARY LICENSE & AI RESTRICTION NOTICE
+
+Copyright (c) 2014-2026 Jon Lee. All Rights Reserved.
+
+Application: EYES-FREE VOICE RECORDER
+Package: com.jonlee.android.SJplayer
+
+1. ALL RIGHTS RESERVED
+All source code, software, documentation, graphics, audio earcon algorithms, soundscapes, architectures, and intellectual property contained within this repository are the exclusive proprietary property of Jon Lee. Unauthorized copying, modification, distribution, public display, or commercial exploitation is strictly prohibited without prior written permission from the copyright owner.
+
+2. EXPRESS PROHIBITION ON ARTIFICIAL INTELLIGENCE (AI) AND MACHINE LEARNING (ML) UTILIZATION
+No individual, organization, corporation, automated agent, crawler, spider, or algorithmic entity is permitted to:
+(a) Ingest, scrape, crawl, download, tokenize, index, cache, or extract any portion of this repository, its source code, documentation, assets, audio files, commit histories, issues, or pull requests for the purpose of training, tuning, refining, evaluating, testing, or operating any Artificial Intelligence (AI), Machine Learning (ML), Large Language Model (LLM), deep learning system, neural network, or synthetic media generation technology.
+(b) Use any resource or content from this repository as input, context, training dataset, benchmark, or evaluation material for any commercial or non-commercial AI or ML systems, including but not limited to OpenAI (GPT, Codex), Google (Gemini, Vertex), Anthropic (Claude), Meta (LLaMA), Microsoft (Copilot), GitHub Copilot, ByteDance, Midjourney, Perplexity, or any open-source or proprietary AI tool.
+(c) Repackage, synthesize, reproduce, or generate derivative code or documentation through automated AI tools using this repository as a basis or training source.
+
+3. VIOLATION AND ENFORCEMENT
+Any unauthorized utilization, ingestion, or processing of this repository's contents by AI tools, scrapers, automated crawlers, or machine learning pipelines constitutes copyright infringement, unauthorized data access, and a material breach of this license. The copyright owner reserves all rights to pursue injunctive relief, statutory damages, and legal remedies under applicable international copyright, computer fraud, and intellectual property laws.
+
+For permissions or licensing inquiries, contact: jonlee0704@gmail.com

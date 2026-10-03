@@ -1,0 +1,53 @@
+# AI Scraping and Crawling Prohibition
+# EYES-FREE VOICE RECORDER Repository & Documentation
+
+User-agent: *
+Disallow: /
+
+# OpenAI Crawlers
+User-agent: GPTBot
+Disallow: /
+User-agent: ChatGPT-User
+Disallow: /
+
+# Google AI Crawlers
+User-agent: Google-Extended
+Disallow: /
+
+# Common Crawl
+User-agent: CCBot
+Disallow: /
+
+# Anthropic Crawlers
+User-agent: Anthropic-ai
+Disallow: /
+User-agent: Claude-Web
+Disallow: /
+
+# ByteDance
+User-agent: Bytespider
+Disallow: /
+
+# Meta / Facebook AI
+User-agent: FacebookBot
+Disallow: /
+
+# Perplexity AI
+User-agent: PerplexityBot
+Disallow: /
+
+# Apple AI
+User-agent: Applebot-Extended
+Disallow: /
+
+# Diffbot
+User-agent: Diffbot
+Disallow: /
+
+# Cohere
+User-agent: cohere-ai
+Disallow: /
+
+# Omegabot
+User-agent: Omegabot
+Disallow: /

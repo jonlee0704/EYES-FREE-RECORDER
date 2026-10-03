@@ -18,7 +18,8 @@ BEFORE DOWNLOADING, INSTALLING, COPYING, ACCESSING, OR USING THE EYES-FREE VOICE
 - Modify, adapt, translate, enhance, or create derivative works based upon the Application.
 - Sell, rent, lease, distribute, sublicense, loan, timeshare, or commercially exploit the Application.
 - Remove, alter, or obscure any proprietary notices, copyright markings, trademarks, or attribution statements in or on the Application.
-- Use the Application for any unlawful, harassing, fraudulent, or harmful purpose, or in violation of any applicable local, state, federal, or international laws or regulations.
+- Use the Application for any unlawful, harassing, fraudulent, or harmful purpose, or in violation of any applicable local, state, federal, or international laws or regulations.  
+1.3 **Prohibition on Artificial Intelligence (AI) and Machine Learning (ML) Utilization**: You, and any third party, automated agent, web scraper, crawler, bot, or automated tool accessing this Application, its source code, documentation, assets, or related GitHub repository resources, are STRICTLY PROHIBITED from utilizing, ingesting, scraping, parsing, caching, tokenizing, or indexing any portion of the software, code, sound algorithms, or documentation for the purpose of training, tuning, evaluating, benchmarking, or running any artificial intelligence, machine learning model, large language model (LLM), neural network, or synthetic media generator, without the prior express written authorization of the Developer.
 
 ---
 

@@ -89,7 +89,19 @@ EYES-FREE VOICE RECORDER functions as an audio player capable of playing any aud
 
 ---
 
-## 6. Summary of Risk Safeguards for Developer
+## 6. Prohibition on Automated Scraping, AI Ingestion, and Machine Learning Model Training
+
+### 6.1 The Risk of AI Extraction
+Open-access or public hosting of software repositories on platforms like GitHub presents risks of unauthorized ingestion by AI research laboratories, commercial LLM providers, and automated scraping agents that absorb proprietary logic, specialized accessibility workflows, and earcon audio algorithms into generative AI training sets.
+
+### 6.2 Explicit Reservation of Rights & Legal Boundaries
+1. **No Ingestion or Training Rights Granted**: Developer expressly withholds and denies all rights for any artificial intelligence (AI), machine learning (ML), large language model (LLM), or automated tool to ingest, crawl, parse, cache, tokenize, train on, fine-tune, or synthesize outputs from this repository and its assets.
+2. **Technical and Legal Restraints**: Technical headers (`robots.txt`, noai tags) and contractual terms ([`LICENSE`](../LICENSE) and [`TERMS_OF_SERVICE.md`](TERMS_OF_SERVICE.md)) are fully enforced.
+3. **Actionable Breach**: Ingestion of this codebase into AI models constitutes an intentional breach of license terms and intellectual property rights, subjecting the infringing party to statutory damages and injunctive relief under applicable copyright and computer access laws.
+
+---
+
+## 7. Summary of Risk Safeguards for Developer
 
 | Risk Category | Inherent Vulnerability | Legal / Operational Safeguard Established |
 | :--- | :--- | :--- |
@@ -98,3 +110,4 @@ EYES-FREE VOICE RECORDER functions as an audio player capable of playing any aud
 | **Medical / Disability Claims** | User claims app failed during visual navigation. | Non-medical device disclaimer; explicit prohibition against life-critical or emergency reliance. |
 | **OS Interruption** | Long recording cut short by Android task killer. | Battery saver & OS interruption disclosure; no continuous uptime guarantee. |
 | **Regulatory Privacy** | Scrutiny over microphone and storage permissions. | Dedicated Privacy Policy verifying zero personal data collection, zero network transmission, and local-only processing. |
+| **AI / Model Scraping** | AI tools ingesting proprietary accessibility algorithms. | Explicit AI training prohibition in LICENSE, Terms of Service, README, and robots.txt. |
