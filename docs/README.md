@@ -9,6 +9,8 @@ Below are the official user guides, legal contracts, and policy documents:
 ### 1. User & Accessibility Guides
 - [**Blind User Manual (In-Depth Accessibility Guide)**](BLIND_USER_MANUAL.md)  
   *Written specifically from a blind and visually impaired user's perspective. Details physical device orientation, tactile feedback, speech announcements, master gesture cheatsheet, TalkBack interaction, and task walkthroughs.*
+- [**iPhone (iOS) EYES-FREE Recorder — Master Plan & Architecture**](IPHONE_EYES_FREE_RECORDER_PLAN.md)  
+  *Comprehensive engineering strategy, gesture matrix, CoreHaptics design, Action Button integration, and roadmap for the iOS version of Eyes-Free Recorder.*
 
 ---
 

@@ -74,6 +74,7 @@ You can operate EYES-FREE VOICE RECORDER while walking, with the phone resting i
 Comprehensive documentation is available in the [`docs/`](docs/) directory:
 
 - 📖 [**Blind User Manual (In-Depth Accessibility Guide)**](docs/BLIND_USER_MANUAL.md) — Super-detailed guide written specifically from a blind user's perspective covering tactile orientation, audio feedback, gesture nuances, TalkBack interaction, and task walkthroughs.
+- 📱 [**iPhone (iOS) EYES-FREE Recorder — Master Plan & Strategy**](docs/IPHONE_EYES_FREE_RECORDER_PLAN.md) — Architectural strategy, CoreHaptics design, Action Button pocket trigger, VoiceOver parity matrix, and engineering roadmap for the iOS version.
 - ⚖️ [**Terms of Service**](docs/TERMS_OF_SERVICE.md) — Complete developer protection agreement covering "AS-IS" licensing, comprehensive warranty disclaimers, limitation of liability, user data backup obligations, and governing law.
 - 🛡️ [**Legal Disclaimers & Risk Protection Notice**](docs/LEGAL_DISCLAIMERS_AND_RISK_PROTECTION.md) — Protects developer against specific risks: Two-party wiretapping and eavesdropping consent laws, non-medical/non-emergency device status, multi-touch accidental deletion warnings, and OS battery optimization interruptions.
 - 🔒 [**Privacy Policy**](docs/PRIVACY_POLICY.md) — Google Play Store compliant privacy policy outlining zero data collection, zero network transmission, local-only storage, and permission justifications.
