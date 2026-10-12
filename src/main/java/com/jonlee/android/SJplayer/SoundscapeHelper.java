@@ -36,6 +36,24 @@ public class SoundscapeHelper {
     private boolean isLoadedPrevFolder = false;
     private boolean isLoadedCorner = false;
 
+    // Pro Recording Mode earcons: one per environment, one per focus, plus on/off.
+    // Each is a short motif of notes so environments are told apart by melody, not just pitch.
+    private static final float[][] PRO_ENVIRONMENT_MOTIFS = {
+            {523.25f, 659.25f},             // Meeting room: C5 E5 (calm major third)
+            {392.00f, 587.33f, 783.99f},    // Small music venue: G4 D5 G5 (open, musical)
+            {261.63f, 392.00f, 523.25f},    // Stadium: C4 G4 C5 (wide, low)
+            {880.00f, 659.25f},             // Street: A5 E5 (bright, falling)
+    };
+    private static final float[][] PRO_FOCUS_MOTIFS = {
+            {698.46f},                      // Voice: F5 single note
+            {587.33f, 739.99f},             // Music: D5 F#5
+            {493.88f, 493.88f},             // Natural: B4 repeated
+    };
+    private static final float[] PRO_ON_MOTIF = {440.00f, 554.37f, 659.25f};   // A major arpeggio up
+    private static final float[] PRO_OFF_MOTIF = {659.25f, 554.37f, 440.00f};  // and down
+    private final java.util.Map<String, Integer> proSounds = new java.util.HashMap<>();
+    private final java.util.Set<Integer> loadedSounds = java.util.Collections.synchronizedSet(new java.util.HashSet<Integer>());
+
     public SoundscapeHelper(Context context) {
         initSoundPool(context);
     }
@@ -56,6 +74,7 @@ public class SoundscapeHelper {
                 @Override
                 public void onLoadComplete(SoundPool sp, int sampleId, int status) {
                     if (status == 0) {
+                        loadedSounds.add(sampleId);
                         if (sampleId == soundNextTrack) isLoadedNextTrack = true;
                         else if (sampleId == soundPrevTrack) isLoadedPrevTrack = true;
                         else if (sampleId == soundNextFolder) isLoadedNextFolder = true;
@@ -97,6 +116,15 @@ public class SoundscapeHelper {
             soundNextFolder = soundPool.load(fileNextFolder.getAbsolutePath(), 1);
             soundPrevFolder = soundPool.load(filePrevFolder.getAbsolutePath(), 1);
             soundCorner = soundPool.load(fileCorner.getAbsolutePath(), 1);
+
+            for (int i = 0; i < PRO_ENVIRONMENT_MOTIFS.length; i++) {
+                loadProEarcon(earconsDir, "pro_env_" + i, PRO_ENVIRONMENT_MOTIFS[i]);
+            }
+            for (int i = 0; i < PRO_FOCUS_MOTIFS.length; i++) {
+                loadProEarcon(earconsDir, "pro_focus_" + i, PRO_FOCUS_MOTIFS[i]);
+            }
+            loadProEarcon(earconsDir, "pro_on", PRO_ON_MOTIF);
+            loadProEarcon(earconsDir, "pro_off", PRO_OFF_MOTIF);
 
         } catch (Exception e) {
             Log.e(TAG, "Failed to initialize SoundscapeHelper SoundPool: " + e.getMessage());
@@ -151,6 +179,53 @@ public class SoundscapeHelper {
         if (soundPool != null && isLoadedCorner) {
             soundPool.play(soundCorner, 0.80f, 0.80f, 1, 0, 1.0f);
         }
+    }
+
+    /** Pro Recording Mode environment earcon (index = Environment ordinal). */
+    public void playProEnvironment(int index) {
+        playPro("pro_env_" + index);
+    }
+
+    /** Pro Recording Mode focus earcon (index = Focus ordinal). */
+    public void playProFocus(int index) {
+        playPro("pro_focus_" + index);
+    }
+
+    public void playProToggle(boolean on) {
+        playPro(on ? "pro_on" : "pro_off");
+    }
+
+    private void playPro(String name) {
+        Integer id = proSounds.get(name);
+        if (soundPool != null && id != null && loadedSounds.contains(id)) {
+            soundPool.play(id, 0.85f, 0.85f, 1, 0, 1.0f);
+        }
+    }
+
+    private void loadProEarcon(File dir, String name, float[] notes) {
+        File f = new File(dir, name + ".wav");
+        if (!f.exists() || f.length() < 100) {
+            writeWavFile(f, generateMotif(notes), SAMPLE_RATE);
+        }
+        proSounds.put(name, soundPool.load(f.getAbsolutePath(), 1));
+    }
+
+    /** A sequence of short bell-like notes (45 ms each, 10 ms gap). */
+    private static short[] generateMotif(float[] notes) {
+        int noteLen = (int) (SAMPLE_RATE * 0.045f);
+        int gap = (int) (SAMPLE_RATE * 0.010f);
+        short[] samples = new short[notes.length * (noteLen + gap)];
+        for (int n = 0; n < notes.length; n++) {
+            int start = n * (noteLen + gap);
+            for (int i = 0; i < noteLen; i++) {
+                float t = (float) i / SAMPLE_RATE;
+                float env = (float) Math.exp(-4.0 * i / noteLen);
+                if (i < SAMPLE_RATE * 0.003f) env *= i / (SAMPLE_RATE * 0.003f);   // 3 ms soft attack
+                float s = (float) Math.sin(2.0 * Math.PI * notes[n] * t) * env * 0.75f * 32767.0f;
+                samples[start + i] = (short) Math.max(-32768, Math.min(32767, (int) s));
+            }
+        }
+        return samples;
     }
 
     public void release() {

@@ -212,6 +212,163 @@ public class SettingsActivity extends AppCompatActivity {
                     });
         }
 
+        /** Pro Recording Mode settings (PRD A2). Environment and focus load their defaults. */
+        private void bindProRecordingPreferences() {
+            String[] keys = {
+                    ProRecordingSettings.PREF_ENVIRONMENT,
+                    ProRecordingSettings.PREF_FOCUS,
+                    ProRecordingSettings.PREF_NOISE_REDUCTION,
+                    ProRecordingSettings.PREF_GAIN_MODE,
+                    ProRecordingSettings.PREF_GAIN_DB
+            };
+            for (String key : keys) {
+                Preference p = findPreference(key);
+                if (p != null) {
+                    bindPreferenceSummaryToValue(p);
+                }
+            }
+
+            Preference proModePref = findPreference(ProRecordingSettings.PREF_PRO_MODE);
+            if (proModePref != null) {
+                proModePref.setOnPreferenceChangeListener((preference, value) -> {
+                    boolean on = Boolean.TRUE.equals(value);
+                    vibrate(preference.getContext(), 40);
+                    if (on) {
+                        ProRecordingSettings pro = ProRecordingSettings.get(preference.getContext());
+                        speak("Pro mode on. " + pro.describe());
+                    } else {
+                        speak("Pro mode off");
+                    }
+                    return true;
+                });
+            }
+
+            Preference envPref = findPreference(ProRecordingSettings.PREF_ENVIRONMENT);
+            if (envPref != null) {
+                envPref.setOnPreferenceChangeListener((preference, value) -> {
+                    ProRecordingSettings pro = ProRecordingSettings.get(preference.getContext());
+                    pro.setEnvironment(ProRecordingSettings.Environment.fromKey(String.valueOf(value)));
+                    setListSummary((ListPreference) preference, String.valueOf(value));
+                    refreshProList(ProRecordingSettings.PREF_FOCUS, pro.getFocus().key);
+                    refreshProList(ProRecordingSettings.PREF_NOISE_REDUCTION, String.valueOf(pro.getNoiseReduction()));
+                    refreshProList(ProRecordingSettings.PREF_GAIN_MODE, pro.getGainMode().key);
+                    vibrate(preference.getContext(), 40);
+                    speak("Environment: " + pro.describeEnvironmentChange());
+                    return true;
+                });
+            }
+
+            Preference focusPref = findPreference(ProRecordingSettings.PREF_FOCUS);
+            if (focusPref != null) {
+                focusPref.setOnPreferenceChangeListener((preference, value) -> {
+                    ProRecordingSettings pro = ProRecordingSettings.get(preference.getContext());
+                    pro.setFocus(ProRecordingSettings.Focus.fromKey(String.valueOf(value)));
+                    setListSummary((ListPreference) preference, String.valueOf(value));
+                    refreshProList(ProRecordingSettings.PREF_NOISE_REDUCTION, String.valueOf(pro.getNoiseReduction()));
+                    vibrate(preference.getContext(), 40);
+                    speak(pro.getFocus().spokenName + " focus, noise reduction " + pro.getEffectiveNoiseReduction() + " percent");
+                    return true;
+                });
+            }
+
+            Preference nrPref = findPreference(ProRecordingSettings.PREF_NOISE_REDUCTION);
+            if (nrPref != null) {
+                nrPref.setOnPreferenceChangeListener((preference, value) -> {
+                    setListSummary((ListPreference) preference, String.valueOf(value));
+                    ProRecordingSettings pro = ProRecordingSettings.get(preference.getContext());
+                    int level = Integer.parseInt(String.valueOf(value));
+                    String msg = "Noise reduction " + level + " percent";
+                    if (level > pro.getFocus().maxNoiseReduction) {
+                        msg += ". " + pro.getFocus().spokenName + " focus is capped at " + pro.getFocus().maxNoiseReduction + " percent";
+                    } else if (level == 100 && pro.consumeMaxNoiseReductionWarning()) {
+                        msg += ". At maximum, voices may sound thinner";
+                    }
+                    vibrate(preference.getContext(), 40);
+                    speak(msg);
+                    return true;
+                });
+            }
+
+            Preference soundCheckPref = findPreference("pref_pro_sound_check");
+            if (soundCheckPref != null) {
+                soundCheckPref.setOnPreferenceClickListener(p -> {
+                    runSoundCheckFromSettings(p);
+                    return true;
+                });
+            }
+        }
+
+        private void setListSummary(ListPreference preference, String value) {
+            int index = preference.findIndexOfValue(value);
+            if (index >= 0) {
+                preference.setSummary(preference.getEntries()[index].toString().replace("%", "%%"));
+            }
+        }
+
+        private void refreshProList(String key, String value) {
+            Preference p = findPreference(key);
+            if (p instanceof ListPreference) {
+                ((ListPreference) p).setValue(value);
+                setListSummary((ListPreference) p, value);
+            }
+        }
+
+        private void runSoundCheckFromSettings(Preference p) {
+            final Context context = requireContext().getApplicationContext();
+            final ProRecordingSettings pro = ProRecordingSettings.get(context);
+            vibrate(context, 40);
+            speak("Sound check. After the vibration, play or speak at your loudest for 5 seconds.");
+            p.setSummary("Listening…");
+            final android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
+            handler.postDelayed(() -> {
+                vibrate(context, 120);
+                ProAudioRecorder.runSoundCheck(context, pro, new ProAudioRecorder.SoundCheckCallback() {
+                    @Override
+                    public void onResult(float peakDbfs, int recommendedChangeDb) {
+                        if (!isAdded()) return;
+                        vibrate(context, 60);
+                        String peak = peakDbfs <= -90f ? "silent" : ProRecordingSettings.formatDb(peakDbfs);
+                        if (!pro.getGainMode().isManual()) {
+                            String msg = "Peak " + peak + ". Gain is automatic, so the phone sets the level.";
+                            p.setSummary(msg);
+                            speak(msg);
+                            return;
+                        }
+                        int target = ProRecordingSettings.clampGain(pro.getGainDb() + recommendedChangeDb);
+                        int applied = target - pro.getGainDb();
+                        if (recommendedChangeDb == 0 || applied == 0) {
+                            String msg = "Peak " + peak + ". " + (recommendedChangeDb == 0
+                                    ? "Input level is good." : "Input is already at its limit; move the phone.");
+                            p.setSummary(msg);
+                            speak(msg);
+                            return;
+                        }
+                        String msg = "Peak " + peak + ". Recommend " + (applied < 0 ? "lowering" : "raising")
+                                + " input " + Math.abs(applied) + " dB.";
+                        p.setSummary(msg);
+                        speak(msg + " Choose Apply to set input to " + ProRecordingSettings.formatDb(target) + ".");
+                        new androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                                .setTitle("Sound check")
+                                .setMessage(msg)
+                                .setPositiveButton("Apply", (d, w) -> {
+                                    pro.setGainDb(target);
+                                    refreshProList(ProRecordingSettings.PREF_GAIN_DB, String.valueOf(target));
+                                    speak("Input set to " + ProRecordingSettings.formatDb(target));
+                                })
+                                .setNegativeButton("Keep current", null)
+                                .show();
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        if (!isAdded()) return;
+                        p.setSummary(message);
+                        speak(message);
+                    }
+                });
+            }, 3500);
+        }
+
         @Override
         public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
             SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(requireContext());
@@ -301,7 +458,10 @@ public class SettingsActivity extends AppCompatActivity {
                     "isNavModeEnabled",
                     "isAutoSyncEnabled",
                     "isMATHTESTEnabled",
-                    "pref_screen_curtain"
+                    "pref_screen_curtain",
+                    ProRecordingSettings.PREF_KEEP_ORIGINAL,
+                    ProRecordingSettings.PREF_MONITORING,
+                    ProRecordingSettings.PREF_LIMITER_IN_MANUAL
             };
             for (String key : switchPreferenceKeys) {
                 Preference p = findPreference(key);
@@ -341,6 +501,8 @@ public class SettingsActivity extends AppCompatActivity {
                     return true;
                 });
             }
+
+            bindProRecordingPreferences();
 
             // Bind EditTextPreferences
             String[] editTextKeys = {

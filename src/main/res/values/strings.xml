@@ -290,6 +290,100 @@
     <string name="pref_title_noise_suppression">Voice Enhancement &amp; Noise Reduction</string>
     <string name="pref_summary_noise_suppression">Use hardware echo cancellation and ambient noise suppression for clear speech</string>
 
+    <!-- Pro Recording Mode (PRD A2) -->
+    <string name="pref_header_pro_recording">Pro Recording</string>
+    <string name="pref_title_pro_mode">Pro Recording Mode</string>
+    <string name="pref_summary_pro_mode">Studio-style control of environment, focus, noise reduction and input gain. Toggle anywhere with a 3-finger double tap</string>
+    <string name="pref_title_pro_environment">Environment</string>
+    <string name="pref_title_pro_focus">Focus (what to keep)</string>
+    <string name="pref_title_pro_noise_reduction">Noise Reduction Amount</string>
+    <string name="pref_title_pro_gain_mode">Input Gain Mode</string>
+    <string name="pref_title_pro_gain_db">Manual Input Gain</string>
+    <string name="pref_title_pro_keep_original">Keep Original</string>
+    <string name="pref_summary_pro_keep_original">When noise reduction is on, also save the unprocessed recording so it can always be recovered</string>
+    <string name="pref_title_pro_monitoring">Headphone Monitoring</string>
+    <string name="pref_summary_pro_monitoring">Hear the processed sound in headphones while recording. Never plays through the loudspeaker</string>
+    <string name="pref_title_pro_limiter_manual">Peak Limiter in Manual Gain</string>
+    <string name="pref_summary_pro_limiter_manual">Off keeps the real dynamics for mixing later. On catches sudden peaks</string>
+    <string name="pref_title_pro_sound_check">Run Sound Check</string>
+    <string name="pref_summary_pro_sound_check">Listens for 5 seconds, reports the peak and recommends an input gain. Also a 1-finger long press while Pro mode is idle</string>
+    <string-array name="pref_pro_environment_entries">
+        <item>Meeting room (low cut 100 Hz, echo control)</item>
+        <item>Small music venue (low cut 30 Hz)</item>
+        <item>Stadium or arena (low cut 60 Hz)</item>
+        <item>Street or outdoor (low cut 120 Hz, wind reduction)</item>
+    </string-array>
+    <string-array name="pref_pro_environment_values">
+        <item>meeting_room</item>
+        <item>small_venue</item>
+        <item>stadium</item>
+        <item>street</item>
+    </string-array>
+    <string-array name="pref_pro_focus_entries">
+        <item>Voice: keep speech, remove everything else</item>
+        <item>Music: keep instruments and vocals, remove only steady noise</item>
+        <item>Natural: keep everything, remove gentle hum and hiss</item>
+    </string-array>
+    <string-array name="pref_pro_focus_values">
+        <item>voice</item>
+        <item>music</item>
+        <item>natural</item>
+    </string-array>
+    <string-array name="pref_pro_noise_reduction_entries">
+        <item>Off (0%)</item>
+        <item>Light (25%)</item>
+        <item>Medium (50%)</item>
+        <item>Strong (75%)</item>
+        <item>Maximum (100%)</item>
+    </string-array>
+    <string-array name="pref_pro_noise_reduction_values">
+        <item>0</item>
+        <item>25</item>
+        <item>50</item>
+        <item>75</item>
+        <item>100</item>
+    </string-array>
+    <string-array name="pref_pro_gain_mode_entries">
+        <item>Auto: phone\'s automatic gain and compression</item>
+        <item>Manual: auto gain off, fixed gain, 24-bit WAV</item>
+        <item>Manual + safety track (second copy 12 dB lower)</item>
+    </string-array>
+    <string-array name="pref_pro_gain_mode_values">
+        <item>auto</item>
+        <item>manual</item>
+        <item>manual_safety</item>
+    </string-array>
+    <string-array name="pref_pro_gain_db_entries">
+        <item>+12 dB</item>
+        <item>+9 dB</item>
+        <item>+6 dB</item>
+        <item>+3 dB</item>
+        <item>0 dB</item>
+        <item>-3 dB</item>
+        <item>-6 dB</item>
+        <item>-9 dB</item>
+        <item>-12 dB</item>
+        <item>-15 dB</item>
+        <item>-18 dB</item>
+        <item>-21 dB</item>
+        <item>-24 dB</item>
+    </string-array>
+    <string-array name="pref_pro_gain_db_values">
+        <item>12</item>
+        <item>9</item>
+        <item>6</item>
+        <item>3</item>
+        <item>0</item>
+        <item>-3</item>
+        <item>-6</item>
+        <item>-9</item>
+        <item>-12</item>
+        <item>-15</item>
+        <item>-18</item>
+        <item>-21</item>
+        <item>-24</item>
+    </string-array>
+
     <!-- Settings Category Headers & Blind-Accessible Labels -->
     <string name="pref_header_voice_recording">Voice &amp; Audio Recording</string>
     <string name="pref_header_playback_safety">Playback &amp; Safety</string>

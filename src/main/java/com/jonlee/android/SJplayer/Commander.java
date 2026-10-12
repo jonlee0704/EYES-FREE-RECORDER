@@ -100,6 +100,17 @@ public class Commander{
     public final static int FAST_SEEK_PREVIOUS_FILE = 48;
     public final static int SPEAK_SPATIAL_STATUS = 49;
     public final static int TOGGLE_SCREEN_CURTAIN = 50;
+    // Pro Recording Mode (PRD A2)
+    public final static int PRO_MODE_TOGGLE = 51;
+    public final static int PRO_NEXT_ENVIRONMENT = 52;
+    public final static int PRO_PREVIOUS_ENVIRONMENT = 53;
+    public final static int PRO_NEXT_FOCUS = 54;
+    public final static int PRO_PREVIOUS_FOCUS = 55;
+    public final static int PRO_NOISE_REDUCTION_UP = 56;
+    public final static int PRO_NOISE_REDUCTION_DOWN = 57;
+    public final static int PRO_SOUND_CHECK = 58;
+    public final static int PRO_GAIN_UP = 59;
+    public final static int PRO_GAIN_DOWN = 60;
 
 
 
@@ -311,13 +322,299 @@ public class Commander{
             }
         } catch (Exception ignored) {}
 
+        if (mainActivity != null) {
+            ProRecordingSettings pro = ProRecordingSettings.get(mainActivity);
+            if (pro.isEnabled()) {
+                sb.append(" Pro mode on. ").append(pro.describe()).append(".");
+            }
+        }
+
         String msg = sb.toString();
         this.displayText(msg);
         this.displayNotification(msg, R.drawable.ic_action_about);
         this.alwaysSpeak(msg);
     }
 
+    // ---------------------------------------------------------------------------------------
+    // Pro Recording Mode (PRD A2)
+    // ---------------------------------------------------------------------------------------
+
+    private static final long PRO_CLIP_SPEECH_INTERVAL_MS = 10_000;
+    private static final long SOUND_CHECK_APPLY_WINDOW_MS = 15_000;
+    private long lastProClipSpeech = 0;
+    private long lastProLevelHaptic = 0;
+    private boolean soundCheckRunning = false;
+    private int pendingSoundCheckChangeDb = 0;
+    private long pendingSoundCheckExpiry = 0;
+    private android.media.ToneGenerator clipToneGenerator;
+
+    /** Pro mode is on and the app is idle (not recording, not playing): Pro gestures are live. */
+    public boolean isProArmed() {
+        return mainActivity != null && recorder != null
+                && ProRecordingSettings.get(mainActivity).isEnabled()
+                && !recorder.isRecording() && !recorder.isPlaying() && !recorder.isPaused();
+    }
+
+    /** Pro mode is on and recording: live noise-reduction and gain changes apply. */
+    public boolean isProRecordingActive() {
+        return recorder != null && recorder.isProRecording();
+    }
+
+    private void toggleProMode() {
+        ProRecordingSettings pro = ProRecordingSettings.get(mainActivity);
+        boolean on = !pro.isEnabled();
+        pro.setEnabled(on);
+        if (soundscapeHelper != null) soundscapeHelper.playProToggle(on);
+        if (on) {
+            vibrateRecordStart();
+            StringBuilder msg = new StringBuilder("Pro mode on. ").append(pro.describe()).append(".");
+            appendProSupportNotes(msg, pro);
+            msg.append(" Three-finger swipes now change environment and focus.");
+            alwaysSpeak(msg.toString());
+            displayText("Pro mode on\n" + pro.describe());
+        } else {
+            vibrateRecordStop();
+            alwaysSpeak("Pro mode off");
+            displayText("Pro mode off");
+        }
+    }
+
+    private void appendProSupportNotes(StringBuilder msg, ProRecordingSettings pro) {
+        if (pro.getGainMode().isManual()) {
+            msg.append(" Volume buttons set input gain.");
+            if (!ProAudioRecorder.isUnprocessedSupported(mainActivity)) {
+                msg.append(" This phone can't fully turn off its audio processing; the voice recognition microphone will be used with auto gain off.");
+            }
+        }
+    }
+
+    private void changeProEnvironment(int step) {
+        ProRecordingSettings pro = ProRecordingSettings.get(mainActivity);
+        ProRecordingSettings.Environment env = pro.cycleEnvironment(step);
+        if (soundscapeHelper != null) soundscapeHelper.playProEnvironment(env.ordinal());
+        if (step > 0) vibrateNextFolder(); else vibratePrevFolder();
+        StringBuilder msg = new StringBuilder(pro.describeEnvironmentChange()).append(".");
+        appendProSupportNotes(msg, pro);
+        alwaysSpeak(msg.toString());
+        displayText("Pro: " + pro.describe());
+    }
+
+    private void changeProFocus(int step) {
+        ProRecordingSettings pro = ProRecordingSettings.get(mainActivity);
+        ProRecordingSettings.Focus focus = pro.cycleFocus(step);
+        if (soundscapeHelper != null) soundscapeHelper.playProFocus(focus.ordinal());
+        vibrateFileInfo();
+        alwaysSpeak(focus.spokenName + " focus, noise reduction " + pro.getEffectiveNoiseReduction() + " percent");
+        displayText("Pro: " + pro.describe());
+    }
+
+    private void changeProNoiseReduction(int step, boolean live) {
+        ProRecordingSettings pro = ProRecordingSettings.get(mainActivity);
+        int before = pro.getEffectiveNoiseReduction();
+        int level = pro.stepNoiseReduction(step);
+        if (level == before) {
+            vibrateBoundary();
+            String limit = (step > 0 && pro.getFocus().maxNoiseReduction < 100)
+                    ? pro.getFocus().spokenName + " focus is capped at " + pro.getFocus().maxNoiseReduction + " percent"
+                    : "Noise reduction " + level + " percent";
+            if (live) mainActivity.speakSoftly(limit); else alwaysSpeak(limit);
+            return;
+        }
+        vibrateTick();
+        String msg = "Noise reduction " + level + " percent";
+        if (level == 100 && pro.consumeMaxNoiseReductionWarning()) {
+            msg += ". At maximum, voices may sound thinner";
+        }
+        if (live) {
+            recorder.applyProNoiseReductionLive(level);
+            mainActivity.speakSoftly(msg);
+        } else {
+            alwaysSpeak(msg);
+        }
+        displayText("Pro: " + pro.describe());
+    }
+
+    private void changeProGain(int step) {
+        ProRecordingSettings pro = ProRecordingSettings.get(mainActivity);
+        int before = pro.getGainDb();
+        int db = pro.stepGain(step);
+        if (db == before) {
+            vibrateBoundary();
+        } else {
+            vibrateTick();
+        }
+        if (recorder.isProRecording()) {
+            recorder.applyProGainLive();
+        }
+        String msg = "Input " + ProRecordingSettings.formatDb(db);
+        if (db == before) msg += (step > 0 ? ", maximum" : ", minimum");
+        if (recorder.isProRecording()) mainActivity.speakSoftly(msg); else alwaysSpeak(msg);
+        displayText("Pro: " + pro.describe());
+    }
+
+    /**
+     * Volume buttons adjust input gain (not playback volume) while Pro mode is armed or
+     * recording in a Manual gain mode (PR5). Returns true if the key press was used.
+     */
+    public boolean handleProVolumeKey(boolean up) {
+        if (mainActivity == null || recorder == null) return false;
+        ProRecordingSettings pro = ProRecordingSettings.get(mainActivity);
+        if (!pro.isEnabled() || !pro.getGainMode().isManual()) return false;
+        if (!isProArmed() && !isProRecordingActive()) return false;
+        changeProGain(up ? 1 : -1);
+        return true;
+    }
+
+    private void onProRecordingStarted() {
+        recorder.setProRecorderListener(new ProAudioRecorder.Listener() {
+            @Override
+            public void onLevel(float peakDbfs, boolean clipped) {
+                onProLevel(peakDbfs, clipped);
+            }
+
+            @Override
+            public void onError(String message) {
+                cmd(Commander.STOP_RECORD);
+                alwaysSpeak(message + ". What was recorded so far has been saved.");
+            }
+        });
+        String notice = recorder.getProMonitoringNotice();
+        if (notice != null) {
+            // Only possible with Bluetooth headphones, so the speech is not picked up by the mic
+            alwaysSpeak(notice);
+        }
+    }
+
+    /**
+     * Level feedback while Pro recording (PR7): haptic intensity rises as peaks approach 0 dBFS;
+     * clipping gives a strong vibration and a short tone, with at most one spoken warning every 10 s.
+     */
+    private void onProLevel(float peakDbfs, boolean clipped) {
+        long now = System.currentTimeMillis();
+        if (clipped) {
+            if (now - lastProLevelHaptic > 250) {
+                lastProLevelHaptic = now;
+                long[] timings = {0, 60, 40, 60};
+                int[] amplitudes = {0, 255, 0, 255};
+                playHapticWaveform(timings, amplitudes, Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ? VibrationEffect.EFFECT_HEAVY_CLICK : -1, 120);
+                playClipTone();
+            }
+            if (now - lastProClipSpeech > PRO_CLIP_SPEECH_INTERVAL_MS) {
+                lastProClipSpeech = now;
+                ProRecordingSettings pro = ProRecordingSettings.get(mainActivity);
+                mainActivity.speakSoftly(pro.getGainMode().isManual()
+                        ? "Clipping. Lower the input with volume down."
+                        : "Clipping");
+            }
+            return;
+        }
+        if (peakDbfs > -6f) {
+            // -6 dBFS -> gentle tick every 250 ms; 0 dBFS -> strong pulse every 100 ms
+            float closeness = Math.min(1f, (peakDbfs + 6f) / 6f);
+            long interval = (long) (250 - 150 * closeness);
+            if (now - lastProLevelHaptic >= interval) {
+                lastProLevelHaptic = now;
+                int amplitude = (int) (60 + 195 * closeness);
+                playHapticWaveform(new long[]{0, 12}, new int[]{0, amplitude}, -1, 12);
+            }
+        }
+    }
+
+    private void playClipTone() {
+        try {
+            if (clipToneGenerator == null) {
+                clipToneGenerator = new android.media.ToneGenerator(AudioManager.STREAM_MUSIC, 40);
+            }
+            clipToneGenerator.startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 80);
+        } catch (Exception ignored) {}
+    }
+
+    /** Sound check (PR6): a 5-second listen, then the peak and a recommended gain. */
+    private void startProSoundCheck() {
+        if (soundCheckRunning) return;
+        soundCheckRunning = true;
+        vibrateFileInfo();
+        alwaysSpeak("Sound check. After the tone, play or speak at your loudest for 5 seconds.");
+        final android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
+        // Wait for the prompt to finish so it isn't measured
+        handler.postDelayed(new Runnable() {
+            int waited = 0;
+            @Override
+            public void run() {
+                if (mainActivity.isSpeaking() && waited < 8000) {
+                    waited += 100;
+                    handler.postDelayed(this, 100);
+                    return;
+                }
+                vibrateRecordStart();
+                ProAudioRecorder.runSoundCheck(mainActivity, ProRecordingSettings.get(mainActivity),
+                        new ProAudioRecorder.SoundCheckCallback() {
+                            @Override
+                            public void onResult(float peakDbfs, int recommendedChangeDb) {
+                                soundCheckRunning = false;
+                                vibrateRecordStop();
+                                speakSoundCheckResult(peakDbfs, recommendedChangeDb);
+                            }
+
+                            @Override
+                            public void onError(String message) {
+                                soundCheckRunning = false;
+                                vibrateBoundary();
+                                alwaysSpeak(message);
+                            }
+                        });
+            }
+        }, 300);
+    }
+
+    private void speakSoundCheckResult(float peakDbfs, int changeDb) {
+        ProRecordingSettings pro = ProRecordingSettings.get(mainActivity);
+        StringBuilder msg = new StringBuilder("Peak ");
+        msg.append(peakDbfs <= -90f ? "silent" : ProRecordingSettings.formatDb(peakDbfs)).append(". ");
+        pendingSoundCheckChangeDb = 0;
+        if (!pro.getGainMode().isManual()) {
+            msg.append("Gain is automatic, so the phone sets the level.");
+        } else if (changeDb == 0) {
+            msg.append("Input level is good.");
+        } else {
+            int target = ProRecordingSettings.clampGain(pro.getGainDb() + changeDb);
+            int applied = target - pro.getGainDb();
+            if (applied == 0) {
+                msg.append(changeDb < 0
+                        ? "Input is already at minimum. Move the phone away from the source."
+                        : "Input is already at maximum. Move the phone closer to the source.");
+            } else {
+                msg.append("Recommend ").append(applied < 0 ? "lowering" : "raising").append(" input ")
+                        .append(Math.abs(applied)).append(" dB. Tap to apply.");
+                pendingSoundCheckChangeDb = applied;
+                pendingSoundCheckExpiry = System.currentTimeMillis() + SOUND_CHECK_APPLY_WINDOW_MS;
+            }
+        }
+        alwaysSpeak(msg.toString());
+        displayText("Sound check\n" + msg);
+    }
+
+    /** One tap right after a sound check applies its recommendation. */
+    private boolean applyPendingSoundCheckRecommendation() {
+        if (pendingSoundCheckChangeDb == 0 || System.currentTimeMillis() > pendingSoundCheckExpiry) {
+            pendingSoundCheckChangeDb = 0;
+            return false;
+        }
+        ProRecordingSettings pro = ProRecordingSettings.get(mainActivity);
+        int db = ProRecordingSettings.clampGain(pro.getGainDb() + pendingSoundCheckChangeDb);
+        pro.setGainDb(db);
+        pendingSoundCheckChangeDb = 0;
+        vibrateTick();
+        alwaysSpeak("Input set to " + ProRecordingSettings.formatDb(db));
+        displayText("Pro: " + pro.describe());
+        return true;
+    }
+
     public void release() {
+        if (clipToneGenerator != null) {
+            clipToneGenerator.release();
+            clipToneGenerator = null;
+        }
         if (soundscapeHelper != null) {
             soundscapeHelper.release();
             soundscapeHelper = null;
@@ -797,11 +1094,18 @@ public class Commander{
                 alwaysSpeak("Bookmark " + markIdx + " added");
                 displayText("Bookmark " + markIdx + " added");
                 return true;
+            } else if (recorder.isProRecording() && (c == Commander.PRO_NOISE_REDUCTION_UP || c == Commander.PRO_NOISE_REDUCTION_DOWN)) {
+                changeProNoiseReduction(c == Commander.PRO_NOISE_REDUCTION_UP ? 1 : -1, true);
+                return true;
+            } else if (recorder.isProRecording() && (c == Commander.PRO_GAIN_UP || c == Commander.PRO_GAIN_DOWN)) {
+                changeProGain(c == Commander.PRO_GAIN_UP ? 1 : -1);
+                return true;
             } else if (c == Commander.STOP_RECORD || c == Commander.ONETOUCH || c == Commander.STOP_PLAYBACK) {
                 vibrateRecordStop();
                 recorder.stopRecording();
                 cmdStr = getResources().getString(R.string.STOP_RECORD);
-                speak(getResources().getString(R.string.STOP_RECORD));
+                String proNote = recorder.consumeProFallbackMessage();
+                speak(getResources().getString(R.string.STOP_RECORD) + (proNote != null ? ". " + proNote : ""));
                 imageView.setImageResource(R.drawable.ic_action_stop);
                 this.displayNotification(cmdStr, R.drawable.ic_action_stop);
                 updateFolderDisplay();
@@ -843,6 +1147,13 @@ public class Commander{
                         public void run() {
                             alwaysSpeak("");
                             recorder.startRecording();
+                            if (recorder.isProRecording()) {
+                                onProRecordingStarted();
+                            } else if (!recorder.isRecording() && ProRecordingSettings.get(mainActivity).isEnabled()) {
+                                vibrateBoundary();
+                                alwaysSpeak("Pro recording could not start. Check the microphone, or turn Pro mode off.");
+                                return;
+                            }
                             imageView.setImageResource(R.drawable.ic_action_mic);
                             displayNotification(recordCmdStr, R.drawable.ic_action_mic);
                             updateFolderDisplay();
@@ -854,6 +1165,9 @@ public class Commander{
                 case Commander.ONETOUCH:
                     if (recorder.isRecording()) {
                         cmd(Commander.STOP_RECORD);
+                        break;
+                    }
+                    if (applyPendingSoundCheckRecommendation()) {
                         break;
                     }
 
@@ -1247,6 +1561,28 @@ public class Commander{
                     break;
                 case Commander.SPEAK_SPATIAL_STATUS:
                     speakSpatialStatus();
+                    break;
+                case Commander.PRO_MODE_TOGGLE:
+                    toggleProMode();
+                    break;
+                case Commander.PRO_NEXT_ENVIRONMENT:
+                case Commander.PRO_PREVIOUS_ENVIRONMENT:
+                    changeProEnvironment(c == Commander.PRO_NEXT_ENVIRONMENT ? 1 : -1);
+                    break;
+                case Commander.PRO_NEXT_FOCUS:
+                case Commander.PRO_PREVIOUS_FOCUS:
+                    changeProFocus(c == Commander.PRO_NEXT_FOCUS ? 1 : -1);
+                    break;
+                case Commander.PRO_NOISE_REDUCTION_UP:
+                case Commander.PRO_NOISE_REDUCTION_DOWN:
+                    changeProNoiseReduction(c == Commander.PRO_NOISE_REDUCTION_UP ? 1 : -1, false);
+                    break;
+                case Commander.PRO_GAIN_UP:
+                case Commander.PRO_GAIN_DOWN:
+                    changeProGain(c == Commander.PRO_GAIN_UP ? 1 : -1);
+                    break;
+                case Commander.PRO_SOUND_CHECK:
+                    startProSoundCheck();
                     break;
                 case Commander.TOGGLE_SCREEN_CURTAIN:
                     if (dialView != null) {
