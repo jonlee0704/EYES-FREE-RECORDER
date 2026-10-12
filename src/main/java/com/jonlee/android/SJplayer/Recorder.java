@@ -122,6 +122,21 @@ public class Recorder {
     private int recordingChannels = 1;
     private final List<Integer> recordingBookmarks = new ArrayList<>();
 
+    // Pro Recording Mode session (PRD A2). Null while recording with MediaRecorder.
+    public static final String PRO_SAFETY_SUFFIX = "_safety";
+    public static final String PRO_ORIGINAL_SUFFIX = "_original";
+    private ProAudioRecorder proRecorder = null;
+    private ProRecordingSettings proSettings = null;
+    private String proFallbackMessage = null;
+    private final List<int[]> proNoiseReductionChanges = new ArrayList<>();
+    private int proStartNoiseReduction = 0;
+    private final List<android.os.ParcelFileDescriptor> proOpenDescriptors = new ArrayList<>();
+    private final List<java.io.RandomAccessFile> proOpenFiles = new ArrayList<>();
+    private final List<Uri> proPendingUris = new ArrayList<>();
+    private final List<File> proCreatedFiles = new ArrayList<>();
+    private String proSafetyFileName = null;
+    private String proOriginalFileName = null;
+
 
     private int currentFileIndex = 0;
     private int currentDirectoryIndex = 0;
@@ -1222,6 +1237,7 @@ public class Recorder {
                     int count = meta.bookmarks.size();
                     sb.append("\nBookmarks: ").append(count).append(count == 1 ? " mark" : " marks");
                 }
+                appendProInformation(sb, meta);
             } else {
                 if (meta != null && meta.isFavorite) {
                     sb.append("★ Favorite Track\n");
@@ -1762,6 +1778,9 @@ public class Recorder {
     }
 
     public int getMaxAmplitude() {
+        if (proRecorder != null && isRecording) {
+            return proRecorder.getMaxAmplitude();
+        }
         if (mRecorder != null && isRecording) {
             try {
                 return mRecorder.getMaxAmplitude();
@@ -2110,12 +2129,14 @@ public class Recorder {
             ArrayList<File> list;
             if (files != null && files.length > 0) {
                 list = new ArrayList<>(Arrays.asList(files));
+                removeProCompanionFiles(list);
             } else {
                 list = new ArrayList<>();
                 // Fallback: Query MediaStore for this folder on Android 10+ or when File.listFiles returns empty
                 List<File> mediaStoreFiles = queryAudibleFilesFromMediaStore(this.currentFolder);
                 if (mediaStoreFiles != null && !mediaStoreFiles.isEmpty()) {
                     list.addAll(mediaStoreFiles);
+                    removeProCompanionFiles(list);
                 }
             }
 
@@ -2240,6 +2261,11 @@ public class Recorder {
         currentDirectoryIndex = directories.indexOf(recordTargetFolder);
         readAudibleFilesInCurrentFolder();
         currentFileIndex = Math.max(0, audibleFiles.size() - 1);
+
+        if (mainActivity != null && ProRecordingSettings.get(mainActivity).isEnabled()) {
+            startProRecording();
+            return;
+        }
 
         try {
             // Initiate MediaRecorder (using Context-aware constructor on API 31+)
@@ -2409,6 +2435,274 @@ public class Recorder {
 
     }
 
+    // ---------------------------------------------------------------------------------------
+    // Pro Recording Mode (PRD A2)
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * Starts an AudioRecord-based Pro recording into the same dated folder and naming scheme as a
+     * standard recording. Creates the main file plus the optional "_safety" and "_original" companions.
+     */
+    private void startProRecording() {
+        proSettings = ProRecordingSettings.get(mainActivity);
+        proNoiseReductionChanges.clear();
+        proCreatedFiles.clear();
+        proSafetyFileName = null;
+        proOriginalFileName = null;
+        proFallbackMessage = null;
+
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(mainActivity);
+        String qualityPref = prefs.getString("pref_audio_quality", "high");
+        boolean stereo = prefs.getBoolean("pref_stereo_recording", true)
+                && AudioMetadataHelper.isStereoRecordingSupported(mainActivity)
+                && !"saver".equalsIgnoreCase(qualityPref);
+
+        try {
+            proRecorder = new ProAudioRecorder(mainActivity, proSettings);
+            ProAudioRecorder.Config config = proRecorder.prepare(stereo);
+            // The expected fallback is announced when Pro mode is set up; only report surprises later
+            String expectedFallback = config.fallbackMessage;
+
+            String stem = this.createFileName();
+            currentRecordingFileName = stem + config.fileExtension();
+
+            ProAudioRecorder.Outputs outputs = new ProAudioRecorder.Outputs();
+            outputs.main = openProOutput(currentRecordingFileName, config.mimeType(), true);
+            if (proSettings.getGainMode() == ProRecordingSettings.GainMode.MANUAL_SAFETY) {
+                proSafetyFileName = stem + PRO_SAFETY_SUFFIX + config.fileExtension();
+                outputs.safety = openProOutput(proSafetyFileName, config.mimeType(), false);
+            }
+            if (proSettings.isKeepOriginal() && proSettings.getEffectiveNoiseReduction() > 0) {
+                proOriginalFileName = stem + PRO_ORIGINAL_SUFFIX + config.fileExtension();
+                outputs.original = openProOutput(proOriginalFileName, config.mimeType(), false);
+            }
+
+            recordStartTimeMillis = System.currentTimeMillis();
+            recordingBookmarks.clear();
+            recordingAudioSource = AudioMetadataHelper.getCurrentAudioInputSource(mainActivity);
+            recordingLocationName = null;
+            if (prefs.getBoolean("pref_save_location", true) && LocationHelper.isLocationPermissionGranted(mainActivity)) {
+                android.location.Location loc = LocationHelper.getLastKnownLocation(mainActivity);
+                if (loc != null) {
+                    recordingLocationName = LocationHelper.getPlaceName(mainActivity, loc.getLatitude(), loc.getLongitude());
+                }
+            }
+
+            proStartNoiseReduction = proSettings.getEffectiveNoiseReduction();
+            proRecorder.start(outputs);
+            this.recordingChannels = config.channels;
+            if (config.fallbackMessage != null && !config.fallbackMessage.equals(expectedFallback)) {
+                proFallbackMessage = config.fallbackMessage;
+            }
+            this.isRecording = true;
+            Log.i(TAG, "Pro recording started: " + proSettings.describe() + ", source=" + config.audioSourceName
+                    + ", " + (config.wav ? "24-bit WAV" : "AAC") + ", " + config.channels + "ch");
+            startTimer();
+        } catch (Exception e) {
+            Log.e(TAG, "Pro recording failed to start", e);
+            if (proRecorder != null) {
+                proRecorder.stop();
+                proRecorder = null;
+            }
+            closeProDescriptors();
+            discardProPendingUris();
+            proSettings = null;
+            this.isRecording = false;
+        }
+    }
+
+    /**
+     * Opens a seekable output for a Pro recording file. On Android 10+ the file is a pending
+     * MediaStore entry in Music/SJPlayer/yyyy-MM-dd; on older versions a file in recordTargetFolder.
+     */
+    private java.io.FileDescriptor openProOutput(String displayName, String mimeType, boolean isMain) throws IOException {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.Audio.Media.DISPLAY_NAME, displayName);
+            values.put(MediaStore.Audio.Media.MIME_TYPE, mimeType);
+            values.put(MediaStore.Audio.Media.RELATIVE_PATH, Environment.DIRECTORY_MUSIC + "/SJPlayer/" + this.getRecordingFolderName());
+            values.put(MediaStore.Audio.Media.IS_PENDING, 1);
+            ContentResolver resolver = mainActivity.getContentResolver();
+            Uri uri = resolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, values);
+            if (uri == null) throw new IOException("Could not create " + displayName);
+            if (isMain) {
+                currentRecordingUri = uri;
+            } else {
+                proPendingUris.add(uri);
+            }
+            android.os.ParcelFileDescriptor pfd = resolver.openFileDescriptor(uri, "rw");
+            if (pfd == null) throw new IOException("Could not open " + displayName);
+            proOpenDescriptors.add(pfd);
+            return pfd.getFileDescriptor();
+        } else {
+            File file = new File(recordTargetFolder, displayName);
+            if (isMain) newFileName = file.getAbsolutePath();
+            proCreatedFiles.add(file);
+            java.io.RandomAccessFile raf = new java.io.RandomAccessFile(file, "rw");
+            raf.setLength(0);
+            proOpenFiles.add(raf);
+            return raf.getFD();
+        }
+    }
+
+    private void stopProRecorder() {
+        if (proRecorder != null) {
+            proRecorder.stop();
+            proRecorder = null;
+        }
+        closeProDescriptors();
+    }
+
+    private void closeProDescriptors() {
+        for (android.os.ParcelFileDescriptor pfd : proOpenDescriptors) {
+            try { pfd.close(); } catch (Exception ignored) {}
+        }
+        proOpenDescriptors.clear();
+        for (java.io.RandomAccessFile raf : proOpenFiles) {
+            try { raf.close(); } catch (Exception ignored) {}
+        }
+        proOpenFiles.clear();
+    }
+
+    /** Clears IS_PENDING on the safety and original companions so they become visible files. */
+    private void publishProCompanionFiles() {
+        if (proPendingUris.isEmpty() || mainActivity == null) return;
+        ContentValues values = new ContentValues();
+        values.put(MediaStore.Audio.Media.IS_PENDING, 0);
+        for (Uri uri : proPendingUris) {
+            try {
+                mainActivity.getContentResolver().update(uri, values, null, null);
+            } catch (Exception e) {
+                Log.w(TAG, "Could not publish Pro companion file: " + e.getMessage());
+            }
+        }
+        proPendingUris.clear();
+    }
+
+    private void discardProPendingUris() {
+        for (File f : proCreatedFiles) {
+            f.delete();
+        }
+        proCreatedFiles.clear();
+        if (mainActivity == null) return;
+        List<Uri> uris = new ArrayList<>(proPendingUris);
+        if (currentRecordingUri != null) uris.add(currentRecordingUri);
+        for (Uri uri : uris) {
+            try {
+                mainActivity.getContentResolver().delete(uri, null, null);
+            } catch (Exception ignored) {}
+        }
+        proPendingUris.clear();
+        currentRecordingUri = null;
+    }
+
+    private void fillProMetadata(AudioMetadataHelper.AudioMetadata meta) {
+        meta.proMode = true;
+        meta.proEnvironment = proSettings.getEnvironment().spokenName;
+        meta.proFocus = proSettings.getFocus().spokenName;
+        // Level at the start of the recording; live changes are listed separately
+        meta.proNoiseReduction = proStartNoiseReduction;
+        meta.proGainMode = proSettings.getGainMode().key;
+        meta.proGainDb = proSettings.getGainMode().isManual() ? proSettings.getGainDb() : 0;
+        meta.proNoiseReductionChanges.addAll(proNoiseReductionChanges);
+        meta.proSafetyFile = proSafetyFileName;
+        meta.proOriginalFile = proOriginalFileName;
+    }
+
+    public boolean isProRecording() {
+        return isRecording && proRecorder != null;
+    }
+
+    public void setProRecorderListener(ProAudioRecorder.Listener listener) {
+        if (proRecorder != null) proRecorder.setListener(listener);
+    }
+
+    /** Spoken once when the phone can't provide what Pro settings asked for, else null. */
+    public String consumeProFallbackMessage() {
+        String msg = proFallbackMessage;
+        proFallbackMessage = null;
+        return msg;
+    }
+
+    public String getProMonitoringNotice() {
+        return proRecorder != null ? proRecorder.getMonitoringNotice() : null;
+    }
+
+    /**
+     * Applies a live noise-reduction change during a Pro recording (PR4) and time-stamps it
+     * for the metadata. The processor ramps to the new level within about 100 ms.
+     */
+    public void applyProNoiseReductionLive(int newLevel) {
+        if (proRecorder == null) return;
+        int offsetMs = (int) Math.max(0, System.currentTimeMillis() - recordStartTimeMillis);
+        proNoiseReductionChanges.add(new int[]{offsetMs, newLevel});
+        proRecorder.applySettings();
+    }
+
+    /** Applies a live input gain change during a Pro recording (PR5). */
+    public void applyProGainLive() {
+        if (proRecorder != null) proRecorder.applySettings();
+    }
+
+    public static boolean isProCompanionFileName(String name) {
+        if (name == null) return false;
+        int dot = name.lastIndexOf('.');
+        String stem = dot > 0 ? name.substring(0, dot) : name;
+        return stem.endsWith(PRO_SAFETY_SUFFIX) || stem.endsWith(PRO_ORIGINAL_SUFFIX);
+    }
+
+    /** Companions are reached through file info, not as separate files in the list. */
+    private void removeProCompanionFiles(List<File> list) {
+        Iterator<File> it = list.iterator();
+        while (it.hasNext()) {
+            File f = it.next();
+            if (isProCompanionFileName(f.getName())) {
+                File parent = f.getParentFile();
+                String name = f.getName();
+                int dot = name.lastIndexOf('.');
+                String ext = dot > 0 ? name.substring(dot) : "";
+                String stem = dot > 0 ? name.substring(0, dot) : name;
+                String mainStem = stem.endsWith(PRO_SAFETY_SUFFIX)
+                        ? stem.substring(0, stem.length() - PRO_SAFETY_SUFFIX.length())
+                        : stem.substring(0, stem.length() - PRO_ORIGINAL_SUFFIX.length());
+                // Only hide it when its main recording is still there
+                if (parent != null && new File(parent, mainStem + ext).exists()) {
+                    it.remove();
+                }
+            }
+        }
+    }
+
+    /** The safety track and original saved alongside a Pro recording, if they exist. */
+    public static List<File> getProCompanionFiles(File mainFile) {
+        List<File> result = new ArrayList<>();
+        if (mainFile == null || mainFile.getParentFile() == null) return result;
+        String name = mainFile.getName();
+        int dot = name.lastIndexOf('.');
+        if (dot <= 0) return result;
+        String stem = name.substring(0, dot);
+        String ext = name.substring(dot);
+        for (String suffix : new String[]{PRO_SAFETY_SUFFIX, PRO_ORIGINAL_SUFFIX}) {
+            File f = new File(mainFile.getParentFile(), stem + suffix + ext);
+            if (f.exists()) result.add(f);
+        }
+        return result;
+    }
+
+    private void appendProInformation(StringBuilder sb, AudioMetadataHelper.AudioMetadata meta) {
+        if (meta == null || !meta.proMode) return;
+        sb.append("\nPro recording: ").append(meta.describePro());
+        boolean hasSafety = meta.proSafetyFile != null;
+        boolean hasOriginal = meta.proOriginalFile != null;
+        if (hasSafety && hasOriginal) {
+            sb.append("\nSafety track and original saved");
+        } else if (hasSafety) {
+            sb.append("\nSafety track saved");
+        } else if (hasOriginal) {
+            sb.append("\nOriginal saved");
+        }
+    }
+
     Runnable timerRunnable = new Runnable() {
 
         @Override
@@ -2514,10 +2808,15 @@ public class Recorder {
 //            Log.i(TAG, Boolean.toString(this.isRecording) + ":" + Boolean.toString(this.isPlaying));
 
             mil = 0;
-            mRecorder.stop();
-            mRecorder.reset();
-            mRecorder.release();
-            mRecorder = null;
+            boolean wasPro = proRecorder != null;
+            if (wasPro) {
+                stopProRecorder();
+            } else {
+                mRecorder.stop();
+                mRecorder.reset();
+                mRecorder.release();
+                mRecorder = null;
+            }
             isRecording = false;
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && currentRecordingUri != null) {
@@ -2526,6 +2825,7 @@ public class Recorder {
                 mainActivity.getContentResolver().update(currentRecordingUri, values, null, null);
                 currentRecordingUri = null;
             }
+            publishProCompanionFiles();
 
             // change current Folder and File index to the just saved file.
             moveToLatestRecordedLocation();
@@ -2540,10 +2840,14 @@ public class Recorder {
                 meta.channels = recordingChannels;
                 meta.channelMode = recordingChannels == 2 ? "Stereo" : "Mono";
                 meta.bookmarks = new ArrayList<>(recordingBookmarks);
+                if (proSettings != null) {
+                    fillProMetadata(meta);
+                }
                 AudioMetadataHelper.saveMetadata(mainActivity, savedFile, meta);
                 Log.i(TAG, "Saved companion metadata for " + savedFile.getName() + " (" + meta.channelMode + ") with " + meta.bookmarks.size() + " bookmarks");
             }
             //currentFolder = recordTargetFolder;
+            proSettings = null;
             justRecordFinished = true;
         } catch (Exception e){ //No idea what kind of Exception is coming...
             e.printStackTrace();
@@ -2926,9 +3230,15 @@ public class Recorder {
     public void moveCurrentFileToTrash(){
         try{
             File target = new File(getCurrentFileFullPath());
+            // Pro Recording companions (safety track, original) are deleted together with the file
+            for (File companion : getProCompanionFiles(target)) {
+                copyDirectoryOneLocationToAnotherLocation(companion, new File(trashFolder + "/" + companion.getName()));
+                companion.delete();
+            }
             AudioMetadataHelper.deleteMetadata(mainActivity, target);
             copyDirectoryOneLocationToAnotherLocation(target, new File(trashFolder+"/"+getCurrentFileName()));
             target.delete();
+            folderFilesCache.remove(currentFolder.getAbsolutePath());
             readAudibleFilesInCurrentFolder();
         }catch(IOException e){
             e.printStackTrace();

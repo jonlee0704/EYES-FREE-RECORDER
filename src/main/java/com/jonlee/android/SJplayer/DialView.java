@@ -1421,8 +1421,11 @@ public class DialView extends View {
                             if(isFired)
                                 return true;
 
-                            if(touchCnt == 1)
-                                cmd(Commander.SPEAK_FILE_INFO);
+                            if(touchCnt == 1) {
+                                // Pro mode armed: 1-finger long press runs the sound check (PRD A2, PR6)
+                                Commander commander = activity.getCommander();
+                                cmd(commander != null && commander.isProArmed() ? Commander.PRO_SOUND_CHECK : Commander.SPEAK_FILE_INFO);
+                            }
                             else if(touchCnt == 2)
                                 cmd(Commander.SPEAK_DATE_TIME);
                             else if(touchCnt >= 3)

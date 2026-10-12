@@ -54,6 +54,36 @@ public class AudioMetadataHelper {
         public String channelMode = "Mono";
         public List<Integer> bookmarks = new ArrayList<>();
 
+        // Pro Recording Mode (PRD A2, PR11)
+        public boolean proMode = false;
+        public String proEnvironment;
+        public String proFocus;
+        public int proNoiseReduction = 0;
+        public String proGainMode;
+        public int proGainDb = 0;
+        /** Live noise-reduction changes while recording: {offsetMs, percent}. */
+        public List<int[]> proNoiseReductionChanges = new ArrayList<>();
+        public String proSafetyFile;
+        public String proOriginalFile;
+
+        /** e.g. "Meeting room, Music focus, noise reduction 25 percent, manual gain minus 6 dB" */
+        public String describePro() {
+            if (!proMode) return null;
+            StringBuilder sb = new StringBuilder();
+            sb.append(proEnvironment).append(", ").append(proFocus).append(" focus, noise reduction ")
+                    .append(proNoiseReduction).append(" percent");
+            if (proGainMode != null && proGainMode.startsWith("manual")) {
+                sb.append(", manual gain ").append(ProRecordingSettings.formatDb(proGainDb));
+            } else {
+                sb.append(", gain auto");
+            }
+            if (!proNoiseReductionChanges.isEmpty()) {
+                int n = proNoiseReductionChanges.size();
+                sb.append(", ").append(n).append(n == 1 ? " live noise reduction change" : " live noise reduction changes");
+            }
+            return sb.toString();
+        }
+
         public JSONObject toJson() {
             JSONObject json = new JSONObject();
             try {
@@ -72,6 +102,25 @@ public class AudioMetadataHelper {
                     bmArray.put(bm);
                 }
                 json.put("bookmarks", bmArray);
+                if (proMode) {
+                    JSONObject pro = new JSONObject();
+                    pro.put("environment", proEnvironment != null ? proEnvironment : "");
+                    pro.put("focus", proFocus != null ? proFocus : "");
+                    pro.put("noiseReduction", proNoiseReduction);
+                    pro.put("gainMode", proGainMode != null ? proGainMode : "");
+                    pro.put("gainDb", proGainDb);
+                    JSONArray changes = new JSONArray();
+                    for (int[] c : proNoiseReductionChanges) {
+                        JSONObject change = new JSONObject();
+                        change.put("offsetMs", c[0]);
+                        change.put("noiseReduction", c[1]);
+                        changes.put(change);
+                    }
+                    pro.put("noiseReductionChanges", changes);
+                    if (proSafetyFile != null) pro.put("safetyFile", proSafetyFile);
+                    if (proOriginalFile != null) pro.put("originalFile", proOriginalFile);
+                    json.put("pro", pro);
+                }
             } catch (Exception e) {
                 Log.w(TAG, "Error serializing metadata to JSON: " + e.getMessage());
             }
@@ -98,6 +147,26 @@ public class AudioMetadataHelper {
                 }
             }
             Collections.sort(meta.bookmarks);
+            JSONObject pro = json.optJSONObject("pro");
+            if (pro != null) {
+                meta.proMode = true;
+                meta.proEnvironment = pro.optString("environment", "");
+                meta.proFocus = pro.optString("focus", "");
+                meta.proNoiseReduction = pro.optInt("noiseReduction", 0);
+                meta.proGainMode = pro.optString("gainMode", "");
+                meta.proGainDb = pro.optInt("gainDb", 0);
+                JSONArray changes = pro.optJSONArray("noiseReductionChanges");
+                if (changes != null) {
+                    for (int i = 0; i < changes.length(); i++) {
+                        JSONObject c = changes.optJSONObject(i);
+                        if (c != null) {
+                            meta.proNoiseReductionChanges.add(new int[]{c.optInt("offsetMs"), c.optInt("noiseReduction")});
+                        }
+                    }
+                }
+                meta.proSafetyFile = pro.has("safetyFile") ? pro.optString("safetyFile") : null;
+                meta.proOriginalFile = pro.has("originalFile") ? pro.optString("originalFile") : null;
+            }
             return meta;
         }
     }

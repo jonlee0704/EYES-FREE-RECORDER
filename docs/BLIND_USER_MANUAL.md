@@ -200,6 +200,46 @@ To open the Settings screen, **swipe down with 3 fingers**, or tap the Help/Sett
 
 ---
 
+## 8a. Pro Recording Mode
+
+Pro Recording Mode gives you studio-style control without looking at the screen. It has three independent settings, plus a noise-reduction amount. Every change is spoken, has its own earcon and vibration, and is saved with the recording.
+
+**Turn it on or off:** 3-finger double tap anywhere, or Settings → Pro Recording → Pro Recording Mode. You hear, for example: *"Pro mode on. Meeting room, Voice focus, noise reduction 75 percent, gain auto."*
+
+| What | Gesture (Pro mode on, not recording or playing) | Choices |
+| --- | --- | --- |
+| Environment (where you are) | 3-finger swipe right / left | Meeting room, Small music venue, Stadium, Street |
+| Focus (what to keep) | 3-finger swipe up / down | Voice → Music → Natural |
+| Noise reduction | Settings, or 2-finger swipe up / down **while recording** | Off, 25, 50, 75, 100 percent |
+| Input gain (Manual modes) | Volume up / down | −24 to +12 dB in 3 dB steps |
+| Sound check | 1-finger long press | 5-second listen, then one tap applies the recommendation |
+
+While Pro mode is on and idle, 3-finger swipes change the environment and focus instead of opening Settings, starting Backup, or jumping between favorites. Turn Pro mode off (3-finger double tap) and those swipes work as before. You can also open Settings with the Settings (gear) button, and start Backup from the Settings screen.
+
+**Environments** set room-dependent processing and load sensible defaults:
+
+| Environment | Low cut | Echo control | Wind reduction | Default focus | Default gain |
+| --- | --- | --- | --- | --- | --- |
+| Meeting room | 100 Hz | On | Off | Voice | Auto |
+| Small music venue | 30 Hz | Off | Off | Music | Manual + safety track |
+| Stadium / arena | 60 Hz | Off | Off | Natural | Manual + safety track |
+| Street / outdoor | 120 Hz | Off | On | Voice | Auto |
+
+**Focus** decides what counts as noise. *Voice* keeps speech and removes everything else. *Music* removes only steady noise such as fans, air conditioning, hiss and hum, never notes or rhythm. *Natural* keeps everything and removes only gentle hum and hiss; it is capped at 50 percent. Choosing a focus resets noise reduction to its default (Voice 75, Music 25, Natural 25). At Maximum the app warns once that voices may sound thinner.
+
+**Gain modes**
+- *Auto*: the phone's own automatic gain. Best for speech in quiet rooms.
+- *Manual*: automatic gain off, using the phone's unprocessed microphone where it has one, fixed gain, and 24-bit WAV files. The volume buttons set the input gain, not the playback volume.
+- *Manual + safety track*: Manual, plus a second copy recorded 12 dB lower, for drums, crowds or fireworks.
+
+Most phones don't let apps change the analog microphone preamp. Manual gain is a digital trim after the converter, so it can't stop clipping that happens in the phone's hardware. Use the safety track and the sound check for that. With an external USB microphone or interface, use its own gain knob.
+
+**While recording**, vibration grows stronger as the sound gets close to the maximum level. Clipping gives a strong double buzz and a short beep, and at most one spoken warning every 10 seconds. This works with the screen curtain on and with the phone in a pocket. If headphones are plugged in, you hear the processed sound live (Settings → Headphone Monitoring). Bluetooth headphones work but lag, and the app tells you so.
+
+**Files.** With noise reduction above 0 percent, the unprocessed original is also saved (Settings → Keep Original, on by default). The safety track and the original share the recording's name with `_safety` or `_original` added. They don't appear as separate files when browsing. They are deleted together with the recording, and file info (1-finger long press while playing, or with Pro mode off) reports them along with the environment, focus, noise reduction and gain. "Where am I" (top-left corner) includes the Pro settings.
+
+---
+
 ## 9. Troubleshooting & FAQ
 
 **Q: I double-tapped, but I didn't hear the recording start.**  
