@@ -651,9 +651,9 @@ public class MainActivity extends SampleActivityBase {
             proTogglePending = false;
             if (threeFingerTapCount == 2) {
                 threeFingerTapCount = 0;
-                Log.i(TAG, "Three-finger double-tap detected: toggling Pro Recording Mode");
+                Log.i(TAG, "Three-finger double-tap detected: opening or closing the Pro menu");
                 if (commander != null) {
-                    commander.cmd(Commander.PRO_MODE_TOGGLE);
+                    commander.cmd(Commander.PRO_MENU);
                 }
             }
         }
@@ -725,7 +725,9 @@ public class MainActivity extends SampleActivityBase {
             isThreeFingerGesture = false;
             threeFingerActionFired = false;
         } else if (pointerCount == 2) {
-            if (!isTwoFingerGesture && !twoFingerActionFired) {
+            // A 3-finger gesture passes through 2 pointers while the fingers lift: it must not
+            // restart 2-finger tracking, or the last lift reads as a 2-finger tap (bookmark)
+            if (!isTwoFingerGesture && !twoFingerActionFired && twoFingerMaxPointerCount < 3) {
                 isTwoFingerGesture = true;
                 twoFingerActionFired = false;
                 twoFingerStartX = (ev.getX(0) + ev.getX(1)) / 2f;
@@ -1141,12 +1143,14 @@ public class MainActivity extends SampleActivityBase {
                 "• <b>4-Finger Swipe Right &amp; Hold</b>: Delete current audio file.<br/>" +
                 "<br/>" +
                 "<font color=\"#B388FF\"><b>🎚 PRO RECORDING MODE</b></font><br/>" +
-                "• <b>3-Finger Double Tap</b>: Turn Pro mode on or off.<br/>" +
+                "• <b>3-Finger Double Tap</b>: Open or close the spoken Pro menu: Pro mode on/off, environment, focus, noise reduction, gain mode, input gain, sound check, presets, keep original, monitoring.<br/>" +
+                "• <b>In the Pro menu</b>: Swipe right/left for items, up/down to change, tap to select, long press for help (on Presets: save). Double tap closes the menu and records.<br/>" +
                 "• <b>3-Finger Swipe Left/Right</b> (Pro mode, idle): Choose the environment — Meeting room, Small music venue, Stadium, Street.<br/>" +
                 "• <b>3-Finger Swipe Up/Down</b> (Pro mode, idle): Choose the focus — Voice, Music, Natural. Settings and Backup stay in the Settings menu.<br/>" +
                 "• <b>2-Finger Swipe Up/Down</b> (while recording): Raise / lower noise reduction live.<br/>" +
                 "• <b>Volume Buttons</b> (Manual gain): Input gain in 3 dB steps, from −24 to +12 dB.<br/>" +
-                "• <b>1-Finger Long Press</b> (Pro mode, idle): 5-second sound check; tap once to apply the recommended gain.<br/>" +
+                "• <b>Long Press twice</b> (on a Pro recording): Choose the main recording, safety track or original; tap plays it.<br/>" +
+                "• Without headphones, Pro mode stays silent while recording (haptics only) so no speech ends up in the take; changes are read out when you stop.<br/>" +
                 "<br/>" +
                 "<font color=\"#FF9100\"><b>◆ DISPLAY MODES &amp; VISUALIZERS</b></font><br/>" +
                 "• <b>Simplest Split UI (Default)</b>: Folders on the left, audio files on the right with vertical scrolling and text marquee for long titles.<br/>" +

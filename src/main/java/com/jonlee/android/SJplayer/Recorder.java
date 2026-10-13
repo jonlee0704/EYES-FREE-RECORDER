@@ -129,13 +129,20 @@ public class Recorder {
     private ProRecordingSettings proSettings = null;
     private String proFallbackMessage = null;
     private final List<int[]> proNoiseReductionChanges = new ArrayList<>();
+    private final List<int[]> proGainChanges = new ArrayList<>();
     private int proStartNoiseReduction = 0;
+    private int proStartGainDb = 0;
     private final List<android.os.ParcelFileDescriptor> proOpenDescriptors = new ArrayList<>();
     private final List<java.io.RandomAccessFile> proOpenFiles = new ArrayList<>();
     private final List<Uri> proPendingUris = new ArrayList<>();
     private final List<File> proCreatedFiles = new ArrayList<>();
     private String proSafetyFileName = null;
     private String proOriginalFileName = null;
+
+    // Which version of a Pro recording plays: the main file, its safety track or its original (PR8, PR9).
+    // Only applies while the main file it was chosen for is still the current file.
+    private String proVersionMainPath = null;
+    private File proVersionFile = null;
 
 
     private int currentFileIndex = 0;
@@ -1063,10 +1070,10 @@ public class Recorder {
 
                 Log.i(TAG, "getCurrentFileFullPath():" + getCurrentFileFullPath());
                 try {
-                    mPlayer.setDataSource(getCurrentFileFullPath());
+                    mPlayer.setDataSource(getPlaybackPath());
                 } catch (Exception e) {
                     Log.w(TAG, "Direct path playback failed for " + getCurrentFileFullPath() + ", trying MediaStore URI fallback", e);
-                    Uri contentUri = getUriForFilePath(getCurrentFileFullPath());
+                    Uri contentUri = getUriForFilePath(getPlaybackPath());
                     if (contentUri != null) {
                         mPlayer.setDataSource(mainActivity, contentUri);
                     } else {
@@ -1116,6 +1123,58 @@ public class Recorder {
      */
     public String getCurrentFileFullPath(){
         return currentFolder.getAbsolutePath() + "/" + this.getCurrentFileName();
+    }
+
+    /** The file that plays: the current file, or the Pro version chosen for it in file info. */
+    private String getPlaybackPath() {
+        String current = getCurrentFileFullPath();
+        if (proVersionFile != null && current.equals(proVersionMainPath) && proVersionFile.exists()) {
+            return proVersionFile.getAbsolutePath();
+        }
+        return current;
+    }
+
+    /** Companion files (safety track, original) of the current file; empty if it has none. */
+    public List<File> getCurrentProCompanionFiles() {
+        File current = getCurrentFile();
+        if (current == null || isRecording) return new ArrayList<>();
+        return getProCompanionFiles(current);
+    }
+
+    /**
+     * Cycles which version of the current Pro recording plays: main, then each companion.
+     * Stops playback so the next tap plays the chosen version. Returns the selected file,
+     * or null when the main recording is selected again.
+     */
+    public File cycleProVersion() {
+        List<File> companions = getCurrentProCompanionFiles();
+        String current = getCurrentFileFullPath();
+        if (companions.isEmpty()) {
+            proVersionFile = null;
+            return null;
+        }
+        int index = -1;
+        if (proVersionFile != null && current.equals(proVersionMainPath)) {
+            for (int i = 0; i < companions.size(); i++) {
+                if (companions.get(i).getAbsolutePath().equals(proVersionFile.getAbsolutePath())) index = i;
+            }
+        }
+        stopPlaying();
+        int next = index + 1;
+        if (next >= companions.size()) {
+            proVersionFile = null;
+            proVersionMainPath = null;
+            return null;
+        }
+        proVersionFile = companions.get(next);
+        proVersionMainPath = current;
+        return proVersionFile;
+    }
+
+    /** The Pro version selected for the current file, or null for the main recording. */
+    public File getSelectedProVersion() {
+        if (proVersionFile != null && getCurrentFileFullPath().equals(proVersionMainPath)) return proVersionFile;
+        return null;
     }
 
     public void resume(){
@@ -2446,6 +2505,7 @@ public class Recorder {
     private void startProRecording() {
         proSettings = ProRecordingSettings.get(mainActivity);
         proNoiseReductionChanges.clear();
+        proGainChanges.clear();
         proCreatedFiles.clear();
         proSafetyFileName = null;
         proOriginalFileName = null;
@@ -2489,6 +2549,7 @@ public class Recorder {
             }
 
             proStartNoiseReduction = proSettings.getEffectiveNoiseReduction();
+            proStartGainDb = proSettings.getGainMode().isManual() ? proSettings.getGainDb() : 0;
             proRecorder.start(outputs);
             this.recordingChannels = config.channels;
             if (config.fallbackMessage != null && !config.fallbackMessage.equals(expectedFallback)) {
@@ -2603,8 +2664,10 @@ public class Recorder {
         // Level at the start of the recording; live changes are listed separately
         meta.proNoiseReduction = proStartNoiseReduction;
         meta.proGainMode = proSettings.getGainMode().key;
-        meta.proGainDb = proSettings.getGainMode().isManual() ? proSettings.getGainDb() : 0;
+        // Gain at the start of the recording; live changes are listed separately
+        meta.proGainDb = proStartGainDb;
         meta.proNoiseReductionChanges.addAll(proNoiseReductionChanges);
+        meta.proGainChanges.addAll(proGainChanges);
         meta.proSafetyFile = proSafetyFileName;
         meta.proOriginalFile = proOriginalFileName;
     }
@@ -2639,9 +2702,12 @@ public class Recorder {
         proRecorder.applySettings();
     }
 
-    /** Applies a live input gain change during a Pro recording (PR5). */
-    public void applyProGainLive() {
-        if (proRecorder != null) proRecorder.applySettings();
+    /** Applies a live input gain change during a Pro recording (PR5) and time-stamps it for the metadata. */
+    public void applyProGainLive(int newGainDb) {
+        if (proRecorder == null) return;
+        int offsetMs = (int) Math.max(0, System.currentTimeMillis() - recordStartTimeMillis);
+        proGainChanges.add(new int[]{offsetMs, newGainDb});
+        proRecorder.applySettings();
     }
 
     public static boolean isProCompanionFileName(String name) {

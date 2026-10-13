@@ -44,6 +44,9 @@ public class ProAudioRecorder {
 
         /** Called on the main thread if recording fails after it started. */
         void onError(String message);
+
+        /** Called on the main thread when the file reached its maximum size and capture stopped. */
+        void onFileSizeLimit();
     }
 
     public interface SoundCheckCallback {
@@ -87,7 +90,7 @@ public class ProAudioRecorder {
     private AudioRecord audioRecord;
     private AutomaticGainControl agc;
     private AudioTrack monitorTrack;
-    private ProAudioProcessor[] processors;
+    private ProAudioProcessor processor;
     private ProAudioFileWriter mainWriter;
     private ProAudioFileWriter safetyWriter;
     private ProAudioFileWriter originalWriter;
@@ -171,10 +174,8 @@ public class ProAudioRecorder {
             }
         }
 
-        processors = new ProAudioProcessor[config.channels];
-        for (int ch = 0; ch < config.channels; ch++) {
-            processors[ch] = new ProAudioProcessor(SAMPLE_RATE);
-        }
+        // One linked processor for all channels keeps the stereo image stable
+        processor = new ProAudioProcessor(SAMPLE_RATE, config.channels);
         applySettings();
 
         mainWriter = createWriter(outputs.main);
@@ -195,10 +196,14 @@ public class ProAudioRecorder {
     public void stop() {
         running = false;
         if (thread != null) {
-            try {
-                thread.join(3000);
-            } catch (InterruptedException ignored) {
-                Thread.currentThread().interrupt();
+            joinQuietly(thread, 3000);
+            if (thread.isAlive() && audioRecord != null) {
+                // A blocked read never returned: stopping the AudioRecord releases it
+                try { audioRecord.stop(); } catch (Exception ignored) {}
+                joinQuietly(thread, 2000);
+            }
+            if (thread.isAlive()) {
+                Log.e(TAG, "Recording thread did not stop; files are closed anyway");
             }
             thread = null;
         }
@@ -222,27 +227,33 @@ public class ProAudioRecorder {
         }
     }
 
+    private static void joinQuietly(Thread t, long millis) {
+        try {
+            t.join(millis);
+        } catch (InterruptedException ignored) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
     public boolean isRunning() {
         return running;
     }
 
     /** Re-reads focus, environment, noise reduction and gain from settings; safe while recording. */
     public void applySettings() {
-        if (processors == null) return;
+        if (processor == null) return;
         ProRecordingSettings.Environment env = settings.getEnvironment();
         ProAudioProcessor.NoiseFocus focus = toProcessorFocus(settings.getFocus());
         int nr = settings.getEffectiveNoiseReduction();
         gainDb = settings.getGainMode().isManual() ? settings.getGainDb() : 0;
         boolean limiter = !settings.getGainMode().isManual() || settings.isLimiterInManual();
-        for (ProAudioProcessor p : processors) {
-            p.setLowCutHz(env.lowCutHz);
-            p.setEchoControl(env.echoControl);
-            p.setWindReduction(env.windReduction);
-            p.setFocus(focus);
-            p.setNoiseReductionPercent(nr);
-            p.setGainDb(gainDb);
-            p.setLimiterEnabled(limiter);
-        }
+        processor.setLowCutHz(env.lowCutHz);
+        processor.setEchoControl(env.echoControl);
+        processor.setWindReduction(env.windReduction);
+        processor.setFocus(focus);
+        processor.setNoiseReductionPercent(nr);
+        processor.setGainDb(gainDb);
+        processor.setLimiterEnabled(limiter);
     }
 
     /** Peak amplitude (0..32767) since the last call, like MediaRecorder.getMaxAmplitude(). */
@@ -262,10 +273,8 @@ public class ProAudioRecorder {
         int frames = ProAudioProcessor.HOP_SIZE;
         float[] interleaved = new float[frames * channels];
         float[] processed = new float[frames * channels];
+        float[] preGain = new float[frames * channels];
         float[] safety = safetyWriter != null ? new float[frames * channels] : null;
-        float[] chIn = new float[frames];
-        float[] chOut = new float[frames];
-        float[] chPre = new float[frames];
 
         long lastReport = 0;
         float windowPeak = 0f;
@@ -279,30 +288,31 @@ public class ProAudioRecorder {
                     continue;
                 }
                 int readFrames = read / channels;
+                int samples = readFrames * channels;
                 float safetyGain = (float) Math.pow(10.0, (gainDb + ProRecordingSettings.SAFETY_TRACK_OFFSET_DB) / 20.0);
 
-                boolean clipped = false;
-                for (int ch = 0; ch < channels; ch++) {
-                    for (int i = 0; i < readFrames; i++) {
-                        float x = interleaved[i * channels + ch];
-                        if (Math.abs(x) >= CLIP_THRESHOLD) clipped = true;   // clipped before the app (hardware/converter)
-                        chIn[i] = x;
-                    }
-                    processors[ch].process(chIn, 0, chOut, 0, readFrames, chPre);
-                    for (int i = 0; i < readFrames; i++) {
-                        processed[i * channels + ch] = chOut[i];
-                        if (safety != null) safety[i * channels + ch] = chPre[i] * safetyGain;
-                    }
+                // Clipped before the app (hardware or converter)
+                boolean clipped = ProAudioProcessor.peak(interleaved, 0, samples) >= CLIP_THRESHOLD;
+                processor.process(interleaved, 0, processed, 0, readFrames, preGain);
+                if (safety != null) {
+                    for (int i = 0; i < samples; i++) safety[i] = preGain[i] * safetyGain;
                 }
 
-                float peak = ProAudioProcessor.peak(processed, 0, readFrames * channels);
+                float peak = ProAudioProcessor.peak(processed, 0, samples);
                 if (peak >= CLIP_THRESHOLD) clipped = true;   // clipped by the digital gain (limiter off)
 
-                mainWriter.write(processed, 0, readFrames * channels);
-                if (safetyWriter != null) safetyWriter.write(safety, 0, readFrames * channels);
-                if (originalWriter != null) originalWriter.write(interleaved, 0, readFrames * channels);
+                mainWriter.write(processed, 0, samples);
+                if (safetyWriter != null) safetyWriter.write(safety, 0, samples);
+                if (originalWriter != null) originalWriter.write(interleaved, 0, samples);
                 if (monitorTrack != null) {
-                    monitorTrack.write(processed, 0, readFrames * channels, AudioTrack.WRITE_NON_BLOCKING);
+                    monitorTrack.write(processed, 0, samples, AudioTrack.WRITE_NON_BLOCKING);
+                }
+                if (mainWriter.isNearSizeLimit()) {
+                    // A WAV file can't grow past 4 GB (about 4 hours of 24-bit stereo)
+                    running = false;
+                    final Listener l = listener;
+                    if (l != null) mainHandler.post(l::onFileSizeLimit);
+                    break;
                 }
 
                 int amp = (int) Math.min(32767f, peak * 32767f);

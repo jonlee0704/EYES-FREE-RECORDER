@@ -126,6 +126,11 @@ public class ProRecordingSettings {
         this.prefs = PreferenceManager.getDefaultSharedPreferences(context);
     }
 
+    /** For tests: settings backed by any SharedPreferences. */
+    ProRecordingSettings(SharedPreferences prefs) {
+        this.prefs = prefs;
+    }
+
     public static ProRecordingSettings get(Context context) {
         return new ProRecordingSettings(context);
     }
@@ -222,6 +227,82 @@ public class ProRecordingSettings {
         if (prefs.getBoolean(PREF_MAX_NR_WARNED, false)) return false;
         prefs.edit().putBoolean(PREF_MAX_NR_WARNED, true).apply();
         return true;
+    }
+
+    // --- Custom presets (PR13) ---
+
+    public static final int PRESET_SLOTS = 3;
+    private static final String PREF_PRESET_PREFIX = "pref_pro_preset_";
+
+    /** True if the preset slot (1-based) holds a saved combination. */
+    public boolean hasPreset(int slot) {
+        return prefs.getString(PREF_PRESET_PREFIX + slot, null) != null;
+    }
+
+    /** Saves the current environment, focus, noise reduction and gain into a slot (1-based). */
+    public void savePreset(int slot) {
+        String value = getEnvironment().key + "|" + getFocus().key + "|" + getNoiseReduction()
+                + "|" + getGainMode().key + "|" + getGainDb();
+        prefs.edit().putString(PREF_PRESET_PREFIX + slot, value).apply();
+    }
+
+    /** Loads a preset slot (1-based). Returns false if the slot is empty or unreadable. */
+    public boolean loadPreset(int slot) {
+        String value = prefs.getString(PREF_PRESET_PREFIX + slot, null);
+        if (value == null) return false;
+        String[] parts = value.split("\\|");
+        if (parts.length != 5) return false;
+        try {
+            prefs.edit()
+                    .putString(PREF_ENVIRONMENT, Environment.fromKey(parts[0]).key)
+                    .putString(PREF_FOCUS, Focus.fromKey(parts[1]).key)
+                    .putString(PREF_NOISE_REDUCTION, String.valueOf(snapNoiseReduction(Integer.parseInt(parts[2]))))
+                    .putString(PREF_GAIN_MODE, GainMode.fromKey(parts[3]).key)
+                    .putString(PREF_GAIN_DB, String.valueOf(clampGain(Integer.parseInt(parts[4]))))
+                    .apply();
+            return true;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    /** e.g. "Preset 2: Small music venue, Music focus, noise reduction 25 percent, manual gain minus 6 dB" */
+    public String describePreset(int slot) {
+        String value = prefs.getString(PREF_PRESET_PREFIX + slot, null);
+        if (value == null) return "Preset " + slot + ", empty";
+        String[] parts = value.split("\\|");
+        if (parts.length != 5) return "Preset " + slot + ", empty";
+        GainMode mode = GainMode.fromKey(parts[3]);
+        String gain;
+        try {
+            gain = mode.isManual() ? mode.spokenName + " " + formatDb(clampGain(Integer.parseInt(parts[4]))) : mode.spokenName;
+        } catch (NumberFormatException e) {
+            gain = mode.spokenName;
+        }
+        Focus focus = Focus.fromKey(parts[1]);
+        int nr;
+        try {
+            nr = Math.min(snapNoiseReduction(Integer.parseInt(parts[2])), focus.maxNoiseReduction);
+        } catch (NumberFormatException e) {
+            nr = focus.defaultNoiseReduction;
+        }
+        return "Preset " + slot + ": " + Environment.fromKey(parts[0]).spokenName + ", " + focus.spokenName
+                + " focus, noise reduction " + nr + " percent, " + gain;
+    }
+
+    public void setKeepOriginal(boolean keep) {
+        prefs.edit().putBoolean(PREF_KEEP_ORIGINAL, keep).apply();
+    }
+
+    public void setMonitoringEnabled(boolean enabled) {
+        prefs.edit().putBoolean(PREF_MONITORING, enabled).apply();
+    }
+
+    public GainMode cycleGainMode(int step) {
+        GainMode[] all = GainMode.values();
+        GainMode next = all[Math.floorMod(getGainMode().ordinal() + step, all.length)];
+        setGainMode(next);
+        return next;
     }
 
     // --- Cycling helpers used by gestures ---

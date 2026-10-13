@@ -1,7 +1,7 @@
 package com.jonlee.android.SJplayer;
 
 /**
- * Pro Recording Mode signal chain for one audio channel (PRD A2, "Technical approach").
+ * Pro Recording Mode signal chain (PRD A2, "Technical approach") for one or more channels.
  *
  *   low-cut filter -> focus-specific noise reduction (wet/dry mix) -> wind reduction
  *   -> echo / reverb control -> input gain trim -> limiter
@@ -22,6 +22,10 @@ package com.jonlee.android.SJplayer;
  *              and sustained notes or rhythm are left alone.
  *   - Natural: the same light stationary reduction with a high gain floor; the amount is capped at 50%.
  *
+ * Channels are linked: the noise estimate, the per-bin gains and the limiter are computed from
+ * all channels together and applied equally to each, so a stereo image doesn't drift when one
+ * side is noisier than the other.
+ *
  * The noise-reduction amount is a wet/dry mix applied per frequency bin
  * (gain' = 1 - mix * (1 - gain)), smoothed over about 100 ms so live changes have no clicks.
  */
@@ -34,6 +38,7 @@ public class ProAudioProcessor {
     public enum NoiseFocus { VOICE, MUSIC, NATURAL }
 
     private final int sampleRate;
+    private final int channels;
 
     // --- Settings (written from any thread, read by the audio thread) ---
     private volatile float lowCutHz = 0f;
@@ -44,22 +49,23 @@ public class ProAudioProcessor {
     private volatile float targetGainLinear = 1f;   // input trim
     private volatile boolean limiterEnabled = true;
 
-    // --- Low-cut biquad (2nd-order Butterworth high-pass) ---
+    // --- Low-cut biquad (2nd-order Butterworth high-pass), state per channel ---
     private float hpB0 = 1, hpB1 = 0, hpB2 = 0, hpA1 = 0, hpA2 = 0;
-    private float hpX1, hpX2, hpY1, hpY2;
+    private final float[] hpX1, hpX2, hpY1, hpY2;
     private float appliedLowCutHz = -1f;
 
-    // --- STFT state ---
+    // --- STFT state, per channel ---
     private final float[] window = new float[FFT_SIZE];
-    private final float[] inputFrame = new float[FFT_SIZE];
-    private final float[] overlap = new float[FFT_SIZE];
-    private final float[] re = new float[FFT_SIZE];
-    private final float[] im = new float[FFT_SIZE];
-    private final float[] pendingOut = new float[HOP_SIZE];
+    private final float[][] inputFrame;
+    private final float[][] overlap;
+    private final float[][] re;
+    private final float[][] im;
+    private final float[][] pendingOut;
     private int inputFill = FFT_SIZE - HOP_SIZE;   // prime with zeros so the first hop completes a frame
     private int pendingOutRead = HOP_SIZE;         // nothing produced yet
 
-    // Per-bin analysis
+    // Per-bin analysis, shared by all channels (power is averaged across channels)
+    private final float[] framePower = new float[BINS];
     private final float[] binFreq = new float[BINS];
     private final float[] smoothedPower = new float[BINS];
     private final float[] noisePower = new float[BINS];
@@ -94,8 +100,25 @@ public class ProAudioProcessor {
     private float limiterGain = 1f;
     private final float limiterRelease;
 
+    /** A single-channel processor. */
     public ProAudioProcessor(int sampleRate) {
+        this(sampleRate, 1);
+    }
+
+    /** A linked processor for interleaved audio with {@code channels} channels. */
+    public ProAudioProcessor(int sampleRate, int channels) {
+        if (channels < 1) throw new IllegalArgumentException("channels must be at least 1");
         this.sampleRate = sampleRate;
+        this.channels = channels;
+        hpX1 = new float[channels];
+        hpX2 = new float[channels];
+        hpY1 = new float[channels];
+        hpY2 = new float[channels];
+        inputFrame = new float[channels][FFT_SIZE];
+        overlap = new float[channels][FFT_SIZE];
+        re = new float[channels][FFT_SIZE];
+        im = new float[channels][FFT_SIZE];
+        pendingOut = new float[channels][HOP_SIZE];
         for (int i = 0; i < FFT_SIZE; i++) {
             // sqrt-Hann for analysis and synthesis: overlap-adds to unity at 50% overlap
             window[i] = (float) Math.sqrt(0.5 - 0.5 * Math.cos(2 * Math.PI * i / FFT_SIZE));
@@ -165,12 +188,17 @@ public class ProAudioProcessor {
     // Processing
     // ---------------------------------------------------------------------------------------
 
+    public int getChannels() {
+        return channels;
+    }
+
     /**
-     * Processes {@code length} samples from {@code in} into {@code out} (may be the same array).
-     * Samples are floats in -1..1.
+     * Processes {@code frames} frames of interleaved audio from {@code in} into {@code out}
+     * (may be the same array). Offsets are in samples, so a frame is {@code channels} samples.
+     * Samples are floats in -1..1. For a mono processor, frames and samples are the same.
      */
-    public void process(float[] in, int offset, float[] out, int outOffset, int length) {
-        process(in, offset, out, outOffset, length, null);
+    public void process(float[] in, int offset, float[] out, int outOffset, int frames) {
+        process(in, offset, out, outOffset, frames, null);
     }
 
     /**
@@ -178,50 +206,68 @@ public class ProAudioProcessor {
      * signal before the gain trim and limiter into {@code preGainOut} (if not null), at the same
      * offset as {@code out}. The recorder uses it to build the safety track.
      */
-    public void process(float[] in, int offset, float[] out, int outOffset, int length, float[] preGainOut) {
+    public void process(float[] in, int offset, float[] out, int outOffset, int frames, float[] preGainOut) {
         updateLowCut();
-        for (int i = 0; i < length; i++) {
-            float x = lowCut(in[offset + i]);
-
-            inputFrame[inputFill++] = x;
+        final int chs = channels;
+        for (int i = 0; i < frames; i++) {
+            int inBase = offset + i * chs;
+            for (int ch = 0; ch < chs; ch++) {
+                inputFrame[ch][inputFill] = lowCut(ch, in[inBase + ch]);
+            }
+            inputFill++;
             if (inputFill == FFT_SIZE) {
                 processFrame();
-                // Slide the analysis buffer by one hop
-                System.arraycopy(inputFrame, HOP_SIZE, inputFrame, 0, FFT_SIZE - HOP_SIZE);
+                // Slide the analysis buffers by one hop
+                for (int ch = 0; ch < chs; ch++) {
+                    System.arraycopy(inputFrame[ch], HOP_SIZE, inputFrame[ch], 0, FFT_SIZE - HOP_SIZE);
+                }
                 inputFill = FFT_SIZE - HOP_SIZE;
             }
 
-            float y = 0f;
-            if (pendingOutRead < HOP_SIZE) {
-                y = pendingOut[pendingOutRead++];
-            }
-
-            if (preGainOut != null) preGainOut[outOffset + i] = y;
-
+            boolean haveOutput = pendingOutRead < HOP_SIZE;
             currentGain += (targetGainLinear - currentGain) * gainSmoothing;
-            y *= currentGain;
+
+            // Linked limiter: one gain for all channels, driven by the loudest one
+            float framePeak = 0f;
+            int outBase = outOffset + i * chs;
+            for (int ch = 0; ch < chs; ch++) {
+                float y = haveOutput ? pendingOut[ch][pendingOutRead] : 0f;
+                if (preGainOut != null) preGainOut[outBase + ch] = y;
+                y *= currentGain;
+                out[outBase + ch] = y;
+                float a = Math.abs(y);
+                if (a > framePeak) framePeak = a;
+            }
+            if (haveOutput) pendingOutRead++;
 
             if (limiterEnabled) {
-                float a = Math.abs(y) * limiterGain;
-                if (a > LIMITER_CEILING) {
-                    limiterGain = LIMITER_CEILING / Math.abs(y);
+                if (framePeak * limiterGain > LIMITER_CEILING) {
+                    limiterGain = LIMITER_CEILING / framePeak;
                 } else {
                     limiterGain += (1f - limiterGain) * limiterRelease;
                 }
-                y *= limiterGain;
+                for (int ch = 0; ch < chs; ch++) out[outBase + ch] *= limiterGain;
             } else {
                 limiterGain = 1f;
             }
-            out[outOffset + i] = y;
         }
     }
 
     private void processFrame() {
-        for (int i = 0; i < FFT_SIZE; i++) {
-            re[i] = inputFrame[i] * window[i];
-            im[i] = 0f;
+        final int chs = channels;
+        java.util.Arrays.fill(framePower, 0f);
+        for (int ch = 0; ch < chs; ch++) {
+            float[] r = re[ch], m = im[ch], frame = inputFrame[ch];
+            for (int i = 0; i < FFT_SIZE; i++) {
+                r[i] = frame[i] * window[i];
+                m[i] = 0f;
+            }
+            fft(r, m, false);
+            for (int k = 0; k < BINS; k++) {
+                framePower[k] += r[k] * r[k] + m[k] * m[k];
+            }
         }
-        fft(re, im, false);
+        float invChannels = 1f / chs;
 
         // Smooth the mix target per frame: ~100 ms to settle, no clicks on live changes
         currentMix += (targetMix - currentMix) * 0.2f;
@@ -231,7 +277,7 @@ public class ProAudioProcessor {
         float[] history = powerHistory[historyIndex];
 
         for (int k = 0; k < BINS; k++) {
-            float p = re[k] * re[k] + im[k] * im[k];
+            float p = framePower[k] * invChannels;
             history[k] = p;
             totalEnergy += p;
             if (binFreq[k] < 250f) lowEnergy += p;
@@ -281,23 +327,26 @@ public class ProAudioProcessor {
         }
         historyIndex = (historyIndex + 1) % (REVERB_DELAY_FRAMES + 1);
 
-        // Apply gains to the conjugate-symmetric spectrum
-        for (int k = 0; k < BINS; k++) {
-            re[k] *= gains[k];
-            im[k] *= gains[k];
-            if (k > 0 && k < FFT_SIZE / 2) {
-                re[FFT_SIZE - k] *= gains[k];
-                im[FFT_SIZE - k] *= gains[k];
+        for (int ch = 0; ch < chs; ch++) {
+            float[] r = re[ch], m = im[ch], ov = overlap[ch];
+            // Apply the shared gains to the conjugate-symmetric spectrum
+            for (int k = 0; k < BINS; k++) {
+                r[k] *= gains[k];
+                m[k] *= gains[k];
+                if (k > 0 && k < FFT_SIZE / 2) {
+                    r[FFT_SIZE - k] *= gains[k];
+                    m[FFT_SIZE - k] *= gains[k];
+                }
             }
-        }
-        fft(re, im, true);
+            fft(r, m, true);
 
-        for (int i = 0; i < FFT_SIZE; i++) {
-            overlap[i] += re[i] * window[i];
+            for (int i = 0; i < FFT_SIZE; i++) {
+                ov[i] += r[i] * window[i];
+            }
+            System.arraycopy(ov, 0, pendingOut[ch], 0, HOP_SIZE);
+            System.arraycopy(ov, HOP_SIZE, ov, 0, FFT_SIZE - HOP_SIZE);
+            java.util.Arrays.fill(ov, FFT_SIZE - HOP_SIZE, FFT_SIZE, 0f);
         }
-        System.arraycopy(overlap, 0, pendingOut, 0, HOP_SIZE);
-        System.arraycopy(overlap, HOP_SIZE, overlap, 0, FFT_SIZE - HOP_SIZE);
-        java.util.Arrays.fill(overlap, FFT_SIZE - HOP_SIZE, FFT_SIZE, 0f);
         pendingOutRead = 0;
     }
 
@@ -379,12 +428,12 @@ public class ProAudioProcessor {
         hpA2 = (float) ((1 - alpha) / a0);
     }
 
-    private float lowCut(float x) {
-        float y = hpB0 * x + hpB1 * hpX1 + hpB2 * hpX2 - hpA1 * hpY1 - hpA2 * hpY2;
-        hpX2 = hpX1;
-        hpX1 = x;
-        hpY2 = hpY1;
-        hpY1 = y;
+    private float lowCut(int ch, float x) {
+        float y = hpB0 * x + hpB1 * hpX1[ch] + hpB2 * hpX2[ch] - hpA1 * hpY1[ch] - hpA2 * hpY2[ch];
+        hpX2[ch] = hpX1[ch];
+        hpX1[ch] = x;
+        hpY2[ch] = hpY1[ch];
+        hpY1[ch] = y;
         return y;
     }
 

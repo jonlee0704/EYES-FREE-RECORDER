@@ -24,6 +24,11 @@ public abstract class ProAudioFileWriter {
 
     public abstract void close() throws IOException;
 
+    /** True when the file is close to the largest size its format allows. */
+    public boolean isNearSizeLimit() {
+        return false;
+    }
+
     public static ProAudioFileWriter createWav(FileDescriptor fd, int sampleRate, int channels) throws IOException {
         return new Wav24Writer(fd, sampleRate, channels);
     }
@@ -32,9 +37,17 @@ public abstract class ProAudioFileWriter {
         return new AacWriter(fd, sampleRate, channels, bitRate);
     }
 
-    /** 24-bit little-endian PCM WAV. The header sizes are patched on close, so the fd must be seekable. */
+    /**
+     * 24-bit little-endian PCM WAV. The header sizes are patched every few seconds and on close,
+     * so a recording cut off by a crash or a killed process still opens with nearly all its audio.
+     * The fd must be seekable.
+     */
     static class Wav24Writer extends ProAudioFileWriter {
         private static final int HEADER_SIZE = 44;
+        /** RIFF sizes are 32-bit; stop a little below 4 GiB. */
+        static final long MAX_DATA_BYTES = 0xFFFFFFFFL - HEADER_SIZE - (64L << 20);
+        private static final long HEADER_UPDATE_INTERVAL_BYTES = 1L << 20;   // about 3.6 s of 24-bit stereo
+        private long bytesAtLastHeaderUpdate = 0;
         private final FileOutputStream stream;
         private final FileChannel channel;
         private final int sampleRate;
@@ -68,13 +81,29 @@ public abstract class ProAudioFileWriter {
                 channel.write(buffer);
             }
             dataBytes += needed;
+            if (dataBytes - bytesAtLastHeaderUpdate >= HEADER_UPDATE_INTERVAL_BYTES) {
+                writeHeaderInPlace();
+                bytesAtLastHeaderUpdate = dataBytes;
+            }
+        }
+
+        @Override
+        public boolean isNearSizeLimit() {
+            return dataBytes >= MAX_DATA_BYTES;
+        }
+
+        private void writeHeaderInPlace() throws IOException {
+            long end = channel.position();
+            channel.position(0);
+            ByteBuffer h = header(dataBytes);
+            while (h.hasRemaining()) channel.write(h);
+            channel.position(end);
         }
 
         @Override
         public void close() throws IOException {
             try {
-                channel.position(0);
-                channel.write(header(dataBytes));
+                writeHeaderInPlace();
             } finally {
                 stream.close();
             }

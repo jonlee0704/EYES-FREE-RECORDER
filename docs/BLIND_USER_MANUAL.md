@@ -204,17 +204,33 @@ To open the Settings screen, **swipe down with 3 fingers**, or tap the Help/Sett
 
 Pro Recording Mode gives you studio-style control without looking at the screen. It has three independent settings, plus a noise-reduction amount. Every change is spoken, has its own earcon and vibration, and is saved with the recording.
 
-**Turn it on or off:** 3-finger double tap anywhere, or Settings → Pro Recording → Pro Recording Mode. You hear, for example: *"Pro mode on. Meeting room, Voice focus, noise reduction 75 percent, gain auto."*
+**The Pro menu.** A 3-finger double tap anywhere opens a spoken menu with every Pro setting. A second 3-finger double tap closes it, and so does a minute without touching the screen.
 
-| What | Gesture (Pro mode on, not recording or playing) | Choices |
+| In the Pro menu | Does |
+| --- | --- |
+| 1-finger swipe right / left | Next / previous item |
+| 1-finger swipe up / down | Change the item's value |
+| 1-finger tap | Select: toggle, start the sound check, load or save a preset, close |
+| 1-finger long press | Explains the item. On Presets, saves the current settings into the slot |
+| 1-finger double tap | Closes the menu and starts recording |
+| Top-left corner | Repeats where you are in the menu |
+
+The items, in order: **Pro mode** (on / off), **Environment**, **Focus**, **Noise reduction**, **Gain mode**, **Input gain**, **Sound check**, **Presets**, **Keep original**, **Headphone monitoring**, **Close menu**. Turning Pro mode on speaks the settings, for example: *"Pro mode on. Meeting room, Voice focus, noise reduction 75 percent, gain auto."* You can also use Settings → Pro Recording.
+
+**Sound check.** In the menu, go to Sound check and tap. After the prompt, play or speak at your loudest for 5 seconds. You hear the peak and a recommendation, such as *"Recommend lowering input 6 dB. Tap to apply."* Tap within 15 seconds to apply it.
+
+**Presets.** Three slots for your own combinations of environment, focus, noise reduction and gain. On Presets, swipe up or down to pick a slot. A tap on an empty slot saves the current settings; a tap on a saved slot loads it. A long press saves over a slot.
+
+**Shortcuts** (Pro mode on, menu closed):
+
+| What | Gesture | Choices |
 | --- | --- | --- |
-| Environment (where you are) | 3-finger swipe right / left | Meeting room, Small music venue, Stadium, Street |
-| Focus (what to keep) | 3-finger swipe up / down | Voice → Music → Natural |
-| Noise reduction | Settings, or 2-finger swipe up / down **while recording** | Off, 25, 50, 75, 100 percent |
+| Environment (where you are) | 3-finger swipe right / left, while not recording or playing | Meeting room, Small music venue, Stadium, Street |
+| Focus (what to keep) | 3-finger swipe up / down, while not recording or playing | Voice → Music → Natural |
+| Noise reduction | 2-finger swipe up / down **while recording** | Off, 25, 50, 75, 100 percent |
 | Input gain (Manual modes) | Volume up / down | −24 to +12 dB in 3 dB steps |
-| Sound check | 1-finger long press | 5-second listen, then one tap applies the recommendation |
 
-While Pro mode is on and idle, 3-finger swipes change the environment and focus instead of opening Settings, starting Backup, or jumping between favorites. Turn Pro mode off (3-finger double tap) and those swipes work as before. You can also open Settings with the Settings (gear) button, and start Backup from the Settings screen.
+While Pro mode is on and idle, 3-finger swipes change the environment and focus instead of opening Settings, starting Backup, or jumping between favorites. Turn Pro mode off in the Pro menu and those swipes work as before. You can also open Settings with the Settings (gear) button, and start Backup from the Settings screen.
 
 **Environments** set room-dependent processing and load sensible defaults:
 
@@ -234,9 +250,19 @@ While Pro mode is on and idle, 3-finger swipes change the environment and focus 
 
 Most phones don't let apps change the analog microphone preamp. Manual gain is a digital trim after the converter, so it can't stop clipping that happens in the phone's hardware. Use the safety track and the sound check for that. With an external USB microphone or interface, use its own gain knob.
 
-**While recording**, vibration grows stronger as the sound gets close to the maximum level. Clipping gives a strong double buzz and a short beep, and at most one spoken warning every 10 seconds. This works with the screen curtain on and with the phone in a pocket. If headphones are plugged in, you hear the processed sound live (Settings → Headphone Monitoring). Bluetooth headphones work but lag, and the app tells you so.
+**While recording**, vibration grows stronger as the sound gets close to the maximum level, and clipping gives a strong double buzz. This works with the screen curtain on and with the phone in a pocket. Raising noise reduction or gain gives two short ticks, lowering it one.
 
-**Files.** With noise reduction above 0 percent, the unprocessed original is also saved (Settings → Keep Original, on by default). The safety track and the original share the recording's name with `_safety` or `_original` added. They don't appear as separate files when browsing. They are deleted together with the recording, and file info (1-finger long press while playing, or with Pro mode off) reports them along with the environment, focus, noise reduction and gain. "Where am I" (top-left corner) includes the Pro settings.
+**Speech while recording depends on headphones.** Through the phone's speaker, anything the app says would end up in your recording. So without headphones, Pro mode stays silent while recording: you only feel vibrations, and the changes you made (noise reduction, gain, bookmarks, how often it clipped) are read out right after *"Recording stopped"*. With wired or Bluetooth headphones, you hear them softly as they happen, plus a short beep and at most one spoken warning every 10 seconds when the sound clips.
+
+If headphones are plugged in, you also hear the processed sound live (Headphone monitoring). Bluetooth headphones work but lag, and the app tells you so.
+
+**Very long recordings.** In Manual gain modes, a WAV file can hold about 4 hours of stereo sound. When a file is full, the app saves it and keeps recording into a new file without a gap you need to handle. If the phone or app stops unexpectedly, the WAV file keeps everything except the last few seconds.
+
+**Files.** With noise reduction above 0 percent, the unprocessed original is also saved (Settings → Keep Original, on by default). The safety track and the original share the recording's name with `_safety` or `_original` added. They don't appear as separate files when browsing. They are deleted together with the recording. File info (1-finger long press) reports them along with the environment, focus, noise reduction and gain, including changes made while recording.
+
+**Playing the safety track or the original.** Long press on a Pro recording for file info, then long press again within 10 seconds: *"Safety track selected, 12 dB lower. Tap to play."* Each further long press moves on to the original, then back to the main recording. A tap plays the selected version. Moving to another file goes back to the main recording.
+
+"Where am I" (top-left corner) includes the Pro settings.
 
 ---
 

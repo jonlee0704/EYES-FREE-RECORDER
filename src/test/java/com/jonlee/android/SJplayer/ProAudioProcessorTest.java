@@ -175,4 +175,86 @@ public class ProAudioProcessorTest {
         assertEquals(75, ProRecordingSettings.snapNoiseReduction(70));
         assertEquals("minus 9 dB", ProRecordingSettings.formatDb(-9));
     }
+
+    private static float[] interleave(float[] left, float[] right) {
+        float[] x = new float[left.length * 2];
+        for (int i = 0; i < left.length; i++) {
+            x[2 * i] = left[i];
+            x[2 * i + 1] = right[i];
+        }
+        return x;
+    }
+
+    private static float[] noisySignal(long seed, int n) {
+        Random r = new Random(seed);
+        float[] x = sine(440, 0.3f, n);
+        for (int i = 0; i < n; i++) x[i] += (r.nextFloat() * 2 - 1) * 0.05f;
+        return x;
+    }
+
+    private static ProAudioProcessor stereoVoiceNr() {
+        ProAudioProcessor p = new ProAudioProcessor(SR, 2);
+        p.setFocus(ProAudioProcessor.NoiseFocus.VOICE);
+        p.setNoiseReductionPercent(100);
+        p.setEchoControl(true);
+        p.setLowCutHz(100);
+        return p;
+    }
+
+    private static float[] runFrames(ProAudioProcessor p, float[] interleaved, int blockFrames) {
+        int ch = p.getChannels();
+        float[] out = new float[interleaved.length];
+        int frames = interleaved.length / ch;
+        for (int f = 0; f < frames; f += blockFrames) {
+            int n = Math.min(blockFrames, frames - f);
+            p.process(interleaved, f * ch, out, f * ch, n);
+        }
+        return out;
+    }
+
+    @Test
+    public void stereoChannelsShareGainsSoTheImageStaysPut() {
+        // Right is the left signal at half level: after heavy, linked processing it must stay exactly half
+        float[] left = noisySignal(7, SR);
+        float[] right = new float[left.length];
+        for (int i = 0; i < left.length; i++) right[i] = left[i] * 0.5f;
+        float[] out = runFrames(stereoVoiceNr(), interleave(left, right), 300);
+        for (int i = 0; i < left.length; i++) {
+            assertEquals("frame " + i, out[2 * i] * 0.5f, out[2 * i + 1], 1e-5f);
+        }
+    }
+
+    @Test
+    public void stereoWithIdenticalChannelsMatchesMono() {
+        float[] mono = noisySignal(11, SR);
+        ProAudioProcessor monoP = new ProAudioProcessor(SR);
+        monoP.setFocus(ProAudioProcessor.NoiseFocus.MUSIC);
+        monoP.setNoiseReductionPercent(75);
+        float[] monoOut = run(monoP, mono, 256);
+
+        ProAudioProcessor stereoP = new ProAudioProcessor(SR, 2);
+        stereoP.setFocus(ProAudioProcessor.NoiseFocus.MUSIC);
+        stereoP.setNoiseReductionPercent(75);
+        float[] stereoOut = runFrames(stereoP, interleave(mono, mono), 256);
+        for (int i = 0; i < mono.length; i++) {
+            assertEquals(monoOut[i], stereoOut[2 * i], 1e-5f);
+            assertEquals(monoOut[i], stereoOut[2 * i + 1], 1e-5f);
+        }
+    }
+
+    @Test
+    public void linkedLimiterKeepsBothChannelsUnderTheCeiling() {
+        float[] loud = sine(1000, 0.9f, SR / 2);
+        float[] quiet = sine(1000, 0.1f, SR / 2);
+        ProAudioProcessor p = new ProAudioProcessor(SR, 2);
+        p.setNoiseReductionPercent(0);
+        p.setLimiterEnabled(true);
+        p.setGainDb(12);
+        float[] out = runFrames(p, interleave(loud, quiet), 512);
+        for (int i = SR / 8; i < loud.length; i++) {
+            assertTrue(Math.abs(out[2 * i]) <= 0.892f);
+            // The quiet side is turned down by the same amount as the loud side
+            assertEquals(out[2 * i] / 9f, out[2 * i + 1], 2e-3f);
+        }
+    }
 }

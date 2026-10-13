@@ -63,6 +63,8 @@ public class AudioMetadataHelper {
         public int proGainDb = 0;
         /** Live noise-reduction changes while recording: {offsetMs, percent}. */
         public List<int[]> proNoiseReductionChanges = new ArrayList<>();
+        /** Live input gain changes while recording: {offsetMs, dB}. */
+        public List<int[]> proGainChanges = new ArrayList<>();
         public String proSafetyFile;
         public String proOriginalFile;
 
@@ -80,6 +82,10 @@ public class AudioMetadataHelper {
             if (!proNoiseReductionChanges.isEmpty()) {
                 int n = proNoiseReductionChanges.size();
                 sb.append(", ").append(n).append(n == 1 ? " live noise reduction change" : " live noise reduction changes");
+            }
+            if (!proGainChanges.isEmpty()) {
+                int n = proGainChanges.size();
+                sb.append(", ").append(n).append(n == 1 ? " live gain change" : " live gain changes");
             }
             return sb.toString();
         }
@@ -117,6 +123,14 @@ public class AudioMetadataHelper {
                         changes.put(change);
                     }
                     pro.put("noiseReductionChanges", changes);
+                    JSONArray gainChanges = new JSONArray();
+                    for (int[] c : proGainChanges) {
+                        JSONObject change = new JSONObject();
+                        change.put("offsetMs", c[0]);
+                        change.put("gainDb", c[1]);
+                        gainChanges.put(change);
+                    }
+                    pro.put("gainChanges", gainChanges);
                     if (proSafetyFile != null) pro.put("safetyFile", proSafetyFile);
                     if (proOriginalFile != null) pro.put("originalFile", proOriginalFile);
                     json.put("pro", pro);
@@ -161,6 +175,15 @@ public class AudioMetadataHelper {
                         JSONObject c = changes.optJSONObject(i);
                         if (c != null) {
                             meta.proNoiseReductionChanges.add(new int[]{c.optInt("offsetMs"), c.optInt("noiseReduction")});
+                        }
+                    }
+                }
+                JSONArray gainChanges = pro.optJSONArray("gainChanges");
+                if (gainChanges != null) {
+                    for (int i = 0; i < gainChanges.length(); i++) {
+                        JSONObject c = gainChanges.optJSONObject(i);
+                        if (c != null) {
+                            meta.proGainChanges.add(new int[]{c.optInt("offsetMs"), c.optInt("gainDb")});
                         }
                     }
                 }

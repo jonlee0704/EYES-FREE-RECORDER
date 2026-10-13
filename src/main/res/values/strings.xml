@@ -293,7 +293,7 @@
     <!-- Pro Recording Mode (PRD A2) -->
     <string name="pref_header_pro_recording">Pro Recording</string>
     <string name="pref_title_pro_mode">Pro Recording Mode</string>
-    <string name="pref_summary_pro_mode">Studio-style control of environment, focus, noise reduction and input gain. Toggle anywhere with a 3-finger double tap</string>
+    <string name="pref_summary_pro_mode">Studio-style control of environment, focus, noise reduction and input gain. Also in the Pro menu: 3-finger double tap anywhere</string>
     <string name="pref_title_pro_environment">Environment</string>
     <string name="pref_title_pro_focus">Focus (what to keep)</string>
     <string name="pref_title_pro_noise_reduction">Noise Reduction Amount</string>
@@ -306,7 +306,7 @@
     <string name="pref_title_pro_limiter_manual">Peak Limiter in Manual Gain</string>
     <string name="pref_summary_pro_limiter_manual">Off keeps the real dynamics for mixing later. On catches sudden peaks</string>
     <string name="pref_title_pro_sound_check">Run Sound Check</string>
-    <string name="pref_summary_pro_sound_check">Listens for 5 seconds, reports the peak and recommends an input gain. Also a 1-finger long press while Pro mode is idle</string>
+    <string name="pref_summary_pro_sound_check">Listens for 5 seconds, reports the peak and recommends an input gain. Also in the Pro menu (3-finger double tap)</string>
     <string-array name="pref_pro_environment_entries">
         <item>Meeting room (low cut 100 Hz, echo control)</item>
         <item>Small music venue (low cut 30 Hz)</item>
