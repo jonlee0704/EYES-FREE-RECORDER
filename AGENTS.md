@@ -48,7 +48,7 @@ Several agents work on this repo in parallel. GitHub is the only shared state.
 ./gradlew :app:bundleRelease          # Play AAB (needs RELEASE_* signing props in ~/.gradle/gradle.properties)
 ./gradlew :app:lint                   # lint (abortOnError is off — read the report)
 ```
-There are **no unit tests yet**. New logic that isn't UI (gesture classification, file naming, section seek, time formatting) should go into plain Java classes with JUnit tests under `app/src/test/java/`, and those tests run with `./gradlew :app:testDebugUnitTest`.
+Unit tests live in the repo-root `src/test/java/` (mirroring `src/main/java/`). PR #3 (Pro Recording Mode) adds the first ones and sets `sourceSets.test.java.srcDirs = ['../src/test/java']` in `app/build.gradle`; until it merges, add that line yourself if you add tests. Do **not** use `app/src/test/java/`. New logic that isn't UI (gesture classification, file naming, section seek, time formatting, DSP) should go into plain Java classes with JUnit tests, run with `./gradlew :app:testDebugUnitTest`.
 
 ## 4. Code map (src/main/java/com/jonlee/android/SJplayer/)
 
