@@ -109,8 +109,8 @@ public class MainActivity extends SampleActivityBase {
     public static final String PREF_TOS_ACCEPTED_VERSION = "pref_tos_accepted_version";
     public static final String PREF_TOS_ACCEPTED_TIMESTAMP = "pref_tos_accepted_timestamp";
     public static final int CURRENT_TOS_VERSION = 1;
-    public static final String TOS_ONLINE_URL = "https://github.com/jonlee0704/EYES-FREE-RECORDER/blob/master/docs/TERMS_OF_SERVICE.md";
-    public static final String PRIVACY_ONLINE_URL = "https://github.com/jonlee0704/EYES-FREE-RECORDER/blob/master/docs/PRIVACY_POLICY.md";
+    public static final String TOS_ONLINE_URL = "https://jonlee0704.github.io/eyes-free-legal/terms.html";
+    public static final String PRIVACY_ONLINE_URL = "https://jonlee0704.github.io/eyes-free-legal/privacy.html";
 
     // Place to manage all gesture commands
     public Commander commander = null;

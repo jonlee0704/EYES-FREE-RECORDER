@@ -74,4 +74,4 @@ We may periodically update this Privacy Policy to reflect app updates or regulat
 If you have questions, feedback, or inquiries regarding this Privacy Policy or your data privacy while using EYES-FREE VOICE RECORDER, please contact:
 - **Developer**: Jon Lee
 - **Email**: `jonlee0704@gmail.com`
-- **GitHub**: [https://github.com/jonlee0704/EYES-FREE-RECORDER](https://github.com/jonlee0704/EYES-FREE-RECORDER)
+- **Online Policy**: [https://jonlee0704.github.io/eyes-free-legal/privacy.html](https://jonlee0704.github.io/eyes-free-legal/privacy.html)

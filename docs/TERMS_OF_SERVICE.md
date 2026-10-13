@@ -100,4 +100,4 @@ Developer reserves the absolute right, at his sole discretion, to modify, update
 ### 11. Contact Information
 If you have questions, comments, or legal notices concerning these Terms, you may contact the Developer at:  
 - **Email**: `jonlee0704@gmail.com`  
-- **Repository**: [https://github.com/jonlee0704/EYES-FREE-RECORDER](https://github.com/jonlee0704/EYES-FREE-RECORDER)
+- **Online Terms of Service**: [https://jonlee0704.github.io/eyes-free-legal/terms.html](https://jonlee0704.github.io/eyes-free-legal/terms.html)
