@@ -1674,14 +1674,81 @@ public class MainActivity extends SampleActivityBase {
         }
 
         if (!permissionsToRequest.isEmpty()) {
-            speak("Welcome to EYES-FREE VOICE RECORDER. Please grant microphone and audio storage permissions on screen to get started.");
+            speak("Welcome to EYES-FREE VOICE RECORDER. Please grant microphone, audio storage and notification permissions on screen to get started. Notifications show a Stop button while you record with the screen off.");
             ActivityCompat.requestPermissions(this, permissionsToRequest.toArray(new String[0]), 101);
         }
+    }
+
+    private static final int REQUEST_NOTIFICATIONS = 102;
+    private static final String PREF_NOTIFICATION_ASKS = "pref_notification_permission_asks";
+    private static final String PREF_NOTIFICATION_SETTINGS_TOLD = "pref_notification_settings_told";
+    private boolean notificationNoteGivenThisSession = false;
+    private boolean isResumedNow = false;
+    private boolean isVisibleNow = false;
+    private boolean pendingNotificationPrompt = false;
+
+    /**
+     * Android 13+: without notification permission, recording still continues with the screen off
+     * (the foreground service runs either way) but there is no Stop button in the notification shade
+     * or on the lock screen. Explains this once per session, right after a recording is saved, and
+     * then shows the system prompt. Returns the text to append to the "Recording stopped" speech,
+     * or "" when nothing needs saying. Never asks before or during a recording, so it never delays one.
+     */
+    public String notificationPermissionNoteAfterRecording() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return "";
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return "";
+        if (notificationNoteGivenThisSession || sharedPref == null) return "";
+        notificationNoteGivenThisSession = true;
+
+        int asks = sharedPref.getInt(PREF_NOTIFICATION_ASKS, 0);
+        boolean systemWillAsk = asks < 2 || ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.POST_NOTIFICATIONS);
+        if (!systemWillAsk || !isVisibleNow) {
+            // Android won't show the prompt again; say once where to turn it on
+            if (sharedPref.getBoolean(PREF_NOTIFICATION_SETTINGS_TOLD, false)) return "";
+            sharedPref.edit().putBoolean(PREF_NOTIFICATION_SETTINGS_TOLD, true).apply();
+            return ". Notifications are off, so there is no Stop button on the lock screen while recording."
+                    + " Recording still continues with the screen off. To get the button, turn on notifications"
+                    + " for EYES-FREE Recorder in Android settings, Apps.";
+        }
+        sharedPref.edit().putInt(PREF_NOTIFICATION_ASKS, asks + 1).apply();
+        pendingNotificationPrompt = true;
+        new Handler(Looper.getMainLooper()).postDelayed(this::showPendingNotificationPrompt, 300L);
+        return ". Notifications are off, so there is no Stop button on the lock screen while recording."
+                + " Recording still continues with the screen off. Allow notifications on screen to get the button.";
+    }
+
+    /** Shows the notification prompt once the activity is in front (onResume calls this again). */
+    private void showPendingNotificationPrompt() {
+        if (!pendingNotificationPrompt || !isResumedNow) return;
+        pendingNotificationPrompt = false;
+        ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQUEST_NOTIFICATIONS);
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        isVisibleNow = true;
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        isVisibleNow = false;
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_NOTIFICATIONS) {
+            boolean granted = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+            if (commander != null) {
+                if (granted) commander.vibrateTick(); else commander.vibrateBoundary();
+            }
+            alwaysSpeak(granted
+                    ? "Notifications allowed. While recording, a notification with a Stop button stays on the lock screen."
+                    : "Notifications stay off. Recording still continues with the screen off.");
+            return;
+        }
         boolean anyStorageGranted = false;
         boolean micGranted = false;
 
@@ -2240,6 +2307,8 @@ public class MainActivity extends SampleActivityBase {
     @Override
     public void onResume() {
         super.onResume();
+        isResumedNow = true;
+        showPendingNotificationPrompt();
         setSettingsValues();
         applyFullScreenMode();
         // Pro settings may have changed in the Settings screen
@@ -2292,6 +2361,7 @@ public class MainActivity extends SampleActivityBase {
     @Override
     protected void onPause() {
         super.onPause();
+        isResumedNow = false;
         if (commander != null && commander.dialView != null) {
             commander.dialView.stopAnimation();
         }
@@ -2324,8 +2394,13 @@ public class MainActivity extends SampleActivityBase {
         }
 
         if (recorder != null) {
+            boolean wasRecording = recorder.isRecording();
             recorder.stopRecording();
             recorder.stopPlaying();
+            if (wasRecording) {
+                // Speech is shutting down with the activity, so leave a notification instead
+                RecordingService.notifyStoppedBecauseAppClosed(this);
+            }
         }
         if (commander != null) {
             commander.release();

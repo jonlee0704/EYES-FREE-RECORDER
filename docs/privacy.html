@@ -91,6 +91,7 @@
     <h1>Privacy Policy — EYES-FREE VOICE RECORDER</h1>
     <p><strong>Package Identifier:</strong> <code>com.jonlee.android.SJplayer</code><br>
     <strong>Effective Date:</strong> October 1, 2026<br>
+    <strong>Last Updated:</strong> October 13, 2026 (microphone foreground service for background recording)<br>
     <strong>Developer:</strong> Jon Lee (<a href="mailto:jonlee0704@gmail.com">jonlee0704@gmail.com</a>)</p>
 
     <h2>1. Core Privacy Principle: Zero Data Collection</h2>
@@ -126,9 +127,14 @@
           <td>Allows the app to read, play, index, and organize audio files on your device and save new recordings.</td>
         </tr>
         <tr>
-          <td><strong>Notifications</strong></td>
+          <td><strong>Notifications</strong> (optional)</td>
           <td><code>POST_NOTIFICATIONS</code></td>
-          <td>Required by Android for the foreground service notification so recording and playback continue when the screen is dark.</td>
+          <td>While a recording runs, shows a quiet notification such as "Recording, 12 minutes" with a Stop button that saves the file, also on the lock screen. If you decline, recording still continues with the screen off; only the notification is hidden. Nothing is sent anywhere.</td>
+        </tr>
+        <tr>
+          <td><strong>Foreground Service (Microphone)</strong></td>
+          <td><code>FOREGROUND_SERVICE</code><br><code>FOREGROUND_SERVICE_MICROPHONE</code></td>
+          <td>Lets a recording you started keep using the microphone when the screen turns off, the phone is in your pocket, or you switch apps. It runs only between your Start and Stop of a recording, and audio stays in the local file.</td>
         </tr>
         <tr>
           <td><strong>Vibration</strong></td>
@@ -138,7 +144,7 @@
         <tr>
           <td><strong>Wake Lock</strong></td>
           <td><code>WAKE_LOCK</code></td>
-          <td>Prevents the phone CPU from entering sleep during active recording or playback sessions.</td>
+          <td>Keeps the phone CPU awake while a recording runs (released when you stop), so long recordings are not interrupted.</td>
         </tr>
       </tbody>
     </table>

@@ -2483,6 +2483,8 @@ public class Recorder {
             }
 
             startTimer();
+            // Keeps the mic alive with the screen off or the app in the background
+            RecordingService.start(mainActivity, recordStartTimeMillis, false);
 
         } catch (Exception e) {
             Log.i(TAG, e.toString());
@@ -2559,6 +2561,7 @@ public class Recorder {
             Log.i(TAG, "Pro recording started: " + proSettings.describe() + ", source=" + config.audioSourceName
                     + ", " + (config.wav ? "24-bit WAV" : "AAC") + ", " + config.channels + "ch");
             startTimer();
+            RecordingService.start(mainActivity, recordStartTimeMillis, true);
         } catch (Exception e) {
             Log.e(TAG, "Pro recording failed to start", e);
             if (proRecorder != null) {
@@ -2867,6 +2870,26 @@ public class Recorder {
     }
 
     /**
+     * Saves the current Pro file and goes on recording into a new one (4 GB WAV limit). The
+     * foreground service keeps running in between, because it could not be restarted while the
+     * app is in the background.
+     */
+    public void continueRecordingInNewFile() {
+        keepServiceForNextFile = true;
+        try {
+            stopRecording();
+        } finally {
+            keepServiceForNextFile = false;
+        }
+        startRecording();
+        if (!isRecording) {
+            RecordingService.stop(mainActivity);
+        }
+    }
+
+    private boolean keepServiceForNextFile = false;
+
+    /**
      * TODO Don't know what else needs to be added more
      */
     public void stopRecording() {
@@ -2921,6 +2944,9 @@ public class Recorder {
         } finally {
             this.isRecording = false;
             stopTimer();
+            if (!keepServiceForNextFile) {
+                RecordingService.stop(mainActivity);
+            }
         }
 
     }

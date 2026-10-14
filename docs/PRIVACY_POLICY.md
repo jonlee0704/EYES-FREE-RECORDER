@@ -2,6 +2,7 @@
 **Application**: EYES-FREE VOICE RECORDER  
 **Package Identifier**: `com.jonlee.android.SJplayer`  
 **Effective Date**: October 1, 2026  
+**Last Updated**: October 13, 2026 (microphone foreground service for background recording)  
 **Developer**: Jon Lee ("Developer", "We", "Us", or "Our")  
 **Contact**: `jonlee0704@gmail.com`
 
@@ -32,10 +33,11 @@ To provide its eyes-free audio recording and playback functions, EYES-FREE VOICE
 | :--- | :--- | :--- |
 | **Microphone** | `android.permission.RECORD_AUDIO` | **Mandatory**: Allows you to record voice memos, lectures, and interviews when you double-tap the screen. Audio is saved directly into local `.wav` or `.aac` files on your device. |
 | **Read Media Audio / Storage** | `android.permission.READ_MEDIA_AUDIO`<br>`android.permission.READ_EXTERNAL_STORAGE`<br>`android.permission.WRITE_EXTERNAL_STORAGE` | **Mandatory**: Enables the App to browse, play, index, and organize audio files stored on your phone or SD card, and to save newly created recordings. |
-| **Notifications** | `android.permission.POST_NOTIFICATIONS` | **Foreground Service**: Displays an ongoing media control notification so that playback and recording continue reliably when the screen is dark or another app is open. |
+| **Notifications** *(Optional)* | `android.permission.POST_NOTIFICATIONS` | **Recording Notification**: While a recording runs, shows a quiet notification such as "Recording, 12 minutes" with a Stop button that saves the file, also on the lock screen. If you decline, recording still continues with the screen off; only the notification and its Stop button are hidden. The notification contains no audio and nothing is sent anywhere. |
+| **Foreground Service (Microphone)** | `android.permission.FOREGROUND_SERVICE`<br>`android.permission.FOREGROUND_SERVICE_MICROPHONE` | **Recording Continuity**: Lets a recording you started keep using the microphone when the screen turns off, the phone is in your pocket, or you switch to another app. The service runs only between your Start and Stop of a recording, never on its own, and audio stays in the local file. |
 | **Vibration** | `android.permission.VIBRATE` | **Tactile Feedback**: Generates distinct haptic pulses when you tap, double-tap, or swipe, allowing blind and visually impaired users to confirm actions by touch. |
 | **Modify Audio Settings** | `android.permission.MODIFY_AUDIO_SETTINGS` | **Volume & Playback Routing**: Adjusts playback volume, routes audio to connected headphones, and prevents feedback during recording. |
-| **Wake Lock** | `android.permission.WAKE_LOCK` | **Recording Continuity**: Prevents the phone's CPU from entering deep sleep during long recording or playback sessions, avoiding interrupted files. |
+| **Wake Lock** | `android.permission.WAKE_LOCK` | **Recording Continuity**: Keeps the phone's CPU awake while a recording runs (released when you stop), so long recordings are not interrupted. |
 | **Wi-Fi / Nearby Devices** *(Optional)* | `android.permission.ACCESS_WIFI_STATE`<br>`android.permission.CHANGE_WIFI_STATE` | **Peer-to-Peer Backup**: Only utilized if you manually initiate the local Wi-Fi direct file transfer tool to backup recordings directly between your own devices. |
 
 ---

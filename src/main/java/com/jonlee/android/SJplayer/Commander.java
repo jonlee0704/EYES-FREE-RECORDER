@@ -712,8 +712,7 @@ public class Commander{
      */
     private void continueProRecordingInNewFile() {
         if (!recorder.isProRecording()) return;
-        recorder.stopRecording();
-        recorder.startRecording();
+        recorder.continueRecordingInNewFile();
         if (recorder.isProRecording()) {
             onProRecordingStarted();
             vibrateRecordStart();
@@ -1383,7 +1382,7 @@ public class Commander{
                 cmdStr = getResources().getString(R.string.STOP_RECORD);
                 String proNote = recorder.consumeProFallbackMessage();
                 speak(getResources().getString(R.string.STOP_RECORD) + (proNote != null ? ". " + proNote : "")
-                        + consumeDeferredProNotes());
+                        + consumeDeferredProNotes() + mainActivity.notificationPermissionNoteAfterRecording());
                 imageView.setImageResource(R.drawable.ic_action_stop);
                 this.displayNotification(cmdStr, R.drawable.ic_action_stop);
                 updateFolderDisplay();

@@ -68,4 +68,21 @@ Under *App Content* in Google Play Console:
 - [x] Privacy Policy publicly reachable on GitHub.
 - [x] Terms of Service established with comprehensive warranty and wiretapping disclaimers.
 - [x] Zero third-party ad networks or tracking trackers bundled in APK/AAB.
-- [x] Foreground Service permission (`FOREGROUND_SERVICE_MICROPHONE` / `FOREGROUND_SERVICE_MEDIA_PLAYBACK`) declared with persistent notification icon.
+- [x] Foreground service of type `microphone` declared (`FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_MICROPHONE`, service `.RecordingService`) with a persistent "Recording, N minutes" notification and a Stop action. There is **no** `mediaPlayback` service: playback does not continue in the background.
+- [ ] Complete the **Foreground service permissions** declaration in Play Console (see section 4) before uploading a build that includes `.RecordingService`.
+
+---
+
+## 4. Foreground Service Permissions Declaration (Play Console)
+
+Under *App content > Foreground service permissions*, Android 14+ apps must declare each foreground service type. Answer:
+
+| Field | Answer |
+| :--- | :--- |
+| **Foreground service type** | **Microphone** (`FOREGROUND_SERVICE_MICROPHONE`) |
+| **Task / use case** | *Media: audio recording*. The user starts a recording with a double tap; the service keeps microphone capture running with the screen off, in a pocket or behind another app, until the user stops it. |
+| **User-initiated and user-perceptible?** | **Yes**. Started only by the user's record gesture; a persistent notification ("Recording, N minutes", with a Stop button) is shown for the whole recording. |
+| **What happens if the system defers or stops it?** | The recording would go silent with the screen off, which defeats the app's purpose for blind users who record in a pocket (lectures, concerts, meetings). |
+| **Video** | Provide a short screen recording: double tap to record, press the power button, wait, wake, open the notification shade and press *Stop recording*; the file plays back with the full length. |
+
+Data Safety answers do not change: the foreground service only keeps local recording alive, and no audio or notification content leaves the device.
