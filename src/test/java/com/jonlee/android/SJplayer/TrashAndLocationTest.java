@@ -80,6 +80,40 @@ public class TrashAndLocationTest {
     }
 
     @Test
+    public void testSettingsTalkBackControlAndSelfVoicingSuppression() {
+        // Safe null handling for Context
+        assertFalse(TalkBackCoexistenceHelper.isTalkBackActive(null));
+        assertFalse(TalkBackCoexistenceHelper.shouldSuppressSettingsSelfVoicing((android.content.Context) null));
+
+        // When TalkBack is active (default "auto" mode):
+        // Platform TalkBack takes control of Settings; internal self-voicing is suppressed.
+        assertTrue("TalkBack active in auto mode must suppress internal Settings self-voicing",
+                TalkBackCoexistenceHelper.shouldSuppressSettingsSelfVoicing("auto", true, true));
+
+        // When TalkBack is inactive (default "auto" mode):
+        // Settings provides internal self-voicing for eyes-free users.
+        assertFalse("TalkBack inactive in auto mode must allow internal Settings self-voicing",
+                TalkBackCoexistenceHelper.shouldSuppressSettingsSelfVoicing("auto", true, false));
+
+        // When TTS is globally turned off:
+        // Internal self-voicing must be suppressed regardless of TalkBack.
+        assertTrue("Globally disabled TTS must suppress internal Settings self-voicing",
+                TalkBackCoexistenceHelper.shouldSuppressSettingsSelfVoicing("auto", false, false));
+
+        // User explicit override 'internal_only':
+        assertFalse("internal_only mode allows self-voicing even if TalkBack is on",
+                TalkBackCoexistenceHelper.shouldSuppressSettingsSelfVoicing("internal_only", true, true));
+
+        // User explicit override 'both':
+        assertFalse("both mode allows internal self-voicing",
+                TalkBackCoexistenceHelper.shouldSuppressSettingsSelfVoicing("both", true, true));
+
+        // Null mode defaults to auto:
+        assertTrue("Null mode defaults to auto and suppresses self-voicing when TalkBack is active",
+                TalkBackCoexistenceHelper.shouldSuppressSettingsSelfVoicing(null, true, true));
+    }
+
+    @Test
     public void testTrashAndRestoreWithCompanions() throws IOException {
         File recordingsDir = tempFolder.newFolder("recordings");
         File trashDir = tempFolder.newFolder(".Trash");

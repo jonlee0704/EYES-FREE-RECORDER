@@ -35,9 +35,29 @@ public class SettingsActivity extends AppCompatActivity {
     private static TextToSpeech sTts = null;
     private static Vibrator sVibrator = null;
     private static boolean sIsInitialized = false;
+    private static SettingsActivity sCurrentActivity = null;
 
     public static void speak(String text) {
-        if (sTts != null && text != null && !text.isEmpty()) {
+        speak(text, false);
+    }
+
+    public static void speak(String text, boolean forceAccessibilityAnnouncement) {
+        if (text == null || text.trim().isEmpty()) return;
+
+        SettingsActivity activity = sCurrentActivity;
+        if (activity != null && TalkBackCoexistenceHelper.shouldSuppressSettingsSelfVoicing(activity)) {
+            // Platform TalkBack takes full control; suppress internal self-voicing TTS.
+            if (forceAccessibilityAnnouncement) {
+                try {
+                    if (activity.getWindow() != null && activity.getWindow().getDecorView() != null) {
+                        activity.getWindow().getDecorView().announceForAccessibility(text);
+                    }
+                } catch (Exception ignored) {}
+            }
+            return;
+        }
+
+        if (sTts != null) {
             sTts.speak(text, TextToSpeech.QUEUE_FLUSH, null, null);
         }
     }
@@ -107,15 +127,30 @@ public class SettingsActivity extends AppCompatActivity {
         setContentView(R.layout.settings_activity);
         setupActionBar();
 
+        sCurrentActivity = this;
         sIsInitialized = false;
 
-        // Initialize TextToSpeech for self-voicing accessibility
-        sTts = new TextToSpeech(this, status -> {
-            if (status == TextToSpeech.SUCCESS) {
-                sTts.setLanguage(Locale.US);
-                speak("Settings opened. Explore options or swipe down to return.");
+        boolean suppress = TalkBackCoexistenceHelper.shouldSuppressSettingsSelfVoicing(this);
+        if (!suppress) {
+            // Initialize TextToSpeech for self-voicing accessibility when TalkBack is off
+            sTts = new TextToSpeech(this, status -> {
+                if (status == TextToSpeech.SUCCESS) {
+                    if (sTts != null) {
+                        sTts.setLanguage(Locale.US);
+                        speak("Settings opened. Explore options or swipe down to return.");
+                    }
+                }
+            });
+        } else {
+            // Platform TalkBack takes control immediately
+            if (sTts != null) {
+                try {
+                    sTts.stop();
+                    sTts.shutdown();
+                } catch (Exception ignored) {}
+                sTts = null;
             }
-        });
+        }
 
         if (savedInstanceState == null) {
             getSupportFragmentManager()
@@ -126,10 +161,37 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        sCurrentActivity = this;
+        boolean suppress = TalkBackCoexistenceHelper.shouldSuppressSettingsSelfVoicing(this);
+        if (suppress) {
+            if (sTts != null) {
+                try {
+                    sTts.stop();
+                    sTts.shutdown();
+                } catch (Exception ignored) {}
+                sTts = null;
+            }
+        } else if (sTts == null) {
+            sTts = new TextToSpeech(this, status -> {
+                if (status == TextToSpeech.SUCCESS && sTts != null) {
+                    sTts.setLanguage(Locale.US);
+                }
+            });
+        }
+    }
+
+    @Override
     protected void onDestroy() {
+        if (sCurrentActivity == this) {
+            sCurrentActivity = null;
+        }
         if (sTts != null) {
-            sTts.stop();
-            sTts.shutdown();
+            try {
+                sTts.stop();
+                sTts.shutdown();
+            } catch (Exception ignored) {}
             sTts = null;
         }
         sIsInitialized = false;
@@ -138,7 +200,9 @@ public class SettingsActivity extends AppCompatActivity {
 
     @Override
     public void onBackPressed() {
-        speak("Settings closed. Returning to player.");
+        if (!TalkBackCoexistenceHelper.shouldSuppressSettingsSelfVoicing(this)) {
+            speak("Settings closed. Returning to player.");
+        }
         vibrate(this, 50);
         super.onBackPressed();
     }
@@ -184,7 +248,7 @@ public class SettingsActivity extends AppCompatActivity {
                                     } else {
                                         targetFoldersPreference.setSummary(folderPath);
                                     }
-                                    speak("Folder selected: " + folderPath);
+                                    speak("Folder selected: " + folderPath, true);
                                 }
                             }
                         }
@@ -205,7 +269,7 @@ public class SettingsActivity extends AppCompatActivity {
                                     if (main != null && main.getRecorder() != null) {
                                         main.getRecorder().importFolder(uri);
                                     }
-                                    speak("Importing selected folder.");
+                                    speak("Importing selected folder.", true);
                                 }
                             }
                         }
@@ -317,7 +381,7 @@ public class SettingsActivity extends AppCompatActivity {
             final Context context = requireContext().getApplicationContext();
             final ProRecordingSettings pro = ProRecordingSettings.get(context);
             vibrate(context, 40);
-            speak("Sound check. After the vibration, play or speak at your loudest for 5 seconds.");
+            speak("Sound check. After the vibration, play or speak at your loudest for 5 seconds.", true);
             p.setSummary("Listening…");
             final android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
             handler.postDelayed(() -> {
@@ -331,7 +395,7 @@ public class SettingsActivity extends AppCompatActivity {
                         if (!pro.getGainMode().isManual()) {
                             String msg = "Peak " + peak + ". Gain is automatic, so the phone sets the level.";
                             p.setSummary(msg);
-                            speak(msg);
+                            speak(msg, true);
                             return;
                         }
                         int target = ProRecordingSettings.clampGain(pro.getGainDb() + recommendedChangeDb);
@@ -340,20 +404,20 @@ public class SettingsActivity extends AppCompatActivity {
                             String msg = "Peak " + peak + ". " + (recommendedChangeDb == 0
                                     ? "Input level is good." : "Input is already at its limit; move the phone.");
                             p.setSummary(msg);
-                            speak(msg);
+                            speak(msg, true);
                             return;
                         }
                         String msg = "Peak " + peak + ". Recommend " + (applied < 0 ? "lowering" : "raising")
                                 + " input " + Math.abs(applied) + " dB.";
                         p.setSummary(msg);
-                        speak(msg + " Choose Apply to set input to " + ProRecordingSettings.formatDb(target) + ".");
+                        speak(msg + " Choose Apply to set input to " + ProRecordingSettings.formatDb(target) + ".", true);
                         new androidx.appcompat.app.AlertDialog.Builder(requireContext())
                                 .setTitle("Sound check")
                                 .setMessage(msg)
                                 .setPositiveButton("Apply", (d, w) -> {
                                     pro.setGainDb(target);
                                     refreshProList(ProRecordingSettings.PREF_GAIN_DB, String.valueOf(target));
-                                    speak("Input set to " + ProRecordingSettings.formatDb(target));
+                                    speak("Input set to " + ProRecordingSettings.formatDb(target), true);
                                 })
                                 .setNegativeButton("Keep current", null)
                                 .show();
@@ -363,7 +427,7 @@ public class SettingsActivity extends AppCompatActivity {
                     public void onError(String message) {
                         if (!isAdded()) return;
                         p.setSummary(message);
-                        speak(message);
+                        speak(message, true);
                     }
                 });
             }, 3500);
@@ -393,7 +457,7 @@ public class SettingsActivity extends AppCompatActivity {
             Preference welcomePref = findPreference("pref_download_welcome");
             if (welcomePref != null) {
                 welcomePref.setOnPreferenceClickListener(p -> {
-                    speak("Download Spoken Welcome Guide");
+                    speak("Download Spoken Welcome Guide", true);
                     vibrate(p.getContext(), 30);
                     Toast.makeText(requireContext(), "Downloading welcome message...", Toast.LENGTH_SHORT).show();
                     return true;
@@ -402,6 +466,7 @@ public class SettingsActivity extends AppCompatActivity {
 
             // Bind ListPreferences
             String[] listPreferenceKeys = {
+                    "pref_talkback_mode",
                     "pref_audio_quality",
                     "max_volume",
                     "poking_eye_warning",
@@ -489,7 +554,7 @@ public class SettingsActivity extends AppCompatActivity {
             Preference replayTutorialPref = findPreference("pref_replay_gesture_tutorial");
             if (replayTutorialPref != null) {
                 replayTutorialPref.setOnPreferenceClickListener(p -> {
-                    speak("Starting gesture tutorial");
+                    speak("Starting gesture tutorial", true);
                     vibrate(p.getContext(), 40);
                     PreferenceManager.getDefaultSharedPreferences(p.getContext())
                             .edit().putBoolean("pending_replay_gesture_tutorial", true).apply();
@@ -521,7 +586,7 @@ public class SettingsActivity extends AppCompatActivity {
             Preference manualBackupPref = findPreference("manual_backup_action");
             if (manualBackupPref != null) {
                 manualBackupPref.setOnPreferenceClickListener(p -> {
-                    speak("Opening Google Drive Backup.");
+                    speak("Opening Google Drive Backup.", true);
                     vibrate(p.getContext(), 40);
                     startActivity(new Intent(requireContext(), DriveMainActivity.class));
                     return true;
@@ -535,7 +600,7 @@ public class SettingsActivity extends AppCompatActivity {
                     targetFoldersPreference.setSummary(main.getRecorder().getAllTargetFoldersSummary());
                 }
                 targetFoldersPreference.setOnPreferenceClickListener(preference -> {
-                    speak("Opening folder selection.");
+                    speak("Opening folder selection.", true);
                     vibrate(preference.getContext(), 30);
                     Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
                     folderPickerLauncher.launch(intent);
@@ -546,7 +611,7 @@ public class SettingsActivity extends AppCompatActivity {
             importFolderPreference = findPreference("import_folder");
             if (importFolderPreference != null) {
                 importFolderPreference.setOnPreferenceClickListener(preference -> {
-                    speak("Opening folder import.");
+                    speak("Opening folder import.", true);
                     vibrate(preference.getContext(), 30);
                     Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
                     importFolderPickerLauncher.launch(intent);
@@ -558,7 +623,7 @@ public class SettingsActivity extends AppCompatActivity {
             Preference tosPref = findPreference("pref_view_tos");
             if (tosPref != null) {
                 tosPref.setOnPreferenceClickListener(preference -> {
-                    speak("Opening Terms of Service.");
+                    speak("Opening Terms of Service.", true);
                     vibrate(preference.getContext(), 30);
                     try {
                         Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(MainActivity.TOS_ONLINE_URL));
@@ -573,7 +638,7 @@ public class SettingsActivity extends AppCompatActivity {
             Preference privacyPref = findPreference("pref_view_privacy_policy");
             if (privacyPref != null) {
                 privacyPref.setOnPreferenceClickListener(preference -> {
-                    speak("Opening Privacy Policy.");
+                    speak("Opening Privacy Policy.", true);
                     vibrate(preference.getContext(), 30);
                     Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(MainActivity.PRIVACY_ONLINE_URL));
                     startActivity(intent);
@@ -593,7 +658,9 @@ public class SettingsActivity extends AppCompatActivity {
         public boolean onOptionsItemSelected(MenuItem item) {
             int id = item.getItemId();
             if (id == android.R.id.home) {
-                speak("Settings closed. Returning to player.");
+                if (!TalkBackCoexistenceHelper.shouldSuppressSettingsSelfVoicing(requireContext())) {
+                    speak("Settings closed. Returning to player.");
+                }
                 vibrate(requireContext(), 50);
                 getActivity().onBackPressed();
                 return true;

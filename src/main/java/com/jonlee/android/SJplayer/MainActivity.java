@@ -1992,13 +1992,7 @@ public class MainActivity extends SampleActivityBase {
     }
 
     public boolean isTalkBackActive() {
-        try {
-            android.view.accessibility.AccessibilityManager am =
-                    (android.view.accessibility.AccessibilityManager) getSystemService(Context.ACCESSIBILITY_SERVICE);
-            return am != null && am.isEnabled() && am.isTouchExplorationEnabled();
-        } catch (Exception e) {
-            return false;
-        }
+        return TalkBackCoexistenceHelper.isTalkBackActive(this);
     }
 
     /**
