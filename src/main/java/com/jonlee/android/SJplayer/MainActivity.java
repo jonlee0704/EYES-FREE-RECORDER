@@ -374,6 +374,8 @@ public class MainActivity extends SampleActivityBase {
 
     public static final int PRO_BUTTON_COLOR_ON = 0xFFB388FF;
     public static final int PRO_BUTTON_COLOR_OFF = 0xFF6C647A;
+    public static final int TTS_BUTTON_COLOR_ON = 0xFF00E5FF;
+    public static final int TTS_BUTTON_COLOR_OFF = 0xFF4A6B80;
 
     /**
      * Header Pro button: one tap toggles Pro mode on/off.
@@ -481,9 +483,13 @@ public class MainActivity extends SampleActivityBase {
         if (enabled) {
             proModeButton.setTextColor(PRO_BUTTON_COLOR_ON);
             proModeButton.setPaintFlags(proModeButton.getPaintFlags() & ~Paint.STRIKE_THRU_TEXT_FLAG);
+            proModeButton.setBackgroundResource(R.drawable.bg_pro_btn_on);
+            proModeButton.setShadowLayer(8f, 0f, 0f, 0xFFB388FF);
         } else {
             proModeButton.setTextColor(PRO_BUTTON_COLOR_OFF);
             proModeButton.setPaintFlags(proModeButton.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
+            proModeButton.setBackgroundResource(R.drawable.bg_pro_btn_off);
+            proModeButton.setShadowLayer(0f, 0f, 0f, 0);
         }
         String now = enabled ? "Pro mode on" : "Pro mode off";
         proModeButton.setContentDescription(now + ". Tap to turn " + (enabled ? "off" : "on") + ". Long press for Settings.");
@@ -1961,10 +1967,16 @@ public class MainActivity extends SampleActivityBase {
                 if (progressTextView != null) {
                     if (isTTSEnabled) {
                         progressTextView.setText("TTS-On");
-                        progressTextView.setTextColor(Color.parseColor("#00E5FF"));
+                        progressTextView.setTextColor(TTS_BUTTON_COLOR_ON);
+                        progressTextView.setPaintFlags(progressTextView.getPaintFlags() & ~Paint.STRIKE_THRU_TEXT_FLAG);
+                        progressTextView.setBackgroundResource(R.drawable.bg_tts_btn_on);
+                        progressTextView.setShadowLayer(8f, 0f, 0f, 0xFF00E5FF);
                     } else {
                         progressTextView.setText("TTS-Off");
-                        progressTextView.setTextColor(Color.parseColor("#4A6B80"));
+                        progressTextView.setTextColor(TTS_BUTTON_COLOR_OFF);
+                        progressTextView.setPaintFlags(progressTextView.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
+                        progressTextView.setBackgroundResource(R.drawable.bg_tts_btn_off);
+                        progressTextView.setShadowLayer(0f, 0f, 0f, 0);
                     }
                 }
             }

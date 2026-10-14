@@ -63,52 +63,56 @@
         <TextView
             android:id="@+id/btn_pro_mode"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="8dp"
-            android:background="@drawable/bg_mcintosh_pill"
+            android:layout_height="38dp"
+            android:minWidth="58dp"
+            android:layout_marginEnd="10dp"
+            android:background="@drawable/bg_pro_btn_off"
             android:clickable="true"
             android:focusable="true"
             android:fontFamily="sans-serif-medium"
             android:letterSpacing="0.08"
             android:maxLines="1"
-            android:minHeight="38dp"
             android:gravity="center"
-            android:paddingStart="10dp"
+            android:paddingStart="14dp"
             android:paddingTop="5dp"
-            android:paddingEnd="10dp"
+            android:paddingEnd="14dp"
             android:paddingBottom="5dp"
             android:text="Pro"
             android:textColor="#6C647A"
-            android:textSize="11sp" />
+            android:textSize="12sp" />
 
         <!-- Settings Button -->
         <ImageButton
             android:id="@+id/btn_settings"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
+            android:layout_width="52dp"
+            android:layout_height="38dp"
             android:layout_marginEnd="10dp"
-            android:background="@drawable/bg_mcintosh_circle_btn"
+            android:background="@drawable/bg_settings_btn"
             android:contentDescription="Open Settings"
-            android:padding="10dp"
+            android:padding="8dp"
+            android:scaleType="fitCenter"
             android:src="@drawable/ic_settings_cyan_24dp" />
 
         <!-- TTS Status Pill -->
         <TextView
             android:id="@+id/progress_TextView"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:background="@drawable/bg_mcintosh_pill"
+            android:layout_height="38dp"
+            android:minWidth="64dp"
+            android:background="@drawable/bg_tts_btn_on"
             android:clickable="true"
             android:focusable="true"
             android:fontFamily="sans-serif-medium"
             android:letterSpacing="0.08"
+            android:maxLines="1"
+            android:gravity="center"
             android:paddingStart="14dp"
-            android:paddingTop="6dp"
+            android:paddingTop="5dp"
             android:paddingEnd="14dp"
-            android:paddingBottom="6dp"
-            android:text="TTS ON"
+            android:paddingBottom="5dp"
+            android:text="TTS-On"
             android:textColor="#00E5FF"
-            android:textSize="13sp" />
+            android:textSize="12sp" />
     </LinearLayout>
 
     <!-- Center Audiophile Display (Modern Sleek Typography) -->

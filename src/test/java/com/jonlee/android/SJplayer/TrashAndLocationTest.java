@@ -179,14 +179,18 @@ public class TrashAndLocationTest {
         assertEquals(0xFFB388FF, MainActivity.PRO_BUTTON_COLOR_ON);
         assertEquals(0xFF6C647A, MainActivity.PRO_BUTTON_COLOR_OFF);
 
-        // Verify strikethrough flag toggle math
+        // Verify TTS color constants: illuminated cyan when on, dimmed slate-blue when off
+        assertEquals(0xFF00E5FF, MainActivity.TTS_BUTTON_COLOR_ON);
+        assertEquals(0xFF4A6B80, MainActivity.TTS_BUTTON_COLOR_OFF);
+
+        // Verify strikethrough flag toggle math for both buttons
         int initialFlags = 0;
         int flagsWhenOff = initialFlags | android.graphics.Paint.STRIKE_THRU_TEXT_FLAG;
-        assertTrue("Strikethrough flag must be active when Pro mode is off",
+        assertTrue("Strikethrough flag must be active when button mode is off",
                 (flagsWhenOff & android.graphics.Paint.STRIKE_THRU_TEXT_FLAG) != 0);
 
         int flagsWhenOn = flagsWhenOff & ~android.graphics.Paint.STRIKE_THRU_TEXT_FLAG;
-        assertEquals("Strikethrough flag must be cleared when Pro mode is on",
+        assertEquals("Strikethrough flag must be cleared when button mode is on",
                 0, flagsWhenOn & android.graphics.Paint.STRIKE_THRU_TEXT_FLAG);
 
         // Verify ProRecordingSettings label and toggle state

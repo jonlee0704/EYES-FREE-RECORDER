@@ -183,11 +183,8 @@ public class Commander{
         //albumImageView = (ImageView) findViewById(R.id.album_imageView);
         imageView.setImageResource(R.drawable.ic_action_about);
         progress_TextView = (TextView) findViewById(R.id.progress_TextView);
-        if(mainActivity.isTTSEnabled()){
-            progress_TextView.setText("TTS-On");
-        }else{
-            progress_TextView.setText("TTS-Off");
-
+        if (mainActivity instanceof MainActivity) {
+            ((MainActivity) mainActivity).updateTtsButtonState();
         }
 
         //String syncConnPref = sharedPref.getString(SettingsActivity.KEY_PREF_SYNC_CONN, "");
@@ -1932,15 +1929,17 @@ public class Commander{
                     if(((MainActivity)mainActivity).getIsTTSEnabled()) {
                         ((MainActivity)mainActivity).setIsTTSEnabled(false);
                         mainActivity.isTTSEnabled(false);
-                        progress_TextView.setText("TTS-Off");
-                        progress_TextView.setTextColor(Color.parseColor("#4A6B80"));
+                        if (mainActivity instanceof MainActivity) {
+                            ((MainActivity) mainActivity).updateTtsButtonState();
+                        }
                         alwaysSpeak("Stopped speaking");
                     }
                     else {
                         mainActivity.isTTSEnabled(true);
                         ((MainActivity)mainActivity).setIsTTSEnabled(true);
-                        progress_TextView.setText("TTS-On");
-                        progress_TextView.setTextColor(Color.parseColor("#00E5FF"));
+                        if (mainActivity instanceof MainActivity) {
+                            ((MainActivity) mainActivity).updateTtsButtonState();
+                        }
                         alwaysSpeak("Speaking again");
                     }
                     break;
