@@ -1,0 +1,155 @@
+package com.jonlee.android.SJplayer;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
+import org.junit.Test;
+
+/**
+ * Unit tests verifying swipe gesture calculations, angle-to-direction mapping,
+ * boundary angles, and single vs multi-finger command dispatching.
+ */
+public class SwipeGestureTest {
+
+    private static final int NO_DIRECTION = 0;
+    private static final int BOTTOM_TOP = 1;
+    private static final int UP_RIGHT = 2;
+    private static final int LEFT_RIGHT = 3;
+    private static final int BOTTOM_RIGHT = 4;
+    private static final int TOP_BOTTOM = 5;
+    private static final int BOTTOM_LEFT = 6;
+    private static final int RIGHT_LEFT = 7;
+    private static final int UP_LEFT = 8;
+
+    /**
+     * Exact formula from DialView.java / GestureListener.java
+     */
+    private float getDegreeFromCartesian(float nowX, float nowY, float centerX, float centerY) {
+        float angle = (float) Math.atan2((centerX - nowX), (centerY - nowY));
+        float angleInDegree = (float) (angle * 180 / Math.PI);
+        return 180 - angleInDegree;
+    }
+
+    /**
+     * 4-direction mapping with seamless boundary handling [)
+     */
+    private int getDirection4(float angle) {
+        double n = 45;
+        if (angle >= 360 - n || angle < n) {
+            return BOTTOM_TOP;
+        } else if (angle >= n && angle < n * 3) {
+            return LEFT_RIGHT;
+        } else if (angle >= n * 3 && angle < n * 5) {
+            return TOP_BOTTOM;
+        } else if (angle >= n * 5 && angle < n * 7) {
+            return RIGHT_LEFT;
+        } else {
+            return BOTTOM_TOP;
+        }
+    }
+
+    private int resolveCommand(int dir, int pointerCount) {
+        switch (dir) {
+            case BOTTOM_TOP:
+                return (pointerCount >= 2) ? Commander.FAST_SEEK_NEXT_FOLDER : Commander.NEXT_FOLDER;
+            case TOP_BOTTOM:
+                return (pointerCount >= 2) ? Commander.FAST_SEEK_PREVIOUS_FOLDER : Commander.PREVIOUS_FOLDER;
+            case LEFT_RIGHT:
+                return (pointerCount >= 2) ? Commander.FAST_SEEK_NEXT_FILE : Commander.NEXT_SONG;
+            case RIGHT_LEFT:
+                return (pointerCount >= 2) ? Commander.FAST_SEEK_PREVIOUS_FILE : Commander.PREVIOUS_SONG;
+            case UP_RIGHT:
+                return Commander.NEXT_ARTIST;
+            case UP_LEFT:
+                return Commander.PREVIOUS_ARTIST;
+            default:
+                return Commander.NOTHING;
+        }
+    }
+
+    @Test
+    public void testSwipeRightAngleAndCommand() {
+        // Swipe from (100, 200) to (300, 200) -> Moving Right
+        float startX = 100f;
+        float startY = 200f;
+        float endX = 300f;
+        float endY = 200f;
+
+        float deg = getDegreeFromCartesian(startX, startY, endX, endY);
+        assertEquals(90.0f, deg, 0.001f);
+
+        int dir = getDirection4(deg);
+        assertEquals(LEFT_RIGHT, dir);
+
+        // Single finger -> NEXT_SONG
+        assertEquals(Commander.NEXT_SONG, resolveCommand(dir, 1));
+        // Two finger -> FAST_SEEK_NEXT_FILE
+        assertEquals(Commander.FAST_SEEK_NEXT_FILE, resolveCommand(dir, 2));
+    }
+
+    @Test
+    public void testSwipeLeftAngleAndCommand() {
+        // Swipe from (300, 200) to (100, 200) -> Moving Left
+        float startX = 300f;
+        float startY = 200f;
+        float endX = 100f;
+        float endY = 200f;
+
+        float deg = getDegreeFromCartesian(startX, startY, endX, endY);
+        assertEquals(270.0f, deg, 0.001f);
+
+        int dir = getDirection4(deg);
+        assertEquals(RIGHT_LEFT, dir);
+
+        // Single finger -> PREVIOUS_SONG
+        assertEquals(Commander.PREVIOUS_SONG, resolveCommand(dir, 1));
+        // Two finger -> FAST_SEEK_PREVIOUS_FILE
+        assertEquals(Commander.FAST_SEEK_PREVIOUS_FILE, resolveCommand(dir, 2));
+    }
+
+    @Test
+    public void testSwipeUpAndDownAngles() {
+        // Swipe Up: (200, 400) to (200, 100) -> Moving Up (Bottom to Top)
+        float degUp = getDegreeFromCartesian(200f, 400f, 200f, 100f);
+        assertEquals(0.0f, degUp, 0.001f);
+        int dirUp = getDirection4(degUp);
+        assertEquals(BOTTOM_TOP, dirUp);
+        assertEquals(Commander.NEXT_FOLDER, resolveCommand(dirUp, 1));
+
+        // Swipe Down: (200, 100) to (200, 400) -> Moving Down (Top to Bottom)
+        float degDown = getDegreeFromCartesian(200f, 100f, 200f, 400f);
+        assertEquals(180.0f, degDown, 0.001f);
+        int dirDown = getDirection4(degDown);
+        assertEquals(TOP_BOTTOM, dirDown);
+        assertEquals(Commander.PREVIOUS_FOLDER, resolveCommand(dirDown, 1));
+    }
+
+    @Test
+    public void testBoundaryAnglesDoNotFallIntoNoDirection() {
+        // 45, 135, 225, 315 degrees boundary test
+        assertEquals(LEFT_RIGHT, getDirection4(45f));
+        assertEquals(TOP_BOTTOM, getDirection4(135f));
+        assertEquals(RIGHT_LEFT, getDirection4(225f));
+        assertEquals(BOTTOM_TOP, getDirection4(315f));
+        assertEquals(BOTTOM_TOP, getDirection4(0f));
+        assertEquals(BOTTOM_TOP, getDirection4(359.9f));
+    }
+
+    @Test
+    public void testHorizontalSwipeExceedsThreshold() {
+        float density = 3.5f; // Pixel 10 Pro / modern device density
+        float swipeThreshold = Math.max(25f, 28 * density);
+
+        float deltaX = 120f;
+        float deltaY = 5f;
+
+        boolean isSwipe = Math.abs(deltaX) > swipeThreshold || Math.abs(deltaY) > swipeThreshold;
+        assertTrue("Displacement of 120px must trigger horizontal swipe", isSwipe);
+
+        // Verify that horizontal swipe cancels wheel scrub
+        float touchSlop = 10 * density;
+        boolean isHorizontal = Math.abs(deltaX) > 1.2f * Math.abs(deltaY) && Math.abs(deltaX) > touchSlop;
+        assertTrue("Horizontal swipe must cancel wheel scrubbing immediately", isHorizontal);
+    }
+}

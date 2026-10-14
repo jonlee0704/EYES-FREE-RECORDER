@@ -283,7 +283,7 @@ public class GestureListener implements GestureDetector.OnGestureListener, Gestu
                 case LEFT_RIGHT:
                     if (touchCnt >= 2)
                         cmd(Commander.FAST_SEEK_NEXT_FILE);
-                    else if (touchCnt == 1)
+                    else
                         cmd(Commander.NEXT_SONG);
                     break;
                 case BOTTOM_RIGHT:
@@ -293,7 +293,7 @@ public class GestureListener implements GestureDetector.OnGestureListener, Gestu
                     //From Top to Bottom
                     if (touchCnt >= 2)
                         cmd(Commander.FAST_SEEK_PREVIOUS_FOLDER);
-                    else if ((touchCnt == 1))
+                    else
                         cmd(Commander.PREVIOUS_FOLDER);
                     break;
                 case BOTTOM_LEFT:
@@ -302,7 +302,7 @@ public class GestureListener implements GestureDetector.OnGestureListener, Gestu
                 case RIGHT_LEFT:
                     if (touchCnt >= 2)
                         cmd(Commander.FAST_SEEK_PREVIOUS_FILE);
-                    else if (touchCnt == 1)
+                    else
                         cmd(Commander.PREVIOUS_SONG);
                     break;
                 case UP_LEFT:

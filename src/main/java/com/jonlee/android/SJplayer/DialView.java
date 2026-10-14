@@ -1157,8 +1157,8 @@ public class DialView extends View {
                 float density = dm.density;
                 int screenWidth = dm.widthPixels;
 
-                // Base edge exclusion margin: at least 50dp or 13% of screen width (whichever is larger)
-                float baseMargin = Math.max(50 * density, screenWidth * 0.13f);
+                // Standard system gesture margin: 20dp margin to prevent accidental trigger on the bezel edge
+                float baseMargin = 20 * density;
                 float leftMargin = baseMargin;
                 float rightMargin = baseMargin;
 
@@ -1167,8 +1167,8 @@ public class DialView extends View {
                     WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(decorView);
                     if (insets != null) {
                         androidx.core.graphics.Insets gestureInsets = insets.getInsets(WindowInsetsCompat.Type.systemGestures());
-                        if (gestureInsets.left > leftMargin) leftMargin = gestureInsets.left;
-                        if (gestureInsets.right > rightMargin) rightMargin = gestureInsets.right;
+                        if (gestureInsets.left > leftMargin && gestureInsets.left < 36 * density) leftMargin = gestureInsets.left;
+                        if (gestureInsets.right > rightMargin && gestureInsets.right < 36 * density) rightMargin = gestureInsets.right;
                     }
                 } catch (Exception ignored) {}
 
@@ -1182,19 +1182,9 @@ public class DialView extends View {
                 float density = dm.density;
                 int screenHeight = dm.heightPixels;
 
-                float baseMargin = 45 * density;
-                float topMargin = baseMargin;
-                float bottomMargin = baseMargin;
-
-                try {
-                    View decorView = activity.getWindow().getDecorView();
-                    WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(decorView);
-                    if (insets != null) {
-                        androidx.core.graphics.Insets gestureInsets = insets.getInsets(WindowInsetsCompat.Type.systemGestures());
-                        if (gestureInsets.top > topMargin) topMargin = gestureInsets.top;
-                        if (gestureInsets.bottom > bottomMargin) bottomMargin = gestureInsets.bottom;
-                    }
-                } catch (Exception ignored) {}
+                // Narrow margins: only avoid accidental pulls of system status bar (top 22dp) or navigation pill (bottom 16dp)
+                float topMargin = 22 * density;
+                float bottomMargin = 16 * density;
 
                 float rawY = e.getRawY();
                 return (rawY < topMargin || rawY > (screenHeight - bottomMargin));
@@ -1402,7 +1392,10 @@ public class DialView extends View {
                             maxPointerCount = touchCnt;
                         }
 
-                        if (Math.abs(startX - event.getX()) > SWIPE_MIN_DISTANCE || Math.abs(startY - event.getY()) > SWIPE_MIN_DISTANCE) {
+                        float deltaX = event.getX() - startX;
+                        float deltaY = event.getY() - startY;
+
+                        if (Math.abs(deltaX) > SWIPE_MIN_DISTANCE || Math.abs(deltaY) > SWIPE_MIN_DISTANCE) {
                             cancelPendingTaps();
                         }
 
@@ -1435,72 +1428,6 @@ public class DialView extends View {
                             return true;
                         }
 
-                        // Swipe and Hold cases (single-finger only)
-                        else if (!isLongpress && maxPointerCount < 2 && (System.currentTimeMillis() - startAction) > LONGPRESS_THRESHOLD &&
-                                (Math.abs(startX - event.getX()) > SWIPE_MIN_DISTANCE || Math.abs(startY - event.getY()) > SWIPE_MIN_DISTANCE)) {
-
-                            //This is turned off to enable the feature "swipe and move".
-                            //If enable this code, it won't work.
-//                            if(isFired)
-//                                return false;
-
-
-                            SWIPE_HOLD = true;
-                            int dir = getDirection(getDegreeFromCartesian(startX,startY,event.getX(),event.getY()));
-                            Log.i(TAG, "ACTION_MOVE : " + dir + " :TouchCnt: " + touchCnt);
-
-                            switch (dir) {
-                                case BOTTOM_TOP:
-                                    if(touchCnt == 3) {
-                                        if(!isFired) {
-                                            cmd(Commander.START_STOP_BACKUP);
-                                            isMultiFingerMode = true;
-                                        }
-                                    } else if(touchCnt == 1 && !isMultiFingerMode) {
-                                        cmd(Commander.FF_FOLDER);
-                                        cmd(Commander.BREAK_50MS);
-                                    }
-                                    break;
-                                case TOP_BOTTOM:
-                                    //Backup StartAndStop by 3-fingers swipe down
-                                    if(touchCnt == 3) {
-                                        if(!isFired)
-                                            //cmd(Commander.START_STOP_BACKUP); isMultiFingerMode = true;
-                                            cmd(Commander.SETTINGS); isMultiFingerMode = true;
-                                    } else if(touchCnt == 1 && !isMultiFingerMode) {
-                                        cmd(Commander.REWIND_FOLDER);
-                                        cmd(Commander.BREAK_50MS);
-                                    }
-                                    break;
-                                case LEFT_RIGHT:
-                                    if(touchCnt == 4) {
-                                        if(!isFired) {
-                                            cmd(Commander.DELETE_FILE); isMultiFingerMode = true;
-                                        }
-                                    }else if(touchCnt == 2 && !isMultiFingerMode) {
-                                        cmd(Commander.FAST_FORWARD_3X);
-
-                                    }else if(!isMultiFingerMode) {
-                                        cmd(Commander.FAST_FORWARD_2X);
-                                    }
-                                 case RIGHT_LEFT:
-                                     if(touchCnt == 4) {
-                                         if(!isFired) {
-                                             cmd(Commander.RESTORE_FILE); isMultiFingerMode = true;
-                                         }
-                                     } else if(touchCnt == 2) {
-                                         cmd(Commander.FAST_BACKWARD_3X);
-                                     } else {
-                                         cmd(Commander.FAST_BACKWARD_2X);
-                                     }
-                                     break;
-                            }
-
-                            isFired = true;
-                            return true;
-
-                        }
-
                         if (isDragging && isLongpress) {
 
                             float touchAngle = touchAngle(touchX1, touchY1);
@@ -1512,26 +1439,21 @@ public class DialView extends View {
 
                                 int offset = (int) deltaAngle / (int) stepAngle;
                                 startAngle = touchAngle;
-                                // more offset for playing ff.
-                                // Checking only negative or positive.
-                                // TODO Want to add some different VIBRATION texture
-                                // So just use two if else cases here.
-                                // Log.i(TAG, "offset:"+offset);
                                 if (offset > 0)
                                     cmd(Commander.FAST_FORWARD_3X);
                                 else
                                     cmd(Commander.FAST_BACKWARD_3X);
 
                                 SWIPE_HOLD = true;
-
-                                //onRotate(offset);
-//                                Log.i(TAG, "ACTION_MOVE>>touchAngle:"+touchAngle+":startAngle:"+startAngle+":"+event.getPointerCount());
                                 isFired = true;
                                 return true;
                             }
-                        } else{
-                            isFired = false;
-                            return false;
+                        } else {
+                            // Fluid interactive visual feedback tracking finger displacement during swipe
+                            if (!isFired) {
+                                setInteractiveDragDelta(deltaX, deltaY);
+                            }
+                            return true;
                         }
                     // Nothing is coming up after ACTION_MOVE
                     // TODO Need to clarify if there is any specific events captured here.
@@ -1540,6 +1462,7 @@ public class DialView extends View {
                         //Log.i(TAG, "ACTION_SCROLL:" + getDirection(getDegreeFromCartesian(startX,startY,event.getX(),event.getY())));
                         return false;
                     case MotionEvent.ACTION_UP:
+                        setInteractiveDragDelta(0, 0);
                         if (isStartedFromEdge) {
                             Log.i(TAG, "ACTION_UP from edge gesture, ignoring in app: rawX=" + event.getRawX());
                             isStartedFromEdge = false;
@@ -1578,11 +1501,66 @@ public class DialView extends View {
                         }
 
                         float density = (activity != null) ? activity.getResources().getDisplayMetrics().density : 1.0f;
-                        float swipeThreshold = Math.max(SWIPE_MIN_DISTANCE, 40 * density);
+                        float swipeThreshold = Math.max(25f, 28 * density);
 
-                        // If it's too short from DOWN to UP with not enough distance, it's a TAP.
+                        float absX = Math.abs(event.getX() - startX);
+                        float absY = Math.abs(event.getY() - startY);
+
+                        // If movement exceeds swipeThreshold, trigger directional swipe:
+                        if (absX > swipeThreshold || absY > swipeThreshold) {
+                            cancelPendingTaps();
+
+                            int dir = 0;
+
+                            // 8 dir mode in Virtual directory(Media scann mode) to navigate ARTIST
+                            if (dir_mode == DIR_MODE_4)
+                                dir = getDirection(getDegreeFromCartesian(startX,startY,event.getX(),event.getY()));
+                            else if(dir_mode == DIR_MODE_8)
+                                dir = getHexDirection(getDegreeFromCartesian(startX,startY,event.getX(),event.getY()));
+
+                            switch (dir) {
+                                case BOTTOM_TOP:
+                                    if (effectivePointers >= 2)
+                                        cmd(Commander.FAST_SEEK_NEXT_FOLDER);
+                                    else
+                                        cmd(Commander.NEXT_FOLDER);
+                                    break;
+
+                                case TOP_BOTTOM:
+                                    if (effectivePointers >= 2)
+                                        cmd(Commander.FAST_SEEK_PREVIOUS_FOLDER);
+                                    else
+                                        cmd(Commander.PREVIOUS_FOLDER);
+                                    break;
+
+                                case LEFT_RIGHT:
+                                    if (effectivePointers >= 2)
+                                        cmd(Commander.FAST_SEEK_NEXT_FILE);
+                                    else
+                                        cmd(Commander.NEXT_SONG);
+                                    break;
+
+                                case RIGHT_LEFT:
+                                    if (effectivePointers >= 2)
+                                        cmd(Commander.FAST_SEEK_PREVIOUS_FILE);
+                                    else
+                                        cmd(Commander.PREVIOUS_SONG);
+                                    break;
+
+                                case UP_RIGHT:
+                                    cmd(Commander.NEXT_ARTIST);
+                                    break;
+
+                                case UP_LEFT:
+                                    cmd(Commander.PREVIOUS_ARTIST);
+                                    break;
+                            }
+                            return true;
+                        }
+
+                        // Tap handling for stationary release:
                         if ((System.currentTimeMillis() - startAction) < LONGPRESS_THRESHOLD  &&
-                                (Math.abs(startX-event.getX()) < swipeThreshold && Math.abs(startY-event.getY()) < swipeThreshold)) {
+                                (absX < swipeThreshold && absY < swipeThreshold)) {
 
                             if (effectivePointers == 2) {
                                 cancelPendingTaps();
@@ -1609,78 +1587,10 @@ public class DialView extends View {
                                 cancelPendingTaps();
                             }
                         }
+                        return false;
 
-
-
-                        if((Math.abs(startX-event.getX()) > swipeThreshold ||
-                                Math.abs(startY-event.getY()) > swipeThreshold)){
-                            cancelPendingTaps();
-
-                            int dir = 0;
-
-                            // 8 dir mode in Virtual directory(Media scann mode) to navigate ARTIST
-                            if (dir_mode == DIR_MODE_4)
-                                dir = getDirection(getDegreeFromCartesian(startX,startY,event.getX(),event.getY()));
-                            else if(dir_mode == DIR_MODE_8)
-                                dir = getHexDirection(getDegreeFromCartesian(startX,startY,event.getX(),event.getY()));
-
-                            switch (dir) {
-                                case BOTTOM_TOP:
-                                    if (effectivePointers >= 2)
-                                        cmd(Commander.FAST_SEEK_NEXT_FOLDER);
-                                    else
-                                        cmd(Commander.NEXT_FOLDER);
-                                    break;
-
-                                // Next ARTIST
-                                case UP_RIGHT:
-                                    cmd(Commander.NEXT_ARTIST);
-                                    break;
-                                case LEFT_RIGHT:
-                                    if (effectivePointers >= 2)
-                                        cmd(Commander.FAST_SEEK_NEXT_FILE);
-                                    else if(touchCnt == 1) {
-                                        cmd(Commander.NEXT_SONG);
-                                    } else if(touchCnt == 2) {
-                                        cmd(Commander.NEXT_BOOKMARK);
-                                    } else if(touchCnt >= 3) {
-                                        cmd(Commander.NEXT_FAVORITE);
-                                    }
-                                    break;
-//                                case BOTTOM_RIGHT:
-//                                    cmd(Commander.NOTHING);
-//                                    break;
-                                case TOP_BOTTOM:
-                                    //From Top to Bottom
-                                    if (effectivePointers >= 2)
-                                        cmd(Commander.FAST_SEEK_PREVIOUS_FOLDER);
-                                    else if (touchCnt == 1)
-                                        cmd(Commander.PREVIOUS_FOLDER);
-                                    break;
-//                                case BOTTOM_LEFT:
-//                                    cmd(Commander.NOTHING);
-//                                    break;
-                                case RIGHT_LEFT:
-                                    if (effectivePointers >= 2)
-                                        cmd(Commander.FAST_SEEK_PREVIOUS_FILE);
-                                    else if(touchCnt == 1) {
-                                        cmd(Commander.PREVIOUS_SONG);
-                                    } else if(touchCnt == 2) {
-                                        cmd(Commander.PREVIOUS_BOOKMARK);
-                                    } else if(touchCnt >= 3) {
-                                        cmd(Commander.PREVIOUS_FAVORITE);
-                                    }
-                                    break;
-
-                                // PREVIOUS ARTIST
-                                case UP_LEFT:
-                                    cmd(Commander.PREVIOUS_ARTIST);
-                                    break;
-                            }
-                            //Log.i(TAG,"Direction:" + dir);
-                            return true;
-                        }
                     case MotionEvent.ACTION_CANCEL:
+                        setInteractiveDragDelta(0, 0);
                         isStartedFromEdge = false;
                         cancelPendingTaps();
                         isDragging = false;
@@ -1718,18 +1628,17 @@ public class DialView extends View {
             private int getDirection(float angle){
                 // n = 45 in case 4 direction
                 double n = 45;
-                if (angle > 360-n || angle < n){
+                if (angle >= 360-n || angle < n){
                     return this.BOTTOM_TOP;
-                } else if (angle > n && angle < n*3){
+                } else if (angle >= n && angle < n*3){
                     return this.LEFT_RIGHT;
-                } else if (angle > n*3 && angle < n*5){
+                } else if (angle >= n*3 && angle < n*5){
                     return this.TOP_BOTTOM;
-                } else if (angle > n*5 && angle < n*7){
+                } else if (angle >= n*5 && angle < n*7){
                     return this.RIGHT_LEFT;
                 } else{
-                    return this.NO_DIRECTION;
+                    return this.BOTTOM_TOP;
                 }
-
             }
 
             private int getHexDirection(float angle){

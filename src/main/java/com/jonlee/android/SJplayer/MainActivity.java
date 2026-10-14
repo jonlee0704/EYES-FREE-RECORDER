@@ -612,7 +612,7 @@ public class MainActivity extends SampleActivityBase {
                                 }
                                 showFolderWheel(0);
                             }
-                        }, 280);
+                        }, 400);
 
                     } else if (action == MotionEvent.ACTION_MOVE) {
                         float density = getResources().getDisplayMetrics().density;
@@ -623,6 +623,10 @@ public class MainActivity extends SampleActivityBase {
                         float touchSlop = 10 * density;
                         if (!isWheelScrubbing && (Math.abs(deltaX) > touchSlop || Math.abs(deltaY) > touchSlop)) {
                             wheelScrubHandler.removeCallbacksAndMessages(null);
+                        }
+                        if (Math.abs(deltaX) > 1.2f * Math.abs(deltaY) && Math.abs(deltaX) > touchSlop) {
+                            wheelScrubHandler.removeCallbacksAndMessages(null);
+                            isWheelScrubbing = false;
                         }
 
                         // Provide immediate, tactile visual feedback by tracking finger displacement in DialView
