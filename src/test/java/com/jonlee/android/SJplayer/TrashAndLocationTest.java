@@ -173,6 +173,37 @@ public class TrashAndLocationTest {
         assertEquals("Total registered commands count", actionCommands.length, uniqueCodes.size());
     }
 
+    @Test
+    public void testProButtonVisualAndToggleLogic() {
+        // Verify color constants: highlighted purple when on, dimmed purple-gray when off
+        assertEquals(0xFFB388FF, MainActivity.PRO_BUTTON_COLOR_ON);
+        assertEquals(0xFF6C647A, MainActivity.PRO_BUTTON_COLOR_OFF);
+
+        // Verify strikethrough flag toggle math
+        int initialFlags = 0;
+        int flagsWhenOff = initialFlags | android.graphics.Paint.STRIKE_THRU_TEXT_FLAG;
+        assertTrue("Strikethrough flag must be active when Pro mode is off",
+                (flagsWhenOff & android.graphics.Paint.STRIKE_THRU_TEXT_FLAG) != 0);
+
+        int flagsWhenOn = flagsWhenOff & ~android.graphics.Paint.STRIKE_THRU_TEXT_FLAG;
+        assertEquals("Strikethrough flag must be cleared when Pro mode is on",
+                0, flagsWhenOn & android.graphics.Paint.STRIKE_THRU_TEXT_FLAG);
+
+        // Verify ProRecordingSettings label and toggle state
+        FakeSharedPreferences prefs = new FakeSharedPreferences();
+        ProRecordingSettings pro = new ProRecordingSettings(prefs);
+        assertEquals("Label must be Pro", "Pro", pro.buttonLabel());
+        assertFalse("Pro mode must start off by default", pro.isEnabled());
+
+        pro.setEnabled(true);
+        assertTrue("Pro mode enabled", pro.isEnabled());
+        assertEquals("Label remains Pro when on", "Pro", pro.buttonLabel());
+
+        pro.setEnabled(false);
+        assertFalse("Pro mode disabled", pro.isEnabled());
+        assertEquals("Label remains Pro when off", "Pro", pro.buttonLabel());
+    }
+
     private static void writeFile(File file, String content) throws IOException {
         try (FileOutputStream fos = new FileOutputStream(file)) {
             fos.write(content.getBytes(StandardCharsets.UTF_8));

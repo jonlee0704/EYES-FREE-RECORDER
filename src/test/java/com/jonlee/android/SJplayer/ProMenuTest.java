@@ -112,19 +112,24 @@ public class ProMenuTest {
     }
 
     @Test
-    public void headerButtonCyclesStandardThenEachEnvironment() {
-        assertEquals("PRO OFF", settings.buttonLabel());
-        assertEquals(ProRecordingSettings.Environment.MEETING_ROOM, settings.cycleMode());
-        assertTrue(settings.isEnabled());
-        assertEquals("PRO \u00b7 MEETING", settings.buttonLabel());
-        assertEquals(ProRecordingSettings.Environment.SMALL_VENUE, settings.cycleMode());
-        assertEquals(ProRecordingSettings.GainMode.MANUAL_SAFETY, settings.getGainMode());
-        assertEquals(ProRecordingSettings.Environment.STADIUM, settings.cycleMode());
-        assertEquals(ProRecordingSettings.Environment.STREET, settings.cycleMode());
-        assertEquals(null, settings.cycleMode());
+    public void proButtonToggleAndLabelTest() {
+        assertEquals("Pro", settings.buttonLabel());
         assertFalse(settings.isEnabled());
-        assertEquals("PRO OFF", settings.buttonLabel());
-        // The next tap starts the cycle again
-        assertEquals(ProRecordingSettings.Environment.MEETING_ROOM, settings.cycleMode());
+
+        // Toggle ON
+        settings.setEnabled(true);
+        assertTrue(settings.isEnabled());
+        assertEquals("Pro", settings.buttonLabel());
+
+        // Toggle OFF
+        settings.setEnabled(false);
+        assertFalse(settings.isEnabled());
+        assertEquals("Pro", settings.buttonLabel());
+
+        // Even when presets or environments change, button label remains cleanly "Pro"
+        settings.setEnabled(true);
+        settings.setEnvironment(ProRecordingSettings.Environment.SMALL_VENUE);
+        assertEquals("Pro", settings.buttonLabel());
+        assertTrue(settings.isEnabled());
     }
 }

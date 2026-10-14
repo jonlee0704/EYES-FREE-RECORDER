@@ -28,6 +28,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.database.ContentObserver;
+import android.graphics.Paint;
 
 import android.content.pm.PackageManager;
 import android.media.AudioManager;
@@ -371,11 +372,14 @@ public class MainActivity extends SampleActivityBase {
     private static final long PRO_BUTTON_LONG_PRESS_MS = 600L;
     private TextView proModeButton;
 
+    public static final int PRO_BUTTON_COLOR_ON = 0xFFB388FF;
+    public static final int PRO_BUTTON_COLOR_OFF = 0xFF6C647A;
+
     /**
-     * Header Pro button (PRD A2): one tap steps to the next mode (Standard, then each
-     * environment), a long press opens the spoken Pro menu with every setting. Touching it
-     * first says the current mode, like the other header buttons. TalkBack users get the
-     * same through double tap and double tap and hold.
+     * Header Pro button: one tap toggles Pro mode on/off.
+     * Long press opens Settings.
+     * When ON: "Pro" is highlighted in vibrant purple without strikethrough.
+     * When OFF: "Pro" is dimmed and struck through.
      */
     private void setupProModeButton() {
         View view = findViewById(R.id.btn_pro_mode);
@@ -386,13 +390,17 @@ public class MainActivity extends SampleActivityBase {
         proModeButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (commander != null) commander.cmd(Commander.PRO_CYCLE_MODE);
+                if (commander != null) commander.cmd(Commander.PRO_MODE_TOGGLE);
             }
         });
         proModeButton.setOnLongClickListener(new View.OnLongClickListener() {
             @Override
             public boolean onLongClick(View v) {
-                if (commander != null) commander.cmd(Commander.PRO_MENU);
+                if (commander != null) {
+                    commander.cmd(Commander.SETTINGS);
+                } else {
+                    startActivity(new Intent(MainActivity.this, SettingsActivity.class));
+                }
                 return true;
             }
         });
@@ -455,22 +463,30 @@ public class MainActivity extends SampleActivityBase {
 
     private String getProButtonNarrative() {
         ProRecordingSettings pro = ProRecordingSettings.get(this);
-        String now = pro.isEnabled() ? "Pro mode, " + pro.getEnvironment().spokenName : "Standard recording, Pro mode off";
+        boolean enabled = pro.isEnabled();
+        String now = enabled ? "Pro mode on" : "Pro mode off";
         if (recorder != null && recorder.isRecording()) {
             // The mode is fixed for the whole take
             return now + ". Locked while recording.";
         }
-        return now + ". Release to change mode, or hold for Pro settings.";
+        return now + ". Release to turn " + (enabled ? "off" : "on") + ", or hold for Settings.";
     }
 
     /** Shows the current Pro mode on the header button; called whenever Pro settings change. */
     public void updateProButtonState() {
         if (proModeButton == null) return;
         ProRecordingSettings pro = ProRecordingSettings.get(this);
+        boolean enabled = pro.isEnabled();
         proModeButton.setText(pro.buttonLabel());
-        proModeButton.setTextColor(pro.isEnabled() ? 0xFFB388FF : 0xFF7A6A99);
-        String now = pro.isEnabled() ? "Pro mode, " + pro.getEnvironment().spokenName : "Standard recording, Pro mode off";
-        proModeButton.setContentDescription(now + ". Tap to change mode. Long press for Pro settings.");
+        if (enabled) {
+            proModeButton.setTextColor(PRO_BUTTON_COLOR_ON);
+            proModeButton.setPaintFlags(proModeButton.getPaintFlags() & ~Paint.STRIKE_THRU_TEXT_FLAG);
+        } else {
+            proModeButton.setTextColor(PRO_BUTTON_COLOR_OFF);
+            proModeButton.setPaintFlags(proModeButton.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
+        }
+        String now = enabled ? "Pro mode on" : "Pro mode off";
+        proModeButton.setContentDescription(now + ". Tap to turn " + (enabled ? "off" : "on") + ". Long press for Settings.");
     }
 
     private interface TopButtonNarrativeProvider {

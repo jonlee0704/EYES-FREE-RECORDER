@@ -336,9 +336,9 @@ public class ProRecordingSettings {
         return all[next];
     }
 
-    /** Label for the header Pro button, e.g. "PRO OFF" or "PRO \u00b7 VENUE". */
+    /** Label for the header Pro button, simply "Pro". */
     public String buttonLabel() {
-        return isEnabled() ? "PRO \u00b7 " + getEnvironment().shortLabel() : "PRO OFF";
+        return "Pro";
     }
 
     // --- Cycling helpers used by gestures ---

@@ -60,7 +60,7 @@
 
 
 
-        <!-- Pro Recording Mode Pill: tap = next mode, long press = Pro menu -->
+        <!-- Pro Recording Mode Pill: tap = toggle on/off, long press = Settings -->
         <TextView
             android:id="@+id/btn_pro_mode"
             android:layout_width="wrap_content"
@@ -78,8 +78,8 @@
             android:paddingTop="5dp"
             android:paddingEnd="10dp"
             android:paddingBottom="5dp"
-            android:text="PRO OFF"
-            android:textColor="#7A6A99"
+            android:text="Pro"
+            android:textColor="#6C647A"
             android:textSize="11sp" />
 
         <!-- Settings Button -->
