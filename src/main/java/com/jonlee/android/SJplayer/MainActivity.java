@@ -1989,20 +1989,10 @@ public class MainActivity extends SampleActivityBase {
         if (w == null || w.trim().isEmpty()) return;
 
         String talkbackMode = sharedPref != null ? sharedPref.getString("pref_talkback_mode", "auto") : "auto";
-        boolean talkBackRunning = isTalkBackActive();
-
-        boolean useAccessibilityAnnouncement = true;
-        boolean useInternalTts = isTTSEnabled;
-
-        if ("auto".equals(talkbackMode)) {
-            if (talkBackRunning) {
-                // TalkBack is active: let TalkBack handle speech via accessibility announcement; mute internal TTS to avoid double-speaking
-                useInternalTts = false;
-                useAccessibilityAnnouncement = true;
-            }
-        } else if ("internal_only".equals(talkbackMode)) {
-            useAccessibilityAnnouncement = false;
-        }
+        TalkBackCoexistenceHelper.SpeechDecision decision =
+                TalkBackCoexistenceHelper.decide(talkbackMode, isTTSEnabled, isTalkBackActive());
+        boolean useAccessibilityAnnouncement = decision.useAccessibilityAnnouncement;
+        boolean useInternalTts = decision.useInternalTts;
 
         if (useInternalTts) {
             if (ttobj == null) {
