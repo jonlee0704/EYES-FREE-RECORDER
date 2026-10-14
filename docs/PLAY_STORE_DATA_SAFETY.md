@@ -57,7 +57,7 @@ Under *App Content* in Google Play Console:
    - Is this a medical app or health tracker? $\rightarrow$ **No**.
 7. **Privacy Policy Link**:
    - Enter your public legal documentation link:  
-     `https://jonlee0704.github.io/eyes-free-legal/privacy.html`
+     `https://jonlee0704.github.io/eyes-free-recorder-public/privacy.html`
 
 ---
 
