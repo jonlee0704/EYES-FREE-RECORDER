@@ -183,15 +183,11 @@ public class TrashAndLocationTest {
         assertEquals(0xFF00E5FF, MainActivity.TTS_BUTTON_COLOR_ON);
         assertEquals(0xFF4A6B80, MainActivity.TTS_BUTTON_COLOR_OFF);
 
-        // Verify strikethrough flag toggle math for both buttons
-        int initialFlags = 0;
-        int flagsWhenOff = initialFlags | android.graphics.Paint.STRIKE_THRU_TEXT_FLAG;
-        assertTrue("Strikethrough flag must be active when button mode is off",
-                (flagsWhenOff & android.graphics.Paint.STRIKE_THRU_TEXT_FLAG) != 0);
-
-        int flagsWhenOn = flagsWhenOff & ~android.graphics.Paint.STRIKE_THRU_TEXT_FLAG;
-        assertEquals("Strikethrough flag must be cleared when button mode is on",
-                0, flagsWhenOn & android.graphics.Paint.STRIKE_THRU_TEXT_FLAG);
+        // Verify strikethrough is cleared (no strike when off or on, as color highlight + background light UX is used)
+        int initialFlags = android.graphics.Paint.STRIKE_THRU_TEXT_FLAG;
+        int flagsCleared = initialFlags & ~android.graphics.Paint.STRIKE_THRU_TEXT_FLAG;
+        assertEquals("Strikethrough flag must be cleared (no strike)",
+                0, flagsCleared & android.graphics.Paint.STRIKE_THRU_TEXT_FLAG);
 
         // Verify ProRecordingSettings label and toggle state
         FakeSharedPreferences prefs = new FakeSharedPreferences();

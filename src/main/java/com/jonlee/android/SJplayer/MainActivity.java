@@ -487,7 +487,7 @@ public class MainActivity extends SampleActivityBase {
             proModeButton.setShadowLayer(8f, 0f, 0f, 0xFFB388FF);
         } else {
             proModeButton.setTextColor(PRO_BUTTON_COLOR_OFF);
-            proModeButton.setPaintFlags(proModeButton.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
+            proModeButton.setPaintFlags(proModeButton.getPaintFlags() & ~Paint.STRIKE_THRU_TEXT_FLAG);
             proModeButton.setBackgroundResource(R.drawable.bg_pro_btn_off);
             proModeButton.setShadowLayer(0f, 0f, 0f, 0);
         }
@@ -1974,7 +1974,7 @@ public class MainActivity extends SampleActivityBase {
                     } else {
                         progressTextView.setText("TTS-Off");
                         progressTextView.setTextColor(TTS_BUTTON_COLOR_OFF);
-                        progressTextView.setPaintFlags(progressTextView.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
+                        progressTextView.setPaintFlags(progressTextView.getPaintFlags() & ~Paint.STRIKE_THRU_TEXT_FLAG);
                         progressTextView.setBackgroundResource(R.drawable.bg_tts_btn_off);
                         progressTextView.setShadowLayer(0f, 0f, 0f, 0);
                     }
