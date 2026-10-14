@@ -102,8 +102,8 @@ All gestures are performed on the main touchscreen:
 | **Three-Finger Triple Tap** | 3 Fingers | **Toggle Screen Curtain (OLED Battery Saver)** | iOS VoiceOver consistent gesture (tap 3 times with 3 fingers). Shuts display pixels completely black (0 nits) for total privacy & maximum battery savings while keeping touch, haptics & audio active. Spoken announcement: *"Screen curtain on"* or *"Screen curtain off"*. |
 | **Three-Finger Long Press** | 3 Fingers | **Toggle Favorite Status** | Marks/unmarks recording as a priority favorite. |
 | **Three-Finger Swipe Down** | 3 Fingers | **Open App Settings Menu** | Opens audio settings, speech configuration, and options. |
-| **Three-Finger Swipe Up** | 3 Fingers | **Start / Stop Backup** | Initiates local audio file sync/backup. |
-| **Four-Finger Swipe Right** | 4 Fingers | **Delete Current Recording** | Spoken confirmation: *"File deleted"*. |
+| **Four-Finger Swipe Right** | 4 Fingers | **Delete Current Recording** | Moves to trash. Spoken: *"Moved to trash: [File Name]. Swipe left with 4 fingers to undo."* |
+| **Four-Finger Swipe Left** | 4 Fingers | **Restore Deleted Recording (Undo)** | Restores the most recently trashed file. Spoken confirmation: *"Restored [File Name]"*. |
 | **Circular Dial Scrub (Jog)** | 1 Finger | **Fine-Grained Jog Audio Scrubbing** | Clockwise scrubs forward; counter-clockwise rewinds. |
 
 ---
@@ -280,7 +280,7 @@ If headphones are plugged in, you also hear the processed sound live (Headphone 
 **A:** Yes! EYES-FREE VOICE RECORDER fully supports Bluetooth earbuds (with microphone) and wired headsets. All TTS announcements and playback route directly to your headphones.
 
 **Q: How do I recover a deleted file?**  
-**A:** Because 4-finger swipe right permanently deletes the active file from storage to free memory, always maintain periodic backups using the 3-finger swipe up backup utility or copying files to your computer.
+**A:** Swipe left across the glass using 4 fingers. EYES-FREE VOICE RECORDER will immediately restore the most recently trashed recording back to its original folder.
 
 ---
 

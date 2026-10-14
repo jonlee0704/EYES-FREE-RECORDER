@@ -1244,8 +1244,8 @@ public class MainActivity extends SampleActivityBase {
                 "• <b>2-Finger Tap</b>: Quick Bookmark (alternate shortcut).<br/>" +
                 "• <b>2-Finger Swipe Right / Left</b>: Jump to Next / Previous Bookmark.<br/>" +
                 "• <b>3-Finger Swipe Down</b>: Open Settings.<br/>" +
-                "• <b>3-Finger Swipe Up</b>: Start / Stop Cloud Backup.<br/>" +
                 "• <b>4-Finger Swipe Right &amp; Hold</b>: Delete current audio file.<br/>" +
+                "• <b>4-Finger Swipe Left</b>: Restore last deleted audio file (Undo).<br/>" +
                 "<br/>" +
                 "<font color=\"#B388FF\"><b>🎚 PRO RECORDING MODE</b></font><br/>" +
                 "• <b>Pro button (top bar)</b>: Tap for the next mode (Standard, Meeting room, Small music venue, Stadium, Street). Long press for the Pro menu.<br/>" +
@@ -1963,54 +1963,65 @@ public class MainActivity extends SampleActivityBase {
         return this.batteryLevel;
     }
 
+    public boolean isTalkBackActive() {
+        try {
+            android.view.accessibility.AccessibilityManager am =
+                    (android.view.accessibility.AccessibilityManager) getSystemService(Context.ACCESSIBILITY_SERVICE);
+            return am != null && am.isEnabled() && am.isTouchExplorationEnabled();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     /**
-     * Let TTS speaks
+     * Let TTS speak
      * @param w
      */
     public void speak(String w) {
-        if(isTTSEnabled) {
-            if (ttobj == null) {
-                pendingTtsMessage = w;
-                return;
-            }
-            ttobj.setPitch(1.0f);
-            int res = ttobj.speak(w, TextToSpeech.QUEUE_FLUSH, null, null);
-            if (res == TextToSpeech.ERROR) {
-                pendingTtsMessage = w;
-            }
-        }
-        try {
-            if (getWindow() != null && getWindow().getDecorView() != null) {
-                getWindow().getDecorView().announceForAccessibility(w);
-            }
-        } catch (Exception ignored) {}
+        speak(w, 1.0f, TextToSpeech.QUEUE_FLUSH);
     }
 
     public void speak(String w, float pitch) {
-        if(isTTSEnabled) {
-            if (ttobj == null) {
-                pendingTtsMessage = w;
-                return;
-            }
-            ttobj.setPitch(pitch);
-            int res = ttobj.speak(w, TextToSpeech.QUEUE_FLUSH, null, null);
-            if (res == TextToSpeech.ERROR) {
-                pendingTtsMessage = w;
-            }
-        }
+        speak(w, pitch, TextToSpeech.QUEUE_FLUSH);
     }
 
     public void speak(String w, float pitch, int queue) {
-        if(isTTSEnabled) {
+        if (w == null || w.trim().isEmpty()) return;
+
+        String talkbackMode = sharedPref != null ? sharedPref.getString("pref_talkback_mode", "auto") : "auto";
+        boolean talkBackRunning = isTalkBackActive();
+
+        boolean useAccessibilityAnnouncement = true;
+        boolean useInternalTts = isTTSEnabled;
+
+        if ("auto".equals(talkbackMode)) {
+            if (talkBackRunning) {
+                // TalkBack is active: let TalkBack handle speech via accessibility announcement; mute internal TTS to avoid double-speaking
+                useInternalTts = false;
+                useAccessibilityAnnouncement = true;
+            }
+        } else if ("internal_only".equals(talkbackMode)) {
+            useAccessibilityAnnouncement = false;
+        }
+
+        if (useInternalTts) {
             if (ttobj == null) {
                 pendingTtsMessage = w;
-                return;
+            } else {
+                ttobj.setPitch(pitch);
+                int res = ttobj.speak(w, queue, null, null);
+                if (res == TextToSpeech.ERROR) {
+                    pendingTtsMessage = w;
+                }
             }
-            ttobj.setPitch(pitch);
-            int res = ttobj.speak(w, queue, null, null);
-            if (res == TextToSpeech.ERROR) {
-                pendingTtsMessage = w;
-            }
+        }
+
+        if (useAccessibilityAnnouncement) {
+            try {
+                if (getWindow() != null && getWindow().getDecorView() != null) {
+                    getWindow().getDecorView().announceForAccessibility(w);
+                }
+            } catch (Exception ignored) {}
         }
     }
 

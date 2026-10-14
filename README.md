@@ -62,7 +62,8 @@ You can operate EYES-FREE VOICE RECORDER while walking, with the phone resting i
 | **Long Press twice** (Pro recording) | **Choose Version** | Main, safety track or original; tap plays it |
 | **3-Finger Swipe Down** | **Settings Menu** | Opens audio quality, speech rate, and haptic options |
 | **3-Finger Swipe Up** | **Backup & Sync** | Triggers local backup routine |
-| **4-Finger Swipe Right** | **Delete Current File** | Permanently deletes active recording |
+| **4-Finger Swipe Right** | **Delete Current File** | Moves active recording to trash |
+| **4-Finger Swipe Left** | **Restore Deleted File** | Restores the most recently trashed recording (Undo) |
 
 ---
 

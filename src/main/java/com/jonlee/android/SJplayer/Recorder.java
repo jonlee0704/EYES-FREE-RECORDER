@@ -2427,7 +2427,7 @@ public class Recorder {
             recordingLocationName = null;
 
             // Tag recording with location if enabled in settings and permission is granted
-            boolean saveLocation = prefs.getBoolean("pref_save_location", true);
+            boolean saveLocation = prefs.getBoolean("pref_save_location", false);
             if (saveLocation && LocationHelper.isLocationPermissionGranted(mainActivity)) {
                 android.location.Location loc = LocationHelper.getLastKnownLocation(mainActivity);
                 if (loc != null) {
@@ -2543,7 +2543,7 @@ public class Recorder {
             recordingBookmarks.clear();
             recordingAudioSource = AudioMetadataHelper.getCurrentAudioInputSource(mainActivity);
             recordingLocationName = null;
-            if (prefs.getBoolean("pref_save_location", true) && LocationHelper.isLocationPermissionGranted(mainActivity)) {
+            if (prefs.getBoolean("pref_save_location", false) && LocationHelper.isLocationPermissionGranted(mainActivity)) {
                 android.location.Location loc = LocationHelper.getLastKnownLocation(mainActivity);
                 if (loc != null) {
                     recordingLocationName = LocationHelper.getPlaceName(mainActivity, loc.getLatitude(), loc.getLongitude());
@@ -3319,23 +3319,78 @@ public class Recorder {
         return null;
     }
 
-    public void moveCurrentFileToTrash(){
-        try{
+    private File lastTrashedOriginalFile = null;
+    private File lastTrashedTrashFile = null;
+    private final List<File> lastTrashedOriginalCompanions = new ArrayList<>();
+    private final List<File> lastTrashedTrashCompanions = new ArrayList<>();
+    private String lastTrashedOriginalFileName = null;
+
+    public void moveCurrentFileToTrash() {
+        try {
             File target = new File(getCurrentFileFullPath());
+            if (!target.exists()) return;
+
+            lastTrashedOriginalFile = target;
+            lastTrashedOriginalFileName = target.getName();
+            lastTrashedTrashFile = new File(trashFolder, target.getName());
+            lastTrashedOriginalCompanions.clear();
+            lastTrashedTrashCompanions.clear();
+
             // Pro Recording companions (safety track, original) are deleted together with the file
             for (File companion : getProCompanionFiles(target)) {
-                copyDirectoryOneLocationToAnotherLocation(companion, new File(trashFolder + "/" + companion.getName()));
+                File trashCompanion = new File(trashFolder, companion.getName());
+                copyDirectoryOneLocationToAnotherLocation(companion, trashCompanion);
+                lastTrashedOriginalCompanions.add(companion);
+                lastTrashedTrashCompanions.add(trashCompanion);
                 companion.delete();
             }
             AudioMetadataHelper.deleteMetadata(mainActivity, target);
-            copyDirectoryOneLocationToAnotherLocation(target, new File(trashFolder+"/"+getCurrentFileName()));
+            copyDirectoryOneLocationToAnotherLocation(target, lastTrashedTrashFile);
             target.delete();
             folderFilesCache.remove(currentFolder.getAbsolutePath());
             readAudibleFilesInCurrentFolder();
-        }catch(IOException e){
-            e.printStackTrace();
+        } catch (IOException e) {
+            Log.e(TAG, "Failed to move file to trash", e);
         }
+    }
 
+    public String restoreLastDeletedFile() {
+        if (lastTrashedTrashFile == null || !lastTrashedTrashFile.exists() || lastTrashedOriginalFile == null) {
+            return null;
+        }
+        try {
+            File parentDir = lastTrashedOriginalFile.getParentFile();
+            if (parentDir != null && !parentDir.exists()) {
+                parentDir.mkdirs();
+            }
+            copyDirectoryOneLocationToAnotherLocation(lastTrashedTrashFile, lastTrashedOriginalFile);
+            lastTrashedTrashFile.delete();
+
+            for (int i = 0; i < lastTrashedTrashCompanions.size(); i++) {
+                File trashComp = lastTrashedTrashCompanions.get(i);
+                File origComp = lastTrashedOriginalCompanions.get(i);
+                if (trashComp.exists()) {
+                    copyDirectoryOneLocationToAnotherLocation(trashComp, origComp);
+                    trashComp.delete();
+                }
+            }
+
+            String restoredName = lastTrashedOriginalFileName;
+            lastTrashedTrashFile = null;
+            lastTrashedOriginalFile = null;
+            lastTrashedOriginalFileName = null;
+            lastTrashedOriginalCompanions.clear();
+            lastTrashedTrashCompanions.clear();
+
+            if (parentDir != null) {
+                folderFilesCache.remove(parentDir.getAbsolutePath());
+            }
+            readAudibleFilesInCurrentFolder();
+            return restoredName;
+        } catch (IOException e) {
+            Log.e(TAG, "Failed to restore file from trash", e);
+            return null;
+        }
     }
 
     public int addRecordingBookmark() {

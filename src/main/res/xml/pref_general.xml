@@ -8,6 +8,14 @@
             android:summary="@string/pref_description_is_TTS_ON"
             android:title="@string/pref_title_is_TTS_ON" />
 
+        <ListPreference
+            android:defaultValue="auto"
+            android:entries="@array/pref_talkback_mode_entries"
+            android:entryValues="@array/pref_talkback_mode_values"
+            android:key="pref_talkback_mode"
+            android:summary="@string/pref_summary_talkback_mode"
+            android:title="@string/pref_title_talkback_mode" />
+
         <Preference
             android:key="pref_download_welcome"
             android:summary="@string/pref_summary_download_welcome"
@@ -35,7 +43,7 @@
             android:title="@string/pref_title_noise_suppression" />
 
         <SwitchPreference
-            android:defaultValue="true"
+            android:defaultValue="false"
             android:key="pref_save_location"
             android:summary="@string/pref_summary_save_location"
             android:title="@string/pref_title_save_location" />

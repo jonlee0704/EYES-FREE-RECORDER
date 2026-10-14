@@ -1483,15 +1483,17 @@ public class DialView extends View {
                                     }else if(!isMultiFingerMode) {
                                         cmd(Commander.FAST_FORWARD_2X);
                                     }
-                                    break;
-                                case RIGHT_LEFT:
-                                    if(touchCnt == 2) {
-                                        cmd(Commander.FAST_BACKWARD_3X);
-
-                                    }else {
-                                        cmd(Commander.FAST_BACKWARD_2X);
-                                    }
-                                    break;
+                                 case RIGHT_LEFT:
+                                     if(touchCnt == 4) {
+                                         if(!isFired) {
+                                             cmd(Commander.RESTORE_FILE); isMultiFingerMode = true;
+                                         }
+                                     } else if(touchCnt == 2) {
+                                         cmd(Commander.FAST_BACKWARD_3X);
+                                     } else {
+                                         cmd(Commander.FAST_BACKWARD_2X);
+                                     }
+                                     break;
                             }
 
                             isFired = true;

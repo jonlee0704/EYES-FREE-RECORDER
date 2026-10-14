@@ -113,6 +113,7 @@ public class Commander{
     public final static int PRO_GAIN_DOWN = 60;
     public final static int PRO_MENU = 61;
     public final static int PRO_CYCLE_MODE = 62;
+    public final static int RESTORE_FILE = 63;
 
 
 
@@ -1945,9 +1946,23 @@ public class Commander{
                     break;
                 case Commander.DELETE_FILE:
                     progressBarVisible(false);
-                    alwaysSpeak("Deleted " + recorder.getCurrentFileName());
-                    displayText("Deleted " + recorder.getCurrentFileName());
+                    String fileToDelete = recorder.getCurrentFileName();
                     recorder.moveCurrentFileToTrash();
+                    alwaysSpeak("Moved to trash: " + fileToDelete + ". Swipe left with 4 fingers to undo.");
+                    displayText("Deleted " + fileToDelete);
+                    vibrate(100);
+                    break;
+                case Commander.RESTORE_FILE:
+                    progressBarVisible(false);
+                    String restoredFile = recorder.restoreLastDeletedFile();
+                    if (restoredFile != null) {
+                        alwaysSpeak("Restored " + restoredFile);
+                        displayText("Restored " + restoredFile);
+                        vibrate(80);
+                    } else {
+                        alwaysSpeak("Nothing to restore");
+                        displayText("Nothing to restore");
+                    }
                     break;
                 case Commander.UPDATE_PROGRESS:
                     this.progress_TextView.setText(recorder.getPosition() + " " + progress_TextView.getText());

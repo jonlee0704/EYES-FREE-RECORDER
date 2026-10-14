@@ -397,7 +397,7 @@
     <string name="pref_summary_manual_backup">Manually backup all recordings to Google Drive</string>
 
     <string name="pref_title_save_location">Save Location with Recordings</string>
-    <string name="pref_summary_save_location">Tag recordings with GPS coordinates and place name to organize files by location</string>
+    <string name="pref_summary_save_location">Tag recordings with GPS coordinates and place name to organize files by location (Off by default for privacy)</string>
 
     <!-- Visualizer & Haptic Audio Settings -->
     <string name="pref_header_visualization">Animation &amp; Visualizer</string>
@@ -420,5 +420,19 @@
 
     <string name="pref_title_screen_curtain">Screen Curtain (OLED Battery Saver)</string>
     <string name="pref_summary_screen_curtain">Turns display pixels completely off for maximum battery life while keeping non-visual touch, haptics, and audio active</string>
+
+    <!-- TalkBack Screen Reader Coexistence -->
+    <string name="pref_title_talkback_mode">TalkBack Coexistence Mode</string>
+    <string name="pref_summary_talkback_mode">Controls speech feedback when TalkBack is active to prevent double-speaking</string>
+    <string-array name="pref_talkback_mode_entries">
+        <item>Auto-mute App Voice (TalkBack handles announcements)</item>
+        <item>Always Use App Voice</item>
+        <item>Both Voices</item>
+    </string-array>
+    <string-array name="pref_talkback_mode_values">
+        <item>auto</item>
+        <item>internal_only</item>
+        <item>both</item>
+    </string-array>
 
 </resources>

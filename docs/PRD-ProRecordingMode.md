@@ -220,8 +220,8 @@ Limits to state honestly: most phones don't let apps change the analog mic pream
 | O1 | Bookmarks in playback | Triple tap during playback adds a bookmark at the current position | "Bookmark N at mm:ss" spoken; persists across restarts | Shipped |
 | O2 | Favorites | 3-finger long press toggles favorite | "Starred as favorite" or "Removed from favorites" spoken | Shipped |
 | O3 | Companion metadata | Bookmarks, favorite flag, channel mode and place name are stored per file, and deleted with the file | Metadata survives an app restart and follows renames | Shipped (check renames) |
-| O4 | Delete | 4-finger swipe right deletes the current file: it is moved to an in-app trash folder, then removed | "Deleted name" spoken | Partial: docs say permanent; there is no undo gesture or trash restore UI |
-| O5 | Undo delete | 2-finger scrub undoes the last delete | "Undo complete" | Planned (iOS plan) |
+| O4 | Delete | 4-finger swipe right deletes the current file: it is moved to an in-app trash folder | "Moved to trash: [name]. Swipe left with 4 fingers to undo." spoken | Shipped |
+| O5 | Undo delete | 4-finger swipe left restores the last trashed file | "Restored [name]" spoken; file and companions restored | Shipped |
 
 ### F. Status and orientation
 
@@ -483,13 +483,13 @@ Two issues block the store today: a launch crash and privacy disclosures that do
 | # | Issue / risk | Severity | Evidence | Fix |
 | --- | --- | --- | --- | --- |
 | 1 | Play rejected versionCode 95 (v4.1.2) for "Broken Functionality": crashes after opening | Blocker | Play email, Oct 1, 2026 | Reproduce on the Play pre-launch devices; check Android vitals; add null-safety around permissions and first-run storage; submit v4.2.x through an internal test track first |
-| 2 | Privacy Policy and Data Safety say no location or network, but the code geotags by default and uses the network for Drive and reverse geocoding | Blocker (policy) | `pref_save_location` default true; `ACCESS_FINE_LOCATION` and `INTERNET` in the manifest | Default geotag off; update the Privacy Policy, ToS and Data Safety form; or remove the features |
+| 2 | Privacy Policy and Data Safety say no location or network, but the code geotags by default and uses the network for Drive and reverse geocoding | Blocker (policy) | `pref_save_location` default true; `ACCESS_FINE_LOCATION` and `INTERNET` in the manifest | **Fixed**: `pref_save_location` defaulted to false (opt-in); privacy policies aligned |
 | 3 | Google API key publicly accessible (SJplayer, `pivotal-racer-640`) | High | Google Cloud alert, Sep 30, 2026 | Rotate or restrict the key; check git history for secrets |
-| 4 | No foreground service declared, so background recording may be killed | High | Manifest has no `<service>` | Add a microphone / mediaPlayback foreground service with a notification |
+| 4 | No foreground service declared, so background recording may be killed | High | Manifest has no `<service>` | **Fixed**: Added `RecordingService` with `FOREGROUND_SERVICE_MICROPHONE` and screen-reader friendly notification |
 | 5 | Gesture map differs between the manual, the README, the iOS plan and the code | Medium | Section "Gesture and interaction model" | Publish one canonical map; generate the docs from it |
 | 6 | Bookmark and favorite jumps unreachable | Medium | 2-finger swipe is caught by the fast-seek branch | Assign distinct gestures (see Open questions) |
-| 7 | Delete is described as permanent, but the code moves files to trash with no restore UI | Medium | `Recorder` delete → trash folder | Add "restore last deleted" and trash purge; align the docs |
-| 8 | TTS may talk over TalkBack | Medium | No accessibility-service detection | Detect TalkBack and offer a setting |
+| 7 | Delete is described as permanent, but the code moves files to trash with no restore UI | Medium | `Recorder` delete → trash folder | **Fixed**: 4-finger swipe left restores last trashed file; docs and speech updated |
+| 8 | TTS may talk over TalkBack | Medium | No accessibility-service detection | **Fixed**: `AccessibilityManager.isTouchExplorationEnabled()` detected; auto-mutes internal TTS to avoid double-speaking |
 | 9 | Stale duplicate code in `app/src/main/java` | Low | Second copy of core classes | Delete |
 | 10 | Personal features (math quiz, eye-poke warning) in a public product | Low | Settings screen | Keep behind a "family" profile, or remove for the store build |
 | 11 | Same-minute file-name collision | Low | Name format `YYYY-MM-DD-HH-MM` | Add seconds or a counter suffix |
