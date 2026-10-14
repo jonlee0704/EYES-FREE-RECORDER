@@ -140,19 +140,19 @@ Limits to state honestly: most phones don't let apps change the analog mic pream
 
 | ID | Requirement | Acceptance criteria |
 | --- | --- | --- |
-| PR1 | Turn Pro mode on or off from Settings or with a 3-finger double tap | Spoken: "Pro mode on. Meeting room, Voice focus, noise reduction 75 percent, gain auto"; state persists |
+| PR1 | Turn Pro mode on or off with the Pro button in the top bar, from Settings, or from the spoken Pro menu. Decided Oct 13 (JY): one tap on the Pro button steps Standard → Meeting room → Small music venue → Stadium → Street → Standard; a long press opens the Pro menu, which holds every Pro setting. A 3-finger double tap also opens the menu. The mode is locked while recording | Spoken: "Pro mode on. Meeting room, Voice focus, noise reduction 75 percent, gain auto"; state persists. In the menu: 1-finger swipe right/left moves between items, up/down changes the value, tap selects, long press explains the item, double tap closes it and records; it closes after 60 s idle |
 | PR2 | Pick the environment with a 3-finger swipe left or right while idle in Pro mode | Speaks the environment and the defaults it loads; a distinct earcon per environment |
 | PR3 | Pick the focus with a 3-finger swipe up or down while idle in Pro mode. Decided Oct 12 (JY): while Pro mode is idle, this replaces the Settings/Backup swipe. Settings and Backup stay reachable from the Settings menu, and the swipes work as before once Pro mode is off | Cycles Voice → Music → Natural; spoken; resets the noise-reduction default for that focus |
 | PR4 | Set the noise-reduction level in Settings → Pro Recording before recording, or live with a 2-finger swipe up or down while recording | Live change takes effect within 200 ms, with no click or dropout; softly announced; time-stamped in metadata. Idle 2-finger swipes stay reserved for month/letter seek |
 | PR5 | Gain control: the volume buttons adjust input gain (not playback volume) while Pro mode is armed or recording, in Manual modes | Each press is 3 dB, spoken ("Input minus 9 dB"); range −24 to +12 dB; in Auto mode the buttons behave normally |
-| PR6 | Sound check: a 5-second listen before recording, triggered from Settings or with a 1-finger long press while armed | Reports the peak in dBFS and recommends a gain ("Peak minus 2 dB. Recommend lowering input 6 dB"); one tap applies the recommendation |
-| PR7 | Clipping and level feedback: haptic intensity rises as peaks approach 0 dBFS; a short tone and a vibration on clipping | At most 1 spoken warning every 10 s; works with the screen curtain on and in a pocket |
-| PR8 | Safety track: in Manual + safety track mode, record a second file 12 dB lower | Both files share a name stem (e.g. "\_safety"); deleted together; playable from file info |
+| PR6 | Sound check: a 5-second listen before recording, triggered from Settings or from the Pro menu. Decided Oct 13 (JY): not on 1-finger long press, which stays File info in every state | Reports the peak in dBFS and recommends a gain ("Peak minus 2 dB. Recommend lowering input 6 dB"); one tap applies the recommendation |
+| PR7 | Clipping and level feedback: haptic intensity rises as peaks approach 0 dBFS; a short tone and a vibration on clipping. Decided Oct 13 (JY): headphone-aware. Without headphones, nothing is spoken or beeped while recording, because the mic would record it; changes and clip counts are read after "Recording stopped" | At most 1 spoken warning every 10 s with headphones; works with the screen curtain on and in a pocket |
+| PR8 | Safety track: in Manual + safety track mode, record a second file 12 dB lower | Both files share a name stem (e.g. "\_safety"); deleted together; playable from file info: a second long press within 10 s cycles main → safety → original, and a tap plays the selected version |
 | PR9 | "Keep original": whenever noise reduction is above 0%, also save the unprocessed file (default on) | The original is always recoverable; storage warnings count both files |
 | PR10 | Headphone monitoring, so the user hears the effect of focus, noise reduction and gain | ≤ 50 ms latency on wired headphones; Bluetooth shows a latency warning |
-| PR11 | Metadata: environment, focus, noise-reduction level (including live changes), gain mode and gain value are saved and read in file info | e.g. "Meeting room, Music focus, noise reduction 25 percent, manual gain minus 6 dB" |
+| PR11 | Metadata: environment, focus, noise-reduction level and gain (both including time-stamped live changes) and gain mode are saved and read in file info | e.g. "Meeting room, Music focus, noise reduction 25 percent, manual gain minus 6 dB" |
 | PR12 | Where am I and status announcements include the Pro mode state | The top-left corner report includes all four settings |
-| PR13 | Custom presets (later): save a named combination of environment, focus, noise reduction and gain | Selectable like the built-in environments |
+| PR13 | Custom presets: save a combination of environment, focus, noise reduction and gain | Three numbered slots in the Pro menu: tap an empty slot to save, a saved slot to load; long press saves over a slot |
 
 **Technical approach (Android)**
 
@@ -167,7 +167,7 @@ Limits to state honestly: most phones don't let apps change the analog mic pream
 - the spoken names for environments and focuses
 - the earcon set
 - whether repurposing the volume buttons in Manual mode is clear enough (announce it when entering Pro mode)
-- whether a simple spoken menu should offer every setting as an alternative to gestures
+- the spoken Pro menu (built Oct 13): item order, wording and the 60 s timeout
 
 **Out of scope for v1:** applying noise reduction to existing files after recording, multi-mic beamforming beyond what the device provides, and separating individual instruments.
 
@@ -290,6 +290,7 @@ The whole screen is one control surface. The meaning of a gesture depends on fou
 | 2 | Swipe up / down | Seek folder section (month or letter) | Same | — |
 | 2 | Swipe and hold right | — | 3x fast-forward | — |
 | 2 | Long press (> 0.45 s) | Time, date, battery | Same, then resume | — |
+| 3 | Double tap | Open / close the Pro menu | Same | "On air" |
 | 3 | Triple tap | Toggle screen curtain | Same | Same |
 | 3 | Long press | Toggle favorite | Toggle favorite | — |
 | 3 | Swipe down | Open Settings | Open Settings | — |

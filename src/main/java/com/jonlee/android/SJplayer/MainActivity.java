@@ -357,6 +357,8 @@ public class MainActivity extends SampleActivityBase {
                     }
                 });
 
+        setupProModeButton();
+
         setupGestureDetection();
 
         if (!isTermsOfServiceAccepted()) {
@@ -364,6 +366,111 @@ public class MainActivity extends SampleActivityBase {
         } else {
             requestPermissions();
         }
+    }
+
+    private static final long PRO_BUTTON_LONG_PRESS_MS = 600L;
+    private TextView proModeButton;
+
+    /**
+     * Header Pro button (PRD A2): one tap steps to the next mode (Standard, then each
+     * environment), a long press opens the spoken Pro menu with every setting. Touching it
+     * first says the current mode, like the other header buttons. TalkBack users get the
+     * same through double tap and double tap and hold.
+     */
+    private void setupProModeButton() {
+        View view = findViewById(R.id.btn_pro_mode);
+        if (!(view instanceof TextView)) return;
+        proModeButton = (TextView) view;
+        updateProButtonState();
+
+        proModeButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (commander != null) commander.cmd(Commander.PRO_CYCLE_MODE);
+            }
+        });
+        proModeButton.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View v) {
+                if (commander != null) commander.cmd(Commander.PRO_MENU);
+                return true;
+            }
+        });
+
+        final Handler longPressHandler = new Handler(Looper.getMainLooper());
+        proModeButton.setOnTouchListener(new View.OnTouchListener() {
+            private boolean isDownInside = false;
+            private boolean longPressFired = false;
+            private final Runnable longPress = new Runnable() {
+                @Override
+                public void run() {
+                    if (!isDownInside) return;
+                    longPressFired = true;
+                    proModeButton.animate().scaleX(1.0f).scaleY(1.0f).setDuration(150).start();
+                    proModeButton.performLongClick();
+                }
+            };
+
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                switch (event.getActionMasked()) {
+                    case MotionEvent.ACTION_DOWN:
+                        isDownInside = true;
+                        longPressFired = false;
+                        v.animate().scaleX(1.12f).scaleY(1.12f).setDuration(120).start();
+                        if (commander != null) commander.vibrateTick();
+                        alwaysSpeak(getProButtonNarrative());
+                        longPressHandler.postDelayed(longPress, PRO_BUTTON_LONG_PRESS_MS);
+                        return true;
+                    case MotionEvent.ACTION_MOVE:
+                        if (isDownInside) {
+                            float x = event.getX();
+                            float y = event.getY();
+                            if (x < 0 || x > v.getWidth() || y < 0 || y > v.getHeight()) {
+                                isDownInside = false;
+                                longPressHandler.removeCallbacks(longPress);
+                                v.animate().scaleX(1.0f).scaleY(1.0f).setDuration(150).start();
+                            }
+                        }
+                        return true;
+                    case MotionEvent.ACTION_UP:
+                        longPressHandler.removeCallbacks(longPress);
+                        v.animate().scaleX(1.0f).scaleY(1.0f).setDuration(150).start();
+                        if (isDownInside && !longPressFired) {
+                            if (commander != null) commander.vibrateClick();
+                            v.performClick();
+                        }
+                        isDownInside = false;
+                        return true;
+                    case MotionEvent.ACTION_CANCEL:
+                        longPressHandler.removeCallbacks(longPress);
+                        isDownInside = false;
+                        v.animate().scaleX(1.0f).scaleY(1.0f).setDuration(150).start();
+                        return true;
+                }
+                return false;
+            }
+        });
+    }
+
+    private String getProButtonNarrative() {
+        ProRecordingSettings pro = ProRecordingSettings.get(this);
+        String now = pro.isEnabled() ? "Pro mode, " + pro.getEnvironment().spokenName : "Standard recording, Pro mode off";
+        if (recorder != null && recorder.isRecording()) {
+            // The mode is fixed for the whole take
+            return now + ". Locked while recording.";
+        }
+        return now + ". Release to change mode, or hold for Pro settings.";
+    }
+
+    /** Shows the current Pro mode on the header button; called whenever Pro settings change. */
+    public void updateProButtonState() {
+        if (proModeButton == null) return;
+        ProRecordingSettings pro = ProRecordingSettings.get(this);
+        proModeButton.setText(pro.buttonLabel());
+        proModeButton.setTextColor(pro.isEnabled() ? 0xFFB388FF : 0xFF7A6A99);
+        String now = pro.isEnabled() ? "Pro mode, " + pro.getEnvironment().spokenName : "Standard recording, Pro mode off";
+        proModeButton.setContentDescription(now + ". Tap to change mode. Long press for Pro settings.");
     }
 
     private interface TopButtonNarrativeProvider {
@@ -427,10 +534,8 @@ public class MainActivity extends SampleActivityBase {
                             if (commander != null) {
                                 commander.vibrateClick();
                             }
+                            // performClick runs the click listener, which runs the action once
                             v.performClick();
-                            if (onReleaseAction != null) {
-                                onReleaseAction.run();
-                            }
                         }
                         return true;
 
@@ -632,6 +737,63 @@ public class MainActivity extends SampleActivityBase {
     private int threeFingerTapCount = 0;
     private long lastThreeFingerTapTime = 0L;
 
+    // Pro Recording Mode gestures (PRD A2)
+    private static final long THREE_FINGER_TAP_WINDOW_MS = 650L;
+    private float threeFingerStartX = 0f;
+    private float threeFingerStartY = 0f;
+    private boolean proGestureConsumed = false;
+    private boolean touchActive = false;
+    private boolean proTogglePending = false;
+    private final Handler proToggleHandler = new Handler(Looper.getMainLooper());
+    private final Runnable proToggleRunnable = new Runnable() {
+        @Override
+        public void run() {
+            // Wait while a finger is down: it may be the third tap of a curtain triple tap
+            if (touchActive) {
+                proToggleHandler.postDelayed(this, 100);
+                return;
+            }
+            proTogglePending = false;
+            if (threeFingerTapCount == 2) {
+                threeFingerTapCount = 0;
+                Log.i(TAG, "Three-finger double-tap detected: opening or closing the Pro menu");
+                if (commander != null) {
+                    commander.cmd(Commander.PRO_MENU);
+                }
+            }
+        }
+    };
+
+    /**
+     * Two-finger vertical swipes seek folder sections, except while Pro recording, where they
+     * set the noise-reduction level live (PR4). Idle 2-finger swipes stay reserved for seek.
+     */
+    private int twoFingerVerticalCommand(boolean up) {
+        if (commander != null && commander.isProRecordingActive()) {
+            return up ? Commander.PRO_NOISE_REDUCTION_UP : Commander.PRO_NOISE_REDUCTION_DOWN;
+        }
+        return up ? Commander.FAST_SEEK_NEXT_FOLDER : Commander.FAST_SEEK_PREVIOUS_FOLDER;
+    }
+
+    private static float centroidX(MotionEvent ev) {
+        float sum = 0f;
+        for (int i = 0; i < ev.getPointerCount(); i++) sum += ev.getX(i);
+        return sum / ev.getPointerCount();
+    }
+
+    private static float centroidY(MotionEvent ev) {
+        float sum = 0f;
+        for (int i = 0; i < ev.getPointerCount(); i++) sum += ev.getY(i);
+        return sum / ev.getPointerCount();
+    }
+
+    private void cancelChildTouches(MotionEvent ev) {
+        MotionEvent cancelEvent = MotionEvent.obtain(ev);
+        cancelEvent.setAction(MotionEvent.ACTION_CANCEL);
+        super.dispatchTouchEvent(cancelEvent);
+        cancelEvent.recycle();
+    }
+
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
         if (!isTermsOfServiceAccepted()) {
@@ -657,16 +819,20 @@ public class MainActivity extends SampleActivityBase {
                 }
             }
             long now = System.currentTimeMillis();
-            if (now - lastThreeFingerTapTime > 650L) {
+            if (now - lastThreeFingerTapTime > THREE_FINGER_TAP_WINDOW_MS && !proTogglePending) {
                 threeFingerTapCount = 0;
             }
+            touchActive = true;
+            proGestureConsumed = false;
             isTwoFingerGesture = false;
             twoFingerActionFired = false;
             twoFingerMaxPointerCount = 1;
             isThreeFingerGesture = false;
             threeFingerActionFired = false;
         } else if (pointerCount == 2) {
-            if (!isTwoFingerGesture && !twoFingerActionFired) {
+            // A 3-finger gesture passes through 2 pointers while the fingers lift: it must not
+            // restart 2-finger tracking, or the last lift reads as a 2-finger tap (bookmark)
+            if (!isTwoFingerGesture && !twoFingerActionFired && twoFingerMaxPointerCount < 3) {
                 isTwoFingerGesture = true;
                 twoFingerActionFired = false;
                 twoFingerStartX = (ev.getX(0) + ev.getX(1)) / 2f;
@@ -686,9 +852,45 @@ public class MainActivity extends SampleActivityBase {
                 isThreeFingerGesture = true;
                 threeFingerActionFired = false;
                 threeFingerDownTime = System.currentTimeMillis();
+                threeFingerStartX = centroidX(ev);
+                threeFingerStartY = centroidY(ev);
                 wheelScrubHandler.removeCallbacksAndMessages(null);
                 isWheelScrubbing = false;
                 Log.d(TAG, "3-finger tracking started for Screen Curtain toggle");
+            }
+        }
+
+        if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            touchActive = false;
+        }
+
+        if (proGestureConsumed) {
+            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                proGestureConsumed = false;
+                isThreeFingerGesture = false;
+                twoFingerMaxPointerCount = 0;
+            }
+            return true;
+        }
+
+        // Pro Recording Mode: while idle in Pro mode, 3-finger swipes pick the environment
+        // (left / right, PR2) and the focus (up / down, PR3) instead of favorites, Settings and Backup.
+        if (isThreeFingerGesture && !threeFingerActionFired && action == MotionEvent.ACTION_MOVE
+                && pointerCount >= 3 && commander != null && commander.isProArmed()) {
+            float deltaX = centroidX(ev) - threeFingerStartX;
+            float deltaY = centroidY(ev) - threeFingerStartY;
+            float threshold = 40 * density;
+            if (Math.abs(deltaX) >= threshold || Math.abs(deltaY) >= threshold) {
+                threeFingerActionFired = true;
+                proGestureConsumed = true;
+                if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                    commander.cmd(deltaX > 0 ? Commander.PRO_NEXT_ENVIRONMENT : Commander.PRO_PREVIOUS_ENVIRONMENT);
+                } else {
+                    // Up = next focus (Voice -> Music -> Natural), down = previous
+                    commander.cmd(deltaY < 0 ? Commander.PRO_NEXT_FOCUS : Commander.PRO_PREVIOUS_FOCUS);
+                }
+                cancelChildTouches(ev);
+                return true;
             }
         }
 
@@ -712,9 +914,9 @@ public class MainActivity extends SampleActivityBase {
                             // deltaY < 0 = moving UP -> Next folder section
                             // deltaY > 0 = moving DOWN -> Previous folder section
                             if (deltaY < 0) {
-                                commander.cmd(Commander.FAST_SEEK_NEXT_FOLDER);
+                                commander.cmd(twoFingerVerticalCommand(true));
                             } else {
-                                commander.cmd(Commander.FAST_SEEK_PREVIOUS_FOLDER);
+                                commander.cmd(twoFingerVerticalCommand(false));
                             }
                         } else {
                             // Horizontal swipe across FILES:
@@ -764,9 +966,9 @@ public class MainActivity extends SampleActivityBase {
                     if (commander != null) {
                         if (absY > absX) {
                             if (deltaY < 0) {
-                                commander.cmd(Commander.FAST_SEEK_NEXT_FOLDER);
+                                commander.cmd(twoFingerVerticalCommand(true));
                             } else {
-                                commander.cmd(Commander.FAST_SEEK_PREVIOUS_FOLDER);
+                                commander.cmd(twoFingerVerticalCommand(false));
                             }
                         } else {
                             if (deltaX > 0) {
@@ -804,14 +1006,24 @@ public class MainActivity extends SampleActivityBase {
                 long now = System.currentTimeMillis();
                 long duration = now - threeFingerDownTime;
                 if (duration < 450) {
-                    if (now - lastThreeFingerTapTime <= 650L) {
+                    if (now - lastThreeFingerTapTime <= THREE_FINGER_TAP_WINDOW_MS || proTogglePending) {
                         threeFingerTapCount++;
                     } else {
                         threeFingerTapCount = 1;
                     }
                     lastThreeFingerTapTime = now;
 
+                    if (threeFingerTapCount == 2) {
+                        // Could be a Pro mode double tap or the start of a curtain triple tap:
+                        // decide once the tap window passes without a third tap (PR1)
+                        proTogglePending = true;
+                        proToggleHandler.removeCallbacks(proToggleRunnable);
+                        proToggleHandler.postDelayed(proToggleRunnable, THREE_FINGER_TAP_WINDOW_MS);
+                    }
+
                     if (threeFingerTapCount >= 3) {
+                        proToggleHandler.removeCallbacks(proToggleRunnable);
+                        proTogglePending = false;
                         threeFingerTapCount = 0;
                         Log.i(TAG, "Three-finger triple-tap detected: toggling Screen Curtain");
                         if (commander != null) {
@@ -845,7 +1057,7 @@ public class MainActivity extends SampleActivityBase {
                     twoFingerActionFired = true;
                     if (commander != null) {
                         if (absY > absX) {
-                            commander.cmd(deltaY < 0 ? Commander.FAST_SEEK_NEXT_FOLDER : Commander.FAST_SEEK_PREVIOUS_FOLDER);
+                            commander.cmd(twoFingerVerticalCommand(deltaY < 0));
                         } else {
                             commander.cmd(deltaX > 0 ? Commander.FAST_SEEK_NEXT_FILE : Commander.FAST_SEEK_PREVIOUS_FILE);
                         }
@@ -950,7 +1162,7 @@ public class MainActivity extends SampleActivityBase {
                         "The default split user interface displays folders on the left and audio files on the right with vertical scrolling and text marquee for long titles. " +
                         "Display animation styles such as Circular Dial, Frequency Spectrum, and Starburst can be selected in settings under Animation and Visualizer.",
                 "Top controls: " +
-                        "Tap question mark for help. Tap gear icon for settings. Tap TTS pill to toggle voice assistance on or off."
+                        "Tap question mark for help. Tap the Pro button to change recording mode, or hold it for Pro settings. Tap gear icon for settings. Tap TTS pill to toggle voice assistance on or off."
         };
 
         for (int i = 0; i < sections.length; i++) {
@@ -1034,6 +1246,17 @@ public class MainActivity extends SampleActivityBase {
                 "• <b>3-Finger Swipe Down</b>: Open Settings.<br/>" +
                 "• <b>3-Finger Swipe Up</b>: Start / Stop Cloud Backup.<br/>" +
                 "• <b>4-Finger Swipe Right &amp; Hold</b>: Delete current audio file.<br/>" +
+                "<br/>" +
+                "<font color=\"#B388FF\"><b>🎚 PRO RECORDING MODE</b></font><br/>" +
+                "• <b>Pro button (top bar)</b>: Tap for the next mode (Standard, Meeting room, Small music venue, Stadium, Street). Long press for the Pro menu.<br/>" +
+                "• <b>3-Finger Double Tap</b>: Open or close the spoken Pro menu: Pro mode on/off, environment, focus, noise reduction, gain mode, input gain, sound check, presets, keep original, monitoring.<br/>" +
+                "• <b>In the Pro menu</b>: Swipe right/left for items, up/down to change, tap to select, long press for help (on Presets: save). Double tap closes the menu and records.<br/>" +
+                "• <b>3-Finger Swipe Left/Right</b> (Pro mode, idle): Choose the environment — Meeting room, Small music venue, Stadium, Street.<br/>" +
+                "• <b>3-Finger Swipe Up/Down</b> (Pro mode, idle): Choose the focus — Voice, Music, Natural. Settings and Backup stay in the Settings menu.<br/>" +
+                "• <b>2-Finger Swipe Up/Down</b> (while recording): Raise / lower noise reduction live.<br/>" +
+                "• <b>Volume Buttons</b> (Manual gain): Input gain in 3 dB steps, from −24 to +12 dB.<br/>" +
+                "• <b>Long Press twice</b> (on a Pro recording): Choose the main recording, safety track or original; tap plays it.<br/>" +
+                "• Without headphones, Pro mode stays silent while recording (haptics only) so no speech ends up in the take; changes are read out when you stop.<br/>" +
                 "<br/>" +
                 "<font color=\"#FF9100\"><b>◆ DISPLAY MODES &amp; VISUALIZERS</b></font><br/>" +
                 "• <b>Simplest Split UI (Default)</b>: Folders on the left, audio files on the right with vertical scrolling and text marquee for long titles.<br/>" +
@@ -1724,6 +1947,22 @@ public class MainActivity extends SampleActivityBase {
         }
     }
 
+    /**
+     * Speaks at reduced volume, even with speech off. Used for live Pro Recording changes
+     * while recording, so the announcement disturbs the take as little as possible.
+     */
+    public void speakSoftly(String w) {
+        if (w == null || w.trim().isEmpty() || ttobj == null) return;
+        Bundle params = new Bundle();
+        params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 0.35f);
+        ttobj.setPitch(1.0f);
+        ttobj.speak(w, TextToSpeech.QUEUE_FLUSH, params, null);
+    }
+
+    public boolean isSpeaking() {
+        return ttobj != null && ttobj.isSpeaking();
+    }
+
     public void waitUntilTTSFinished(boolean wait){
         if(wait && ttobj != null){
             try {
@@ -1829,12 +2068,28 @@ public class MainActivity extends SampleActivityBase {
         return isPlugged;
     }
 
+    private boolean proVolumeKeyConsumed = false;
+
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         int action = event.getAction();
         int keyCode = event.getKeyCode();
         AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
         int volume_level= am.getStreamVolume(AudioManager.STREAM_MUSIC);
+
+        // Pro Recording Mode, Manual gain: volume buttons set input gain instead of playback volume (PR5)
+        if ((keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN)
+                && commander != null && isTermsOfServiceAccepted()) {
+            if (action == KeyEvent.ACTION_DOWN) {
+                if (commander.handleProVolumeKey(keyCode == KeyEvent.KEYCODE_VOLUME_UP)) {
+                    proVolumeKeyConsumed = true;
+                    return true;
+                }
+                proVolumeKeyConsumed = false;
+            } else if (proVolumeKeyConsumed) {
+                return true;
+            }
+        }
 
         switch (keyCode) {
             case KeyEvent.KEYCODE_VOLUME_UP:
@@ -1987,6 +2242,8 @@ public class MainActivity extends SampleActivityBase {
         super.onResume();
         setSettingsValues();
         applyFullScreenMode();
+        // Pro settings may have changed in the Settings screen
+        updateProButtonState();
         if (commander != null) {
             commander.updateFolderDisplay();
         }

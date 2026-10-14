@@ -41,6 +41,85 @@
             android:title="@string/pref_title_save_location" />
     </PreferenceCategory>
 
+    <!-- Group 1b: Pro Recording Mode (PRD A2) -->
+    <PreferenceCategory
+        android:key="pref_category_pro_recording"
+        android:title="@string/pref_header_pro_recording">
+        <SwitchPreference
+            android:defaultValue="false"
+            android:key="pref_pro_mode"
+            android:summary="@string/pref_summary_pro_mode"
+            android:title="@string/pref_title_pro_mode" />
+
+        <ListPreference
+            android:defaultValue="meeting_room"
+            android:entries="@array/pref_pro_environment_entries"
+            android:entryValues="@array/pref_pro_environment_values"
+            android:key="pref_pro_environment"
+            android:negativeButtonText="@null"
+            android:positiveButtonText="@null"
+            android:title="@string/pref_title_pro_environment" />
+
+        <ListPreference
+            android:defaultValue="voice"
+            android:entries="@array/pref_pro_focus_entries"
+            android:entryValues="@array/pref_pro_focus_values"
+            android:key="pref_pro_focus"
+            android:negativeButtonText="@null"
+            android:positiveButtonText="@null"
+            android:title="@string/pref_title_pro_focus" />
+
+        <ListPreference
+            android:defaultValue="75"
+            android:entries="@array/pref_pro_noise_reduction_entries"
+            android:entryValues="@array/pref_pro_noise_reduction_values"
+            android:key="pref_pro_noise_reduction"
+            android:negativeButtonText="@null"
+            android:positiveButtonText="@null"
+            android:title="@string/pref_title_pro_noise_reduction" />
+
+        <ListPreference
+            android:defaultValue="auto"
+            android:entries="@array/pref_pro_gain_mode_entries"
+            android:entryValues="@array/pref_pro_gain_mode_values"
+            android:key="pref_pro_gain_mode"
+            android:negativeButtonText="@null"
+            android:positiveButtonText="@null"
+            android:title="@string/pref_title_pro_gain_mode" />
+
+        <ListPreference
+            android:defaultValue="0"
+            android:entries="@array/pref_pro_gain_db_entries"
+            android:entryValues="@array/pref_pro_gain_db_values"
+            android:key="pref_pro_gain_db"
+            android:negativeButtonText="@null"
+            android:positiveButtonText="@null"
+            android:title="@string/pref_title_pro_gain_db" />
+
+        <Preference
+            android:key="pref_pro_sound_check"
+            android:summary="@string/pref_summary_pro_sound_check"
+            android:title="@string/pref_title_pro_sound_check" />
+
+        <SwitchPreference
+            android:defaultValue="true"
+            android:key="pref_pro_keep_original"
+            android:summary="@string/pref_summary_pro_keep_original"
+            android:title="@string/pref_title_pro_keep_original" />
+
+        <SwitchPreference
+            android:defaultValue="true"
+            android:key="pref_pro_monitoring"
+            android:summary="@string/pref_summary_pro_monitoring"
+            android:title="@string/pref_title_pro_monitoring" />
+
+        <SwitchPreference
+            android:defaultValue="false"
+            android:key="pref_pro_limiter_manual"
+            android:summary="@string/pref_summary_pro_limiter_manual"
+            android:title="@string/pref_title_pro_limiter_manual" />
+    </PreferenceCategory>
+
     <!-- Group 2: Playback & Safety -->
     <PreferenceCategory android:title="@string/pref_header_playback_safety">
         <ListPreference
