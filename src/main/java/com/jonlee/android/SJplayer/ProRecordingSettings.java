@@ -67,6 +67,17 @@ public class ProRecordingSettings {
             }
             return MEETING_ROOM;
         }
+
+        /** One word for the header Pro button. */
+        public String shortLabel() {
+            switch (this) {
+                case MEETING_ROOM: return "MEETING";
+                case SMALL_VENUE: return "VENUE";
+                case STADIUM: return "STADIUM";
+                case STREET:
+                default: return "STREET";
+            }
+        }
     }
 
     public enum Focus {
@@ -303,6 +314,31 @@ public class ProRecordingSettings {
         GainMode next = all[Math.floorMod(getGainMode().ordinal() + step, all.length)];
         setGainMode(next);
         return next;
+    }
+
+    /**
+     * Header Pro button, one tap: Standard (Pro off), then each environment in order, then back
+     * to Standard. Returns the environment now in use, or null when Pro mode is off.
+     */
+    public Environment cycleMode() {
+        Environment[] all = Environment.values();
+        if (!isEnabled()) {
+            setEnvironment(all[0]);
+            setEnabled(true);
+            return all[0];
+        }
+        int next = getEnvironment().ordinal() + 1;
+        if (next >= all.length) {
+            setEnabled(false);
+            return null;
+        }
+        setEnvironment(all[next]);
+        return all[next];
+    }
+
+    /** Label for the header Pro button, e.g. "PRO OFF" or "PRO \u00b7 VENUE". */
+    public String buttonLabel() {
+        return isEnabled() ? "PRO \u00b7 " + getEnvironment().shortLabel() : "PRO OFF";
     }
 
     // --- Cycling helpers used by gestures ---

@@ -112,6 +112,7 @@ public class Commander{
     public final static int PRO_GAIN_UP = 59;
     public final static int PRO_GAIN_DOWN = 60;
     public final static int PRO_MENU = 61;
+    public final static int PRO_CYCLE_MODE = 62;
 
 
 
@@ -471,6 +472,7 @@ public class Commander{
                 return false;
             case Commander.PRO_MENU:
             case Commander.PRO_MODE_TOGGLE:
+            case Commander.PRO_CYCLE_MODE:
             case Commander.TURN_ON_OFF_TTS:
             case Commander.SPEAK_DATE_TIME:
             case Commander.TOGGLE_SCREEN_CURTAIN:
@@ -527,6 +529,7 @@ public class Commander{
         if (getProMenu().isOpen()) {
             proMenuHandler.postDelayed(proMenuTimeout, PRO_MENU_TIMEOUT_MS);
         }
+        refreshProButton();
     }
 
     // --- File info: choose which version of a Pro recording plays (PR8, PR9) ---
@@ -561,6 +564,34 @@ public class Commander{
         return true;
     }
 
+    /** Keeps the header Pro button in step with the settings. */
+    private void refreshProButton() {
+        if (mainActivity != null) mainActivity.updateProButtonState();
+    }
+
+    /**
+     * Header Pro button, one tap: Standard, Meeting room, Small music venue, Stadium, Street,
+     * then back to Standard. Each step loads that environment's defaults.
+     */
+    private void cycleProMode() {
+        ProRecordingSettings pro = ProRecordingSettings.get(mainActivity);
+        ProRecordingSettings.Environment env = pro.cycleMode();
+        if (env == null) {
+            vibrateRecordStop();
+            if (soundscapeHelper != null) soundscapeHelper.playProToggle(false);
+            alwaysSpeak("Standard recording. Pro mode off.");
+            displayText("Pro mode off");
+        } else {
+            vibrateNextFolder();
+            if (soundscapeHelper != null) soundscapeHelper.playProEnvironment(env.ordinal());
+            StringBuilder msg = new StringBuilder("Pro mode, ").append(pro.describeEnvironmentChange()).append(".");
+            appendProSupportNotes(msg, pro);
+            alwaysSpeak(msg.toString());
+            displayText("Pro: " + pro.describe());
+        }
+        refreshProButton();
+    }
+
     private void toggleProMode() {
         ProRecordingSettings pro = ProRecordingSettings.get(mainActivity);
         boolean on = !pro.isEnabled();
@@ -578,6 +609,7 @@ public class Commander{
             alwaysSpeak("Pro mode off");
             displayText("Pro mode off");
         }
+        refreshProButton();
     }
 
     private void appendProSupportNotes(StringBuilder msg, ProRecordingSettings pro) {
@@ -598,6 +630,7 @@ public class Commander{
         appendProSupportNotes(msg, pro);
         alwaysSpeak(msg.toString());
         displayText("Pro: " + pro.describe());
+        refreshProButton();
     }
 
     private void changeProFocus(int step) {
@@ -1822,6 +1855,9 @@ public class Commander{
                     break;
                 case Commander.PRO_MENU:
                     toggleProMenu();
+                    break;
+                case Commander.PRO_CYCLE_MODE:
+                    cycleProMode();
                     break;
                 case Commander.PRO_NEXT_ENVIRONMENT:
                 case Commander.PRO_PREVIOUS_ENVIRONMENT:

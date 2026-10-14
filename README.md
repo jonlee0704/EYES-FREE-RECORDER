@@ -52,6 +52,8 @@ You can operate EYES-FREE VOICE RECORDER while walking, with the phone resting i
 | **1-Finger Long Press** | **Spoken File Info** | Full track details, duration, and path |
 | **2-Finger Long Press** | **Date, Time & Battery** | Speaks current time, day, date, and battery level |
 | **3-Finger Long Press** | **Toggle Favorite** | Marks/unmarks recording as favorite |
+| **Pro button (top bar), tap** | **Next Pro Mode** | Standard → Meeting room → Small music venue → Stadium → Street → Standard; speaks the mode and its settings |
+| **Pro button (top bar), long press** | **Pro Menu** | Opens the spoken Pro menu with every setting |
 | **3-Finger Double Tap** | **Pro Menu** | Spoken menu for Pro Recording Mode: on/off, environment, focus, noise reduction, gain, sound check, presets |
 | **3-Finger Triple Tap** | **Screen Curtain** | Blacks out the display; touch, audio and haptics keep working |
 | **3-Finger Swipe Left / Right / Up / Down** (Pro mode, idle) | **Environment / Focus** | Speaks the new environment or focus |

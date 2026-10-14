@@ -204,7 +204,9 @@ To open the Settings screen, **swipe down with 3 fingers**, or tap the Help/Sett
 
 Pro Recording Mode gives you studio-style control without looking at the screen. It has three independent settings, plus a noise-reduction amount. Every change is spoken, has its own earcon and vibration, and is saved with the recording.
 
-**The Pro menu.** A 3-finger double tap anywhere opens a spoken menu with every Pro setting. A second 3-finger double tap closes it, and so does a minute without touching the screen.
+**The Pro button.** The top bar has a Pro button between the title and the Settings gear. When you touch it, it says the current mode; release to move to the next one. The order is Standard (Pro off), Meeting room, Small music venue, Stadium, Street, then back to Standard. Each mode loads its own settings and announces them. Hold the button for about half a second to open the Pro menu. While recording, the mode is locked for the whole take. With TalkBack, double tap the button to change mode, and double tap and hold to open the menu.
+
+**The Pro menu.** A long press on the Pro button, or a 3-finger double tap anywhere, opens a spoken menu with every Pro setting. A second 3-finger double tap closes it, and so does a minute without touching the screen.
 
 | In the Pro menu | Does |
 | --- | --- |

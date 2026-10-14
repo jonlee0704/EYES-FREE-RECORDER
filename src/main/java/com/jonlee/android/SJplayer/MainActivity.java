@@ -357,6 +357,8 @@ public class MainActivity extends SampleActivityBase {
                     }
                 });
 
+        setupProModeButton();
+
         setupGestureDetection();
 
         if (!isTermsOfServiceAccepted()) {
@@ -364,6 +366,111 @@ public class MainActivity extends SampleActivityBase {
         } else {
             requestPermissions();
         }
+    }
+
+    private static final long PRO_BUTTON_LONG_PRESS_MS = 600L;
+    private TextView proModeButton;
+
+    /**
+     * Header Pro button (PRD A2): one tap steps to the next mode (Standard, then each
+     * environment), a long press opens the spoken Pro menu with every setting. Touching it
+     * first says the current mode, like the other header buttons. TalkBack users get the
+     * same through double tap and double tap and hold.
+     */
+    private void setupProModeButton() {
+        View view = findViewById(R.id.btn_pro_mode);
+        if (!(view instanceof TextView)) return;
+        proModeButton = (TextView) view;
+        updateProButtonState();
+
+        proModeButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (commander != null) commander.cmd(Commander.PRO_CYCLE_MODE);
+            }
+        });
+        proModeButton.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View v) {
+                if (commander != null) commander.cmd(Commander.PRO_MENU);
+                return true;
+            }
+        });
+
+        final Handler longPressHandler = new Handler(Looper.getMainLooper());
+        proModeButton.setOnTouchListener(new View.OnTouchListener() {
+            private boolean isDownInside = false;
+            private boolean longPressFired = false;
+            private final Runnable longPress = new Runnable() {
+                @Override
+                public void run() {
+                    if (!isDownInside) return;
+                    longPressFired = true;
+                    proModeButton.animate().scaleX(1.0f).scaleY(1.0f).setDuration(150).start();
+                    proModeButton.performLongClick();
+                }
+            };
+
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                switch (event.getActionMasked()) {
+                    case MotionEvent.ACTION_DOWN:
+                        isDownInside = true;
+                        longPressFired = false;
+                        v.animate().scaleX(1.12f).scaleY(1.12f).setDuration(120).start();
+                        if (commander != null) commander.vibrateTick();
+                        alwaysSpeak(getProButtonNarrative());
+                        longPressHandler.postDelayed(longPress, PRO_BUTTON_LONG_PRESS_MS);
+                        return true;
+                    case MotionEvent.ACTION_MOVE:
+                        if (isDownInside) {
+                            float x = event.getX();
+                            float y = event.getY();
+                            if (x < 0 || x > v.getWidth() || y < 0 || y > v.getHeight()) {
+                                isDownInside = false;
+                                longPressHandler.removeCallbacks(longPress);
+                                v.animate().scaleX(1.0f).scaleY(1.0f).setDuration(150).start();
+                            }
+                        }
+                        return true;
+                    case MotionEvent.ACTION_UP:
+                        longPressHandler.removeCallbacks(longPress);
+                        v.animate().scaleX(1.0f).scaleY(1.0f).setDuration(150).start();
+                        if (isDownInside && !longPressFired) {
+                            if (commander != null) commander.vibrateClick();
+                            v.performClick();
+                        }
+                        isDownInside = false;
+                        return true;
+                    case MotionEvent.ACTION_CANCEL:
+                        longPressHandler.removeCallbacks(longPress);
+                        isDownInside = false;
+                        v.animate().scaleX(1.0f).scaleY(1.0f).setDuration(150).start();
+                        return true;
+                }
+                return false;
+            }
+        });
+    }
+
+    private String getProButtonNarrative() {
+        ProRecordingSettings pro = ProRecordingSettings.get(this);
+        String now = pro.isEnabled() ? "Pro mode, " + pro.getEnvironment().spokenName : "Standard recording, Pro mode off";
+        if (recorder != null && recorder.isRecording()) {
+            // The mode is fixed for the whole take
+            return now + ". Locked while recording.";
+        }
+        return now + ". Release to change mode, or hold for Pro settings.";
+    }
+
+    /** Shows the current Pro mode on the header button; called whenever Pro settings change. */
+    public void updateProButtonState() {
+        if (proModeButton == null) return;
+        ProRecordingSettings pro = ProRecordingSettings.get(this);
+        proModeButton.setText(pro.buttonLabel());
+        proModeButton.setTextColor(pro.isEnabled() ? 0xFFB388FF : 0xFF7A6A99);
+        String now = pro.isEnabled() ? "Pro mode, " + pro.getEnvironment().spokenName : "Standard recording, Pro mode off";
+        proModeButton.setContentDescription(now + ". Tap to change mode. Long press for Pro settings.");
     }
 
     private interface TopButtonNarrativeProvider {
@@ -427,10 +534,8 @@ public class MainActivity extends SampleActivityBase {
                             if (commander != null) {
                                 commander.vibrateClick();
                             }
+                            // performClick runs the click listener, which runs the action once
                             v.performClick();
-                            if (onReleaseAction != null) {
-                                onReleaseAction.run();
-                            }
                         }
                         return true;
 
@@ -1057,7 +1162,7 @@ public class MainActivity extends SampleActivityBase {
                         "The default split user interface displays folders on the left and audio files on the right with vertical scrolling and text marquee for long titles. " +
                         "Display animation styles such as Circular Dial, Frequency Spectrum, and Starburst can be selected in settings under Animation and Visualizer.",
                 "Top controls: " +
-                        "Tap question mark for help. Tap gear icon for settings. Tap TTS pill to toggle voice assistance on or off."
+                        "Tap question mark for help. Tap the Pro button to change recording mode, or hold it for Pro settings. Tap gear icon for settings. Tap TTS pill to toggle voice assistance on or off."
         };
 
         for (int i = 0; i < sections.length; i++) {
@@ -1143,6 +1248,7 @@ public class MainActivity extends SampleActivityBase {
                 "• <b>4-Finger Swipe Right &amp; Hold</b>: Delete current audio file.<br/>" +
                 "<br/>" +
                 "<font color=\"#B388FF\"><b>🎚 PRO RECORDING MODE</b></font><br/>" +
+                "• <b>Pro button (top bar)</b>: Tap for the next mode (Standard, Meeting room, Small music venue, Stadium, Street). Long press for the Pro menu.<br/>" +
                 "• <b>3-Finger Double Tap</b>: Open or close the spoken Pro menu: Pro mode on/off, environment, focus, noise reduction, gain mode, input gain, sound check, presets, keep original, monitoring.<br/>" +
                 "• <b>In the Pro menu</b>: Swipe right/left for items, up/down to change, tap to select, long press for help (on Presets: save). Double tap closes the menu and records.<br/>" +
                 "• <b>3-Finger Swipe Left/Right</b> (Pro mode, idle): Choose the environment — Meeting room, Small music venue, Stadium, Street.<br/>" +
@@ -2136,6 +2242,8 @@ public class MainActivity extends SampleActivityBase {
         super.onResume();
         setSettingsValues();
         applyFullScreenMode();
+        // Pro settings may have changed in the Settings screen
+        updateProButtonState();
         if (commander != null) {
             commander.updateFolderDisplay();
         }

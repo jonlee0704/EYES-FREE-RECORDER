@@ -110,4 +110,21 @@ public class ProMenuTest {
         assertEquals(ProMenu.Action.CLOSE, menu.select().action);
         assertFalse(menu.isOpen());
     }
+
+    @Test
+    public void headerButtonCyclesStandardThenEachEnvironment() {
+        assertEquals("PRO OFF", settings.buttonLabel());
+        assertEquals(ProRecordingSettings.Environment.MEETING_ROOM, settings.cycleMode());
+        assertTrue(settings.isEnabled());
+        assertEquals("PRO \u00b7 MEETING", settings.buttonLabel());
+        assertEquals(ProRecordingSettings.Environment.SMALL_VENUE, settings.cycleMode());
+        assertEquals(ProRecordingSettings.GainMode.MANUAL_SAFETY, settings.getGainMode());
+        assertEquals(ProRecordingSettings.Environment.STADIUM, settings.cycleMode());
+        assertEquals(ProRecordingSettings.Environment.STREET, settings.cycleMode());
+        assertEquals(null, settings.cycleMode());
+        assertFalse(settings.isEnabled());
+        assertEquals("PRO OFF", settings.buttonLabel());
+        // The next tap starts the cycle again
+        assertEquals(ProRecordingSettings.Environment.MEETING_ROOM, settings.cycleMode());
+    }
 }
