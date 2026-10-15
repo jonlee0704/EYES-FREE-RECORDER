@@ -925,6 +925,9 @@ public class Commander{
             Vibrator v = (Vibrator) mainActivity.getSystemService(Context.VIBRATOR_SERVICE);
             if (v == null || !v.hasVibrator()) return;
 
+            // Immediately abort any lingering vibration so the new tactile response starts with zero queue latency
+            v.cancel();
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 if (v.hasAmplitudeControl() && timings != null && amplitudes != null && timings.length == amplitudes.length) {
                     v.vibrate(VibrationEffect.createWaveform(timings, amplitudes, -1));
@@ -957,12 +960,6 @@ public class Commander{
         if (soundscapeHelper != null) {
             soundscapeHelper.playNextTrack();
         }
-        if (mainActivity != null && mainActivity.getWindow() != null) {
-            View decor = mainActivity.getWindow().getDecorView();
-            if (decor != null) {
-                decor.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
-            }
-        }
         long[] timings = { 0, 14, 20, 20 };
         int[] amplitudes = { 0, 110, 0, 255 };
         playHapticWaveform(timings, amplitudes, Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ? VibrationEffect.EFFECT_CLICK : -1, 22);
@@ -975,12 +972,6 @@ public class Commander{
     public void vibratePrevTrack() {
         if (soundscapeHelper != null) {
             soundscapeHelper.playPrevTrack();
-        }
-        if (mainActivity != null && mainActivity.getWindow() != null) {
-            View decor = mainActivity.getWindow().getDecorView();
-            if (decor != null) {
-                decor.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
-            }
         }
         long[] timings = { 0, 20, 20, 12 };
         int[] amplitudes = { 0, 255, 0, 100 };
@@ -996,12 +987,6 @@ public class Commander{
         if (soundscapeHelper != null) {
             soundscapeHelper.playNextFolder();
         }
-        if (mainActivity != null && mainActivity.getWindow() != null) {
-            View decor = mainActivity.getWindow().getDecorView();
-            if (decor != null) {
-                decor.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
-            }
-        }
         long[] timings = { 0, 28, 24, 34 };
         int[] amplitudes = { 0, 180, 0, 255 };
         playHapticWaveform(timings, amplitudes, Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ? VibrationEffect.EFFECT_HEAVY_CLICK : -1, 35);
@@ -1015,12 +1000,6 @@ public class Commander{
         if (soundscapeHelper != null) {
             soundscapeHelper.playPrevFolder();
         }
-        if (mainActivity != null && mainActivity.getWindow() != null) {
-            View decor = mainActivity.getWindow().getDecorView();
-            if (decor != null) {
-                decor.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
-            }
-        }
         long[] timings = { 0, 34, 24, 22 };
         int[] amplitudes = { 0, 255, 0, 150 };
         playHapticWaveform(timings, amplitudes, Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ? VibrationEffect.EFFECT_HEAVY_CLICK : -1, 35);
@@ -1033,12 +1012,6 @@ public class Commander{
     public void vibrateCornerAnchor() {
         if (soundscapeHelper != null) {
             soundscapeHelper.playCorner();
-        }
-        if (mainActivity != null && mainActivity.getWindow() != null) {
-            View decor = mainActivity.getWindow().getDecorView();
-            if (decor != null) {
-                decor.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
-            }
         }
         long[] timings = { 0, 16, 22, 28 };
         int[] amplitudes = { 0, 180, 0, 255 };
@@ -1455,13 +1428,13 @@ public class Commander{
                         vibratePlay();
                         recorder.resume();
                         this.updateFileDisplay(0);
-                        this.displayNotification(recorder.getCurrentFileDisplayInformation(), R.drawable.ic_action_play);
+                        this.displayNotification(recorder.getCurrentFileName(), R.drawable.ic_action_play);
                         imageView.setImageResource(R.drawable.ic_action_play);
                     } else if(!recorder.isPlaying() && !recorder.isPaused()) {
                         vibratePlay();
                         recorder.startPlaying();
                         this.updateFileDisplay(0);
-                        this.displayNotification(recorder.getCurrentFileDisplayInformation(), R.drawable.ic_action_play);
+                        this.displayNotification(recorder.getCurrentFileName(), R.drawable.ic_action_play);
                         imageView.setImageResource(R.drawable.ic_action_play);
                     }
                     break;
@@ -1481,11 +1454,10 @@ public class Commander{
                     recorder.stopPlaying();
                     if(recorder.nextSong()) {
                         vibrateNextTrack();
-                        recorder.startPlaying();
                         this.updateFileDisplay(1);
                         imageView.setImageResource(R.drawable.ic_action_play);
-
-                        this.displayNotification(recorder.getCurrentFileDisplayInformation(), R.drawable.ic_action_play);
+                        recorder.startPlaying();
+                        this.displayNotification(recorder.getCurrentFileName(), R.drawable.ic_action_play);
 
                     } else{
                         vibrateBoundary();
@@ -1499,10 +1471,10 @@ public class Commander{
                     recorder.stopPlaying();
                     if(recorder.previousSong()) {
                         vibratePrevTrack();
-                        recorder.startPlaying();
                         this.updateFileDisplay(-1);
                         imageView.setImageResource(R.drawable.ic_action_play);
-                        this.displayNotification(recorder.getCurrentFileDisplayInformation(), R.drawable.ic_action_play);
+                        recorder.startPlaying();
+                        this.displayNotification(recorder.getCurrentFileName(), R.drawable.ic_action_play);
 
                     } else{
                         vibrateBoundary();
@@ -1594,7 +1566,7 @@ public class Commander{
                         }
                         this.updateFileDisplay(1);
                         imageView.setImageResource(wasPlayingNext ? R.drawable.ic_action_play : R.drawable.ic_action_stop);
-                        this.displayNotification(recorder.getCurrentFileDisplayInformation(), wasPlayingNext ? R.drawable.ic_action_play : R.drawable.ic_action_stop);
+                        this.displayNotification(recorder.getCurrentFileName(), wasPlayingNext ? R.drawable.ic_action_play : R.drawable.ic_action_stop);
 
                         String fileName = recorder.getCurrentFileName();
                         int fIdx = recorder.getCurrentFileIndex() + 1;
@@ -1634,7 +1606,7 @@ public class Commander{
                         }
                         this.updateFileDisplay(-1);
                         imageView.setImageResource(wasPlayingPrev ? R.drawable.ic_action_play : R.drawable.ic_action_stop);
-                        this.displayNotification(recorder.getCurrentFileDisplayInformation(), wasPlayingPrev ? R.drawable.ic_action_play : R.drawable.ic_action_stop);
+                        this.displayNotification(recorder.getCurrentFileName(), wasPlayingPrev ? R.drawable.ic_action_play : R.drawable.ic_action_stop);
 
                         String fileName = recorder.getCurrentFileName();
                         int fIdx = recorder.getCurrentFileIndex() + 1;

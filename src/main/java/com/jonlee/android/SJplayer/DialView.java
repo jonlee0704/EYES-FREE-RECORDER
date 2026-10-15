@@ -215,6 +215,7 @@ public class DialView extends View {
     // Suggestion 6: Haptic Audio Pulse (Tactile beat feedback for accessibility)
     private boolean hapticPulseEnabled = true;
     private long lastHapticBeatTime = 0;
+    private volatile boolean isUserTouching = false;
 
     // Per-node Volume Waveforms (dB amount) for Playback & Recording
     private final float[] trackWaveform = new float[NUM_ANGLES];
@@ -1338,6 +1339,7 @@ public class DialView extends View {
                 switch (event.getActionMasked()) {
 
                     case MotionEvent.ACTION_DOWN:
+                        isUserTouching = true;
                         // To check gesture direction in ACTION_UP
                         // Set the position when the finger touches the screen
                         startX = event.getX();
@@ -1449,9 +1451,65 @@ public class DialView extends View {
                                 return true;
                             }
                         } else {
-                            // Fluid interactive visual feedback tracking finger displacement during swipe
                             if (!isFired) {
-                                setInteractiveDragDelta(deltaX, deltaY);
+                                float density = (activity != null) ? activity.getResources().getDisplayMetrics().density : 1.0f;
+                                float swipeThreshold = Math.max(25f, 28 * density);
+                                float absX = Math.abs(deltaX);
+                                float absY = Math.abs(deltaY);
+
+                                // Trigger directional swipe immediately upon crossing the threshold so
+                                // visual updates, haptic vibration, and audio track switching are 100% in sync
+                                if (absX > swipeThreshold || absY > swipeThreshold) {
+                                    cancelPendingTaps();
+                                    isFired = true;
+                                    setInteractiveDragDelta(0, 0);
+
+                                    int effectivePointers = Math.max(touchCnt, maxPointerCount);
+                                    int dir = (dir_mode == DIR_MODE_4)
+                                            ? getDirection(getDegreeFromCartesian(startX, startY, event.getX(), event.getY()))
+                                            : getHexDirection(getDegreeFromCartesian(startX, startY, event.getX(), event.getY()));
+
+                                    switch (dir) {
+                                        case BOTTOM_TOP:
+                                            if (effectivePointers >= 2)
+                                                cmd(Commander.FAST_SEEK_NEXT_FOLDER);
+                                            else
+                                                cmd(Commander.NEXT_FOLDER);
+                                            break;
+
+                                        case TOP_BOTTOM:
+                                            if (effectivePointers >= 2)
+                                                cmd(Commander.FAST_SEEK_PREVIOUS_FOLDER);
+                                            else
+                                                cmd(Commander.PREVIOUS_FOLDER);
+                                            break;
+
+                                        case LEFT_RIGHT:
+                                            if (effectivePointers >= 2)
+                                                cmd(Commander.FAST_SEEK_NEXT_FILE);
+                                            else
+                                                cmd(Commander.NEXT_SONG);
+                                            break;
+
+                                        case RIGHT_LEFT:
+                                            if (effectivePointers >= 2)
+                                                cmd(Commander.FAST_SEEK_PREVIOUS_FILE);
+                                            else
+                                                cmd(Commander.PREVIOUS_SONG);
+                                            break;
+
+                                        case UP_RIGHT:
+                                            cmd(Commander.NEXT_ARTIST);
+                                            break;
+
+                                        case UP_LEFT:
+                                            cmd(Commander.PREVIOUS_ARTIST);
+                                            break;
+                                    }
+                                } else {
+                                    // Fluid interactive visual feedback tracking finger displacement prior to reaching threshold
+                                    setInteractiveDragDelta(deltaX, deltaY);
+                                }
                             }
                             return true;
                         }
@@ -1462,6 +1520,7 @@ public class DialView extends View {
                         //Log.i(TAG, "ACTION_SCROLL:" + getDirection(getDegreeFromCartesian(startX,startY,event.getX(),event.getY())));
                         return false;
                     case MotionEvent.ACTION_UP:
+                        isUserTouching = false;
                         setInteractiveDragDelta(0, 0);
                         if (isStartedFromEdge) {
                             Log.i(TAG, "ACTION_UP from edge gesture, ignoring in app: rawX=" + event.getRawX());
@@ -1482,10 +1541,12 @@ public class DialView extends View {
                             cmd(Commander.UPDATE_PLAY_ICON);
                             SWIPE_HOLD = false;
                         }
-                        // If event is already fired, skips.
+
+                        // If swipe gesture already executed immediately during finger movement, finish gesture
                         if(isFired) {
+                            isFired = false;
                             cancelPendingTaps();
-                            return false;
+                            return true;
                         }
 
                         if (event.getPointerCount() > maxPointerCount) {
@@ -1590,6 +1651,7 @@ public class DialView extends View {
                         return false;
 
                     case MotionEvent.ACTION_CANCEL:
+                        isUserTouching = false;
                         setInteractiveDragDelta(0, 0);
                         isStartedFromEdge = false;
                         cancelPendingTaps();
@@ -1974,6 +2036,7 @@ public class DialView extends View {
     }
 
     private void triggerHapticBeat() {
+        if (isUserTouching || !hapticPulseEnabled) return;
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 Vibrator v = (Vibrator) getContext().getSystemService(Context.VIBRATOR_SERVICE);

@@ -233,8 +233,16 @@ public class AudioMetadataHelper {
         }
     }
 
+    private static final java.util.Map<String, AudioMetadata> sMetaCache = new java.util.concurrent.ConcurrentHashMap<>();
+
     public static AudioMetadata loadMetadata(Context context, File audioFile) {
         if (audioFile == null) return new AudioMetadata();
+
+        String path = audioFile.getAbsolutePath();
+        AudioMetadata cached = sMetaCache.get(path);
+        if (cached != null) {
+            return cached;
+        }
 
         // 1. Try reading companion file next to audio file
         File companion = getCompanionMetaFile(audioFile);
@@ -245,6 +253,7 @@ public class AudioMetadataHelper {
                     meta.recordedAt = extractRecordedTimestamp(audioFile);
                 }
                 meta.timeOfDay = getTimeOfDayContext(meta.recordedAt);
+                sMetaCache.put(path, meta);
                 return meta;
             }
         }
@@ -258,6 +267,7 @@ public class AudioMetadataHelper {
                     meta.recordedAt = extractRecordedTimestamp(audioFile);
                 }
                 meta.timeOfDay = getTimeOfDayContext(meta.recordedAt);
+                sMetaCache.put(path, meta);
                 return meta;
             }
         }
@@ -268,6 +278,7 @@ public class AudioMetadataHelper {
         meta.recordedAt = extractRecordedTimestamp(audioFile);
         meta.timeOfDay = getTimeOfDayContext(meta.recordedAt);
         meta.audioSource = "Phone Microphone";
+        sMetaCache.put(path, meta);
         return meta;
     }
 

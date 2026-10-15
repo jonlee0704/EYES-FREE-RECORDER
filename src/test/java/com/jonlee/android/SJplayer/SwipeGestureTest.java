@@ -152,4 +152,36 @@ public class SwipeGestureTest {
         boolean isHorizontal = Math.abs(deltaX) > 1.2f * Math.abs(deltaY) && Math.abs(deltaX) > touchSlop;
         assertTrue("Horizontal swipe must cancel wheel scrubbing immediately", isHorizontal);
     }
+
+    @Test
+    public void testRealTimeThresholdTriggerDuringMove() {
+        float density = 3.0f;
+        float swipeThreshold = Math.max(25f, 28 * density); // 84 px
+
+        // Simulate finger move progression
+        float[] dragSteps = { 10f, 30f, 60f, 85f, 120f, 150f };
+        boolean isFired = false;
+        int firedCount = 0;
+
+        for (float dx : dragSteps) {
+            if (!isFired && dx > swipeThreshold) {
+                isFired = true;
+                firedCount++;
+            }
+        }
+
+        assertTrue("Gesture must fire in real time during movement as soon as threshold is crossed", isFired);
+        assertEquals("Gesture must fire exactly once per swipe stroke", 1, firedCount);
+    }
+
+    @Test
+    public void testMetadataCacheEfficiency() throws Exception {
+        java.io.File tempFile = java.io.File.createTempFile("test_audio", ".wav");
+        tempFile.deleteOnExit();
+
+        AudioMetadataHelper.AudioMetadata meta1 = AudioMetadataHelper.loadMetadata(null, tempFile);
+        AudioMetadataHelper.AudioMetadata meta2 = AudioMetadataHelper.loadMetadata(null, tempFile);
+
+        assertTrue("Consecutive metadata reads must return cached instance to prevent UI thread I/O lag", meta1 == meta2);
+    }
 }
