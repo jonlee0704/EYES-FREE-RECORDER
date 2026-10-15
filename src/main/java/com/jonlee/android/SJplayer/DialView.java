@@ -1295,7 +1295,137 @@ public class DialView extends View {
 
             private boolean isStartedOutsideofCircle = false;
 
+            // Fast Navigation / Swipe & Hold state and handlers:
+            private final Handler fastNavHandler = new Handler(Looper.getMainLooper());
+            private Runnable fastNavRunnable = null;
+            private Runnable swipeHoldCheckRunnable = null;
+            private int currentHoldDir = NO_DIRECTION;
+            private int currentHoldPointers = 1;
+            private boolean isHoldTriggered = false;
 
+            {
+                cancelTapsCallback = new Runnable() {
+                    @Override
+                    public void run() {
+                        cancelPendingTaps();
+                        stopFastNav();
+                    }
+                };
+            }
+
+            private void executeFastNav(final int dir, final int pointerCount) {
+                if (activity == null || activity.getCommander() == null) return;
+                Commander commander = activity.getCommander();
+                switch (dir) {
+                    case LEFT_RIGHT:
+                        if (pointerCount == 4) {
+                            if (!isMultiFingerMode) {
+                                commander.cmd(Commander.DELETE_FILE);
+                                isMultiFingerMode = true;
+                            }
+                        } else if (pointerCount == 2) {
+                            commander.cmd(Commander.FAST_FORWARD_3X);
+                        } else {
+                            commander.cmd(Commander.FAST_FORWARD_2X);
+                        }
+                        break;
+
+                    case RIGHT_LEFT:
+                        if (pointerCount == 4) {
+                            if (!isMultiFingerMode) {
+                                commander.cmd(Commander.RESTORE_FILE);
+                                isMultiFingerMode = true;
+                            }
+                        } else if (pointerCount == 2) {
+                            commander.cmd(Commander.FAST_BACKWARD_3X);
+                        } else {
+                            commander.cmd(Commander.FAST_BACKWARD_2X);
+                        }
+                        break;
+
+                    case BOTTOM_TOP:
+                        if (pointerCount == 3) {
+                            if (!isMultiFingerMode) {
+                                commander.cmd(Commander.START_STOP_BACKUP);
+                                isMultiFingerMode = true;
+                            }
+                        } else if (pointerCount >= 2) {
+                            commander.cmd(Commander.FAST_SEEK_NEXT_FOLDER);
+                        } else {
+                            commander.cmd(Commander.FF_FOLDER);
+                        }
+                        break;
+
+                    case TOP_BOTTOM:
+                        if (pointerCount == 3) {
+                            if (!isMultiFingerMode) {
+                                commander.cmd(Commander.SETTINGS);
+                                isMultiFingerMode = true;
+                            }
+                        } else if (pointerCount >= 2) {
+                            commander.cmd(Commander.FAST_SEEK_PREVIOUS_FOLDER);
+                        } else {
+                            commander.cmd(Commander.REWIND_FOLDER);
+                        }
+                        break;
+                }
+            }
+
+            private void startFastNav(final int dir, final int pointerCount) {
+                if (dir == NO_DIRECTION) return;
+                if (SWIPE_HOLD && currentHoldDir == dir && isHoldTriggered) {
+                    return;
+                }
+                SWIPE_HOLD = true;
+                isHoldTriggered = true;
+                currentHoldDir = dir;
+                currentHoldPointers = pointerCount;
+
+                if (activity != null) {
+                    activity.alwaysSpeak("");
+                }
+
+                executeFastNav(dir, pointerCount);
+
+                // Multi-finger single actions trigger once upon hold
+                if (pointerCount >= 3) {
+                    return;
+                }
+
+                final long interval = (dir == BOTTOM_TOP || dir == TOP_BOTTOM) ? 500L : 200L;
+                if (fastNavRunnable != null) {
+                    fastNavHandler.removeCallbacks(fastNavRunnable);
+                }
+                fastNavRunnable = new Runnable() {
+                    @Override
+                    public void run() {
+                        if (isUserTouching && SWIPE_HOLD && currentHoldDir != NO_DIRECTION) {
+                            executeFastNav(currentHoldDir, currentHoldPointers);
+                            fastNavHandler.postDelayed(this, interval);
+                        }
+                    }
+                };
+                fastNavHandler.postDelayed(fastNavRunnable, interval);
+            }
+
+            private void stopFastNav() {
+                if (swipeHoldCheckRunnable != null) {
+                    fastNavHandler.removeCallbacks(swipeHoldCheckRunnable);
+                    swipeHoldCheckRunnable = null;
+                }
+                if (fastNavRunnable != null) {
+                    fastNavHandler.removeCallbacks(fastNavRunnable);
+                    fastNavRunnable = null;
+                }
+                currentHoldDir = NO_DIRECTION;
+                isHoldTriggered = false;
+                if (SWIPE_HOLD) {
+                    if (activity != null && activity.getCommander() != null) {
+                        activity.getCommander().cmd(Commander.UPDATE_PLAY_ICON);
+                    }
+                    SWIPE_HOLD = false;
+                }
+            }
 
             @Override
             public boolean onTouch(View v, MotionEvent event) {
@@ -1318,27 +1448,10 @@ public class DialView extends View {
                 float touchX1 = event.getX();
                 float touchY1 = event.getY();
 
-//                /**
-//                 * Skipping the batch of event
-//                 */
-//                if(!isInWholeDiscArea(event.getX(),event.getY())) {
-//                    isFired = true;
-//                    isStartedOutsideofCircle = true;
-//                    return true;
-//                }else{
-//                    isStartedOutsideofCircle = false;
-//                }
-
-//                Log.d("DialView.onTouch:", touchY1 + "");
-//                // No action when user intends to quit Emersive mode.
-//                if (touchY1 < 200){
-//                    isFired = true;
-//                    return true;
-//                }
-
                 switch (event.getActionMasked()) {
 
                     case MotionEvent.ACTION_DOWN:
+                        stopFastNav();
                         isUserTouching = true;
                         // To check gesture direction in ACTION_UP
                         // Set the position when the finger touches the screen
@@ -1373,6 +1486,7 @@ public class DialView extends View {
 
                         // Initiate Longpress mode
                         isLongpress = false;
+                        isMultiFingerMode = false;
 
                         return true;
 
@@ -1396,48 +1510,45 @@ public class DialView extends View {
 
                         float deltaX = event.getX() - startX;
                         float deltaY = event.getY() - startY;
+                        float absX = Math.abs(deltaX);
+                        float absY = Math.abs(deltaY);
 
-                        if (Math.abs(deltaX) > SWIPE_MIN_DISTANCE || Math.abs(deltaY) > SWIPE_MIN_DISTANCE) {
+                        float density = (activity != null) ? activity.getResources().getDisplayMetrics().density : 1.0f;
+                        float swipeThreshold = Math.max(25f, 28 * density);
+
+                        if (absX > swipeThreshold || absY > swipeThreshold) {
                             cancelPendingTaps();
                         }
 
-                        //Long Press!!! Not enough movement during threshold time.
-                        // Checking only when iLongpress is false.
-                        // TODO After observing SJ's error of longpress, THRESHOLD value needs to be optimized.
-                        if (!isLongpress && (System.currentTimeMillis() - startAction) > LONGPRESS_THRESHOLD &&
-                                (Math.abs(startX - event.getX()) < SWIPE_MIN_DISTANCE && Math.abs(startY - event.getY()) < SWIPE_MIN_DISTANCE)) {
+                        long elapsed = System.currentTimeMillis() - startAction;
+
+                        // 1. Stationary Long Press: Not enough movement during threshold time.
+                        if (!isLongpress && !SWIPE_HOLD && elapsed > LONGPRESS_THRESHOLD &&
+                                (absX < swipeThreshold && absY < swipeThreshold)) {
                             cancelPendingTaps();
-                            //Log.i(TAG, "Touch duration: " + (System.currentTimeMillis() - startAction) +":"+Math.abs(startX-event.getX())+":"+Math.abs(startY-event.getY()));
-                            //To make vibration when Longpress is recognized.
 
-                            if(isDragging)
+                            if (isDragging)
                                 this.isLongpress = true;
-                            // If event is already fired, skips.
-                            if(isFired)
-                                return true;
 
-                            if(touchCnt == 1)
-                                cmd(Commander.SPEAK_FILE_INFO);
-                            else if(touchCnt == 2)
-                                cmd(Commander.SPEAK_DATE_TIME);
-                            else if(touchCnt >= 3)
-                                cmd(Commander.TOGGLE_FAVORITE);
-                            //cmd(Command.LONG_PRESS);
-                            // And speak the file info
-                            // activity.getCommander().cmd(Command.SPEAK_FILE_INFO);
+                            if (!isFired) {
+                                if (touchCnt == 1)
+                                    cmd(Commander.SPEAK_FILE_INFO);
+                                else if (touchCnt == 2)
+                                    cmd(Commander.SPEAK_DATE_TIME);
+                                else if (touchCnt >= 3)
+                                    cmd(Commander.TOGGLE_FAVORITE);
 
-                            isFired = true;
+                                isFired = true;
+                            }
                             return true;
                         }
 
-                        if (isDragging && isLongpress) {
-
+                        // 2. Rotary Dial Mode: dragged around the circular wheel while in long-press mode
+                        if (isDragging && isLongpress && !SWIPE_HOLD && absX < swipeThreshold * 1.5f && absY < swipeThreshold * 1.5f) {
                             float touchAngle = touchAngle(touchX1, touchY1);
                             float deltaAngle = (360 + touchAngle - startAngle + 180) % 360 - 180;
-                            //Log.i(TAG,"touchAngle:"+touchAngle+":startAngle:"+startAngle);
                             if (Math.abs(deltaAngle) > stepAngle) {
-                                // Dial gesture stops speaking File information
-                                ((MainActivity)activity).alwaysSpeak("");
+                                if (activity != null) ((MainActivity) activity).alwaysSpeak("");
 
                                 int offset = (int) deltaAngle / (int) stepAngle;
                                 startAngle = touchAngle;
@@ -1450,100 +1561,93 @@ public class DialView extends View {
                                 isFired = true;
                                 return true;
                             }
+                        }
+
+                        // 3. Directional movement (Swipe, Hold & Swipe, or Swipe & Hold):
+                        if (absX > swipeThreshold || absY > swipeThreshold) {
+                            cancelPendingTaps();
+
+                            final int effectivePointers = Math.max(touchCnt, maxPointerCount);
+                            final int dir = (dir_mode == DIR_MODE_4)
+                                    ? getDirection(getDegreeFromCartesian(startX, startY, event.getX(), event.getY()))
+                                    : getHexDirection(getDegreeFromCartesian(startX, startY, event.getX(), event.getY()));
+
+                            // If stationary long-press was speaking file info, mute speech now that user has swiped
+                            if (isFired && !SWIPE_HOLD && isLongpress) {
+                                if (activity != null) ((MainActivity) activity).alwaysSpeak("");
+                                isFired = false;
+                            }
+
+                            if (elapsed >= LONGPRESS_THRESHOLD) {
+                                // Finger has been held for >= LONGPRESS_THRESHOLD (250ms) -> SWIPE_HOLD!
+                                if (!SWIPE_HOLD) {
+                                    startFastNav(dir, effectivePointers);
+                                } else if (dir != currentHoldDir && dir != NO_DIRECTION) {
+                                    startFastNav(dir, effectivePointers);
+                                }
+                                setInteractiveDragDelta(deltaX, deltaY);
+                            } else {
+                                // Finger just moved past threshold quickly (< 250ms)
+                                setInteractiveDragDelta(deltaX, deltaY);
+
+                                // Schedule hold check so if user doesn't lift, it seamlessly transitions into SWIPE_HOLD at 250ms
+                                if (swipeHoldCheckRunnable == null && !SWIPE_HOLD) {
+                                    swipeHoldCheckRunnable = new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            swipeHoldCheckRunnable = null;
+                                            if (isUserTouching && !SWIPE_HOLD) {
+                                                startFastNav(dir, effectivePointers);
+                                            }
+                                        }
+                                    };
+                                    fastNavHandler.postDelayed(swipeHoldCheckRunnable, Math.max(10L, LONGPRESS_THRESHOLD - elapsed));
+                                }
+                            }
+                            return true;
                         } else {
-                            if (!isFired) {
-                                float density = (activity != null) ? activity.getResources().getDisplayMetrics().density : 1.0f;
-                                float swipeThreshold = Math.max(25f, 28 * density);
-                                float absX = Math.abs(deltaX);
-                                float absY = Math.abs(deltaY);
-
-                                // Trigger directional swipe immediately upon crossing the threshold so
-                                // visual updates, haptic vibration, and audio track switching are 100% in sync
-                                if (absX > swipeThreshold || absY > swipeThreshold) {
-                                    cancelPendingTaps();
-                                    isFired = true;
-                                    setInteractiveDragDelta(0, 0);
-
-                                    int effectivePointers = Math.max(touchCnt, maxPointerCount);
-                                    int dir = (dir_mode == DIR_MODE_4)
-                                            ? getDirection(getDegreeFromCartesian(startX, startY, event.getX(), event.getY()))
-                                            : getHexDirection(getDegreeFromCartesian(startX, startY, event.getX(), event.getY()));
-
-                                    switch (dir) {
-                                        case BOTTOM_TOP:
-                                            if (effectivePointers >= 2)
-                                                cmd(Commander.FAST_SEEK_NEXT_FOLDER);
-                                            else
-                                                cmd(Commander.NEXT_FOLDER);
-                                            break;
-
-                                        case TOP_BOTTOM:
-                                            if (effectivePointers >= 2)
-                                                cmd(Commander.FAST_SEEK_PREVIOUS_FOLDER);
-                                            else
-                                                cmd(Commander.PREVIOUS_FOLDER);
-                                            break;
-
-                                        case LEFT_RIGHT:
-                                            if (effectivePointers >= 2)
-                                                cmd(Commander.FAST_SEEK_NEXT_FILE);
-                                            else
-                                                cmd(Commander.NEXT_SONG);
-                                            break;
-
-                                        case RIGHT_LEFT:
-                                            if (effectivePointers >= 2)
-                                                cmd(Commander.FAST_SEEK_PREVIOUS_FILE);
-                                            else
-                                                cmd(Commander.PREVIOUS_SONG);
-                                            break;
-
-                                        case UP_RIGHT:
-                                            cmd(Commander.NEXT_ARTIST);
-                                            break;
-
-                                        case UP_LEFT:
-                                            cmd(Commander.PREVIOUS_ARTIST);
-                                            break;
-                                    }
-                                } else {
-                                    // Fluid interactive visual feedback tracking finger displacement prior to reaching threshold
-                                    setInteractiveDragDelta(deltaX, deltaY);
+                            if (!SWIPE_HOLD) {
+                                setInteractiveDragDelta(deltaX, deltaY);
+                                if (swipeHoldCheckRunnable != null) {
+                                    fastNavHandler.removeCallbacks(swipeHoldCheckRunnable);
+                                    swipeHoldCheckRunnable = null;
                                 }
                             }
                             return true;
                         }
-                    // Nothing is coming up after ACTION_MOVE
-                    // TODO Need to clarify if there is any specific events captured here.
-                    case MotionEvent.ACTION_SCROLL:
 
-                        //Log.i(TAG, "ACTION_SCROLL:" + getDirection(getDegreeFromCartesian(startX,startY,event.getX(),event.getY())));
+                    case MotionEvent.ACTION_SCROLL:
                         return false;
+
                     case MotionEvent.ACTION_UP:
                         isUserTouching = false;
                         setInteractiveDragDelta(0, 0);
+
+                        if (swipeHoldCheckRunnable != null) {
+                            fastNavHandler.removeCallbacks(swipeHoldCheckRunnable);
+                            swipeHoldCheckRunnable = null;
+                        }
+
                         if (isStartedFromEdge) {
                             Log.i(TAG, "ACTION_UP from edge gesture, ignoring in app: rawX=" + event.getRawX());
                             isStartedFromEdge = false;
                             cancelPendingTaps();
+                            stopFastNav();
                             return false;
                         }
 
-                        // Do not mute TTS on ACTION_UP, as gestures speak after finger release
-                        // ((MainActivity)activity).alwaysSpeak("");
-
-                        //Once it's touch_up, then it's set to false
                         isMultiFingerMode = false;
 
-                        Log.i(TAG, "getDownTime:" + event.getDownTime()+" :getEventTime:"+event.getEventTime());
-
-                        if(SWIPE_HOLD) {
-                            cmd(Commander.UPDATE_PLAY_ICON);
-                            SWIPE_HOLD = false;
+                        // If SWIPE_HOLD was active, fast navigation has finished:
+                        if (SWIPE_HOLD) {
+                            stopFastNav();
+                            cancelPendingTaps();
+                            isFired = false;
+                            return true;
                         }
 
-                        // If swipe gesture already executed immediately during finger movement, finish gesture
-                        if(isFired) {
+                        // If stationary long-press was fired and user didn't swipe, release quietly:
+                        if (isFired) {
                             isFired = false;
                             cancelPendingTaps();
                             return true;
@@ -1556,28 +1660,22 @@ public class DialView extends View {
 
                         if (effectivePointers == 2) {
                             cancelPendingTaps();
-                            // All two-finger gestures (swipes, tap bookmark, long-press date/time) are unified
-                            // and handled via dual-finger centroid tracking in MainActivity.dispatchTouchEvent.
                             return true;
                         }
 
-                        float density = (activity != null) ? activity.getResources().getDisplayMetrics().density : 1.0f;
-                        float swipeThreshold = Math.max(25f, 28 * density);
+                        float densityUp = (activity != null) ? activity.getResources().getDisplayMetrics().density : 1.0f;
+                        float swipeThresholdUp = Math.max(25f, 28 * densityUp);
 
-                        float absX = Math.abs(event.getX() - startX);
-                        float absY = Math.abs(event.getY() - startY);
+                        float absUpX = Math.abs(event.getX() - startX);
+                        float absUpY = Math.abs(event.getY() - startY);
 
-                        // If movement exceeds swipeThreshold, trigger directional swipe:
-                        if (absX > swipeThreshold || absY > swipeThreshold) {
+                        // If movement exceeds swipeThreshold, trigger directional swipe (Quick Swipe):
+                        if (absUpX > swipeThresholdUp || absUpY > swipeThresholdUp) {
                             cancelPendingTaps();
 
-                            int dir = 0;
-
-                            // 8 dir mode in Virtual directory(Media scann mode) to navigate ARTIST
-                            if (dir_mode == DIR_MODE_4)
-                                dir = getDirection(getDegreeFromCartesian(startX,startY,event.getX(),event.getY()));
-                            else if(dir_mode == DIR_MODE_8)
-                                dir = getHexDirection(getDegreeFromCartesian(startX,startY,event.getX(),event.getY()));
+                            int dir = (dir_mode == DIR_MODE_4)
+                                    ? getDirection(getDegreeFromCartesian(startX, startY, event.getX(), event.getY()))
+                                    : getHexDirection(getDegreeFromCartesian(startX, startY, event.getX(), event.getY()));
 
                             switch (dir) {
                                 case BOTTOM_TOP:
@@ -1620,8 +1718,8 @@ public class DialView extends View {
                         }
 
                         // Tap handling for stationary release:
-                        if ((System.currentTimeMillis() - startAction) < LONGPRESS_THRESHOLD  &&
-                                (absX < swipeThreshold && absY < swipeThreshold)) {
+                        if ((System.currentTimeMillis() - startAction) < LONGPRESS_THRESHOLD &&
+                                (absUpX < swipeThresholdUp && absUpY < swipeThresholdUp)) {
 
                             if (effectivePointers == 2) {
                                 cancelPendingTaps();
@@ -1655,9 +1753,11 @@ public class DialView extends View {
                         setInteractiveDragDelta(0, 0);
                         isStartedFromEdge = false;
                         cancelPendingTaps();
+                        stopFastNav();
                         isDragging = false;
                         isFired = false;
                         isLongpress = false;
+                        isMultiFingerMode = false;
                         return false;
                 }
                 return false;

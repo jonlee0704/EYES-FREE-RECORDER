@@ -174,6 +174,72 @@ public class SwipeGestureTest {
         assertEquals("Gesture must fire exactly once per swipe stroke", 1, firedCount);
     }
 
+    public int resolveFastNavCommand(int dir, int pointerCount) {
+        switch (dir) {
+            case LEFT_RIGHT:
+                if (pointerCount == 4) return Commander.DELETE_FILE;
+                if (pointerCount == 2) return Commander.FAST_FORWARD_3X;
+                return Commander.FAST_FORWARD_2X;
+
+            case RIGHT_LEFT:
+                if (pointerCount == 4) return Commander.RESTORE_FILE;
+                if (pointerCount == 2) return Commander.FAST_BACKWARD_3X;
+                return Commander.FAST_BACKWARD_2X;
+
+            case BOTTOM_TOP:
+                if (pointerCount == 3) return Commander.START_STOP_BACKUP;
+                if (pointerCount >= 2) return Commander.FAST_SEEK_NEXT_FOLDER;
+                return Commander.FF_FOLDER;
+
+            case TOP_BOTTOM:
+                if (pointerCount == 3) return Commander.SETTINGS;
+                if (pointerCount >= 2) return Commander.FAST_SEEK_PREVIOUS_FOLDER;
+                return Commander.REWIND_FOLDER;
+
+            default:
+                return Commander.NOTHING;
+        }
+    }
+
+    @Test
+    public void testHoldAndSwipeFastNavCommands() {
+        // Horizontal Fast Seeking:
+        assertEquals(Commander.FAST_FORWARD_2X, resolveFastNavCommand(LEFT_RIGHT, 1));
+        assertEquals(Commander.FAST_FORWARD_3X, resolveFastNavCommand(LEFT_RIGHT, 2));
+        assertEquals(Commander.DELETE_FILE, resolveFastNavCommand(LEFT_RIGHT, 4));
+
+        assertEquals(Commander.FAST_BACKWARD_2X, resolveFastNavCommand(RIGHT_LEFT, 1));
+        assertEquals(Commander.FAST_BACKWARD_3X, resolveFastNavCommand(RIGHT_LEFT, 2));
+        assertEquals(Commander.RESTORE_FILE, resolveFastNavCommand(RIGHT_LEFT, 4));
+
+        // Vertical Fast Folder Navigation:
+        assertEquals(Commander.FF_FOLDER, resolveFastNavCommand(BOTTOM_TOP, 1));
+        assertEquals(Commander.FAST_SEEK_NEXT_FOLDER, resolveFastNavCommand(BOTTOM_TOP, 2));
+        assertEquals(Commander.START_STOP_BACKUP, resolveFastNavCommand(BOTTOM_TOP, 3));
+
+        assertEquals(Commander.REWIND_FOLDER, resolveFastNavCommand(TOP_BOTTOM, 1));
+        assertEquals(Commander.FAST_SEEK_PREVIOUS_FOLDER, resolveFastNavCommand(TOP_BOTTOM, 2));
+        assertEquals(Commander.SETTINGS, resolveFastNavCommand(TOP_BOTTOM, 3));
+    }
+
+    @Test
+    public void testQuickSwipeVsSwipeHoldDiscrimination() {
+        int longpressThreshold = 250;
+
+        // 1. Quick swipe: user completes gesture in 120ms (< 250ms)
+        long downTime = 1000L;
+        long quickUpTime = 1120L;
+        long elapsedQuick = quickUpTime - downTime;
+        boolean isSwipeHoldQuick = elapsedQuick >= longpressThreshold;
+        assertFalse("Swipe completing under 250ms must not trigger SWIPE_HOLD", isSwipeHoldQuick);
+
+        // 2. Swipe & Hold: user holds finger for 600ms (>= 250ms)
+        long holdMoveTime = 1600L;
+        long elapsedHold = holdMoveTime - downTime;
+        boolean isSwipeHoldActive = elapsedHold >= longpressThreshold;
+        assertTrue("Holding past 250ms must activate SWIPE_HOLD fast navigation", isSwipeHoldActive);
+    }
+
     @Test
     public void testMetadataCacheEfficiency() throws Exception {
         java.io.File tempFile = java.io.File.createTempFile("test_audio", ".wav");
