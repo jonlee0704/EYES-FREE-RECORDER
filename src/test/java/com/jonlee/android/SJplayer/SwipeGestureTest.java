@@ -176,12 +176,6 @@ public class SwipeGestureTest {
 
     public int resolveFastNavCommand(int dir, int pointerCount) {
         switch (dir) {
-            case BOTTOM_TOP:
-                return (pointerCount >= 2) ? Commander.FAST_SEEK_NEXT_FOLDER : Commander.NEXT_FOLDER;
-
-            case TOP_BOTTOM:
-                return (pointerCount >= 2) ? Commander.FAST_SEEK_PREVIOUS_FOLDER : Commander.PREVIOUS_FOLDER;
-
             case LEFT_RIGHT:
                 if (pointerCount == 4) return Commander.DELETE_FILE;
                 if (pointerCount == 2) return Commander.FAST_FORWARD_3X;
@@ -191,6 +185,12 @@ public class SwipeGestureTest {
                 if (pointerCount == 4) return Commander.RESTORE_FILE;
                 if (pointerCount == 2) return Commander.FAST_BACKWARD_3X;
                 return Commander.FAST_BACKWARD_2X;
+
+            case BOTTOM_TOP:
+                return (pointerCount >= 2) ? Commander.FAST_SEEK_NEXT_FOLDER : Commander.NEXT_FOLDER;
+
+            case TOP_BOTTOM:
+                return (pointerCount >= 2) ? Commander.FAST_SEEK_PREVIOUS_FOLDER : Commander.PREVIOUS_FOLDER;
 
             default:
                 return Commander.NOTHING;
@@ -208,11 +208,51 @@ public class SwipeGestureTest {
         assertEquals(Commander.FAST_BACKWARD_3X, resolveFastNavCommand(RIGHT_LEFT, 2));
         assertEquals(Commander.RESTORE_FILE, resolveFastNavCommand(RIGHT_LEFT, 4));
 
-        // Vertical Swipe_Hold supports folder navigation:
+        // Vertical SWIPE_HOLD folder navigation:
         assertEquals(Commander.NEXT_FOLDER, resolveFastNavCommand(BOTTOM_TOP, 1));
         assertEquals(Commander.FAST_SEEK_NEXT_FOLDER, resolveFastNavCommand(BOTTOM_TOP, 2));
         assertEquals(Commander.PREVIOUS_FOLDER, resolveFastNavCommand(TOP_BOTTOM, 1));
         assertEquals(Commander.FAST_SEEK_PREVIOUS_FOLDER, resolveFastNavCommand(TOP_BOTTOM, 2));
+    }
+
+    public long calculateDynamicFastNavInterval(int dir, float dragDistanceDp, int pointerCount) {
+        if (dir == BOTTOM_TOP || dir == TOP_BOTTOM) {
+            if (pointerCount >= 2) {
+                if (dragDistanceDp < 80f) return 450L;
+                if (dragDistanceDp < 140f) return 320L;
+                if (dragDistanceDp < 200f) return 240L;
+                return 180L;
+            } else {
+                if (dragDistanceDp < 60f) return 400L;
+                if (dragDistanceDp < 110f) return 260L;
+                if (dragDistanceDp < 170f) return 180L;
+                if (dragDistanceDp < 240f) return 120L;
+                return 70L;
+            }
+        } else if (dir == LEFT_RIGHT || dir == RIGHT_LEFT) {
+            if (dragDistanceDp < 110f) return 180L;
+            if (dragDistanceDp < 200f) return 150L;
+            return 120L;
+        }
+        return 200L;
+    }
+
+    @Test
+    public void testDynamicFolderNavigationIntervalScaling() {
+        // As vertical drag distance increases, the repeat interval decreases (faster folder navigation):
+        assertEquals(400L, calculateDynamicFastNavInterval(BOTTOM_TOP, 30f, 1));
+        assertEquals(260L, calculateDynamicFastNavInterval(BOTTOM_TOP, 80f, 1));
+        assertEquals(180L, calculateDynamicFastNavInterval(BOTTOM_TOP, 140f, 1));
+        assertEquals(120L, calculateDynamicFastNavInterval(BOTTOM_TOP, 200f, 1));
+        assertEquals(70L, calculateDynamicFastNavInterval(BOTTOM_TOP, 260f, 1));
+
+        // Downward vertical hold (TOP_BOTTOM) behaves identically:
+        assertEquals(400L, calculateDynamicFastNavInterval(TOP_BOTTOM, 30f, 1));
+        assertEquals(70L, calculateDynamicFastNavInterval(TOP_BOTTOM, 260f, 1));
+
+        // Two-finger folder fast seek:
+        assertEquals(450L, calculateDynamicFastNavInterval(BOTTOM_TOP, 40f, 2));
+        assertEquals(180L, calculateDynamicFastNavInterval(BOTTOM_TOP, 240f, 2));
     }
 
     @Test
