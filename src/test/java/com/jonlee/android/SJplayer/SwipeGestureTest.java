@@ -238,4 +238,75 @@ public class SwipeGestureTest {
 
         assertTrue("Consecutive metadata reads must return cached instance to prevent UI thread I/O lag", meta1 == meta2);
     }
+
+    public int calculateDynamicSeekStep(float dragDistanceDp, int pointerCount) {
+        int baseStep;
+        if (dragDistanceDp < 60f) {
+            baseStep = 1500;
+        } else if (dragDistanceDp < 110f) {
+            baseStep = 3000;
+        } else if (dragDistanceDp < 170f) {
+            baseStep = 7500;
+        } else if (dragDistanceDp < 240f) {
+            baseStep = 15000;
+        } else {
+            baseStep = 30000;
+        }
+
+        if (pointerCount == 2) {
+            baseStep *= 2;
+        }
+        return baseStep;
+    }
+
+    @Test
+    public void testDynamicFastSeekStepScaling() {
+        // Drag distance < 60dp -> 1500ms
+        assertEquals(1500, calculateDynamicSeekStep(35f, 1));
+        assertEquals(3000, calculateDynamicSeekStep(35f, 2));
+
+        // Drag distance 60dp - 109dp -> 3000ms
+        assertEquals(3000, calculateDynamicSeekStep(80f, 1));
+        assertEquals(6000, calculateDynamicSeekStep(80f, 2));
+
+        // Drag distance 110dp - 169dp -> 7500ms
+        assertEquals(7500, calculateDynamicSeekStep(140f, 1));
+        assertEquals(15000, calculateDynamicSeekStep(140f, 2));
+
+        // Drag distance 170dp - 239dp -> 15000ms
+        assertEquals(15000, calculateDynamicSeekStep(200f, 1));
+        assertEquals(30000, calculateDynamicSeekStep(200f, 2));
+
+        // Drag distance >= 240dp -> 30000ms
+        assertEquals(30000, calculateDynamicSeekStep(280f, 1));
+        assertEquals(60000, calculateDynamicSeekStep(280f, 2));
+    }
+
+    @Test
+    public void testVerticalFolderNavigationTriggerDuringMove() {
+        float density = 3.0f;
+        float swipeThreshold = Math.max(25f, 28 * density); // 84 px
+
+        float deltaX = 10f;
+        float deltaYUp = -95f;   // Swiping UP
+        float deltaYDown = 110f; // Swiping DOWN
+
+        // 1. Single finger swiping UP:
+        boolean isFolderSwipeUp = Math.abs(deltaYUp) > swipeThreshold && Math.abs(deltaYUp) > Math.abs(deltaX);
+        assertTrue("Vertical upward drag exceeding threshold must trigger folder swipe", isFolderSwipeUp);
+        int cmdUpSingle = (deltaYUp < 0) ? resolveCommand(BOTTOM_TOP, 1) : resolveCommand(TOP_BOTTOM, 1);
+        assertEquals(Commander.NEXT_FOLDER, cmdUpSingle);
+
+        // 2. Single finger swiping DOWN:
+        boolean isFolderSwipeDown = Math.abs(deltaYDown) > swipeThreshold && Math.abs(deltaYDown) > Math.abs(deltaX);
+        assertTrue("Vertical downward drag exceeding threshold must trigger folder swipe", isFolderSwipeDown);
+        int cmdDownSingle = (deltaYDown > 0) ? resolveCommand(TOP_BOTTOM, 1) : resolveCommand(BOTTOM_TOP, 1);
+        assertEquals(Commander.PREVIOUS_FOLDER, cmdDownSingle);
+
+        // 3. Multi-finger (2 fingers) folder navigation (alphabet/month fast seek):
+        int cmdUpDouble = resolveCommand(BOTTOM_TOP, 2);
+        assertEquals(Commander.FAST_SEEK_NEXT_FOLDER, cmdUpDouble);
+        int cmdDownDouble = resolveCommand(TOP_BOTTOM, 2);
+        assertEquals(Commander.FAST_SEEK_PREVIOUS_FOLDER, cmdDownDouble);
+    }
 }

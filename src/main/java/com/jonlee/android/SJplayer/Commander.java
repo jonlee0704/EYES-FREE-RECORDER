@@ -1284,6 +1284,24 @@ public class Commander{
         recorder.seek(i);
     }
 
+    public void fastSeekByOffset(int offsetMs){
+        vibrateFastSeek();
+        if (recorder != null) {
+            if (!recorder.isPlaying())
+                recorder.startPlaying();
+            else if (recorder.isPaused())
+                recorder.resume();
+            recorder.seek(offsetMs);
+        }
+        if (offsetMs > 0) {
+            if (imageView != null) imageView.setImageResource(R.drawable.ic_action_fast_forward);
+            if (recorder != null) displayNotification(recorder.getCurrentDirectoryName(), R.drawable.ic_action_fast_forward);
+        } else {
+            if (imageView != null) imageView.setImageResource(R.drawable.ic_action_rewind);
+            if (recorder != null) displayNotification(recorder.getCurrentDirectoryName(), R.drawable.ic_action_rewind);
+        }
+    }
+
     private void progressBarVisible(boolean visible){
         if (dialView != null) {
             dialView.checkAndStartAnimation();

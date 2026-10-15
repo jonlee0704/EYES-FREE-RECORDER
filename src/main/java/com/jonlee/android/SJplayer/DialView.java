@@ -1302,6 +1302,8 @@ public class DialView extends View {
             private int currentHoldDir = NO_DIRECTION;
             private int currentHoldPointers = 1;
             private boolean isHoldTriggered = false;
+            private boolean isFolderSwipeFired = false;
+            private float currentDragDeltaX = 0f;
 
             {
                 cancelTapsCallback = new Runnable() {
@@ -1323,10 +1325,7 @@ public class DialView extends View {
                                 commander.cmd(Commander.DELETE_FILE);
                                 isMultiFingerMode = true;
                             }
-                        } else if (pointerCount == 2) {
-                            commander.cmd(Commander.FAST_FORWARD_3X);
-                        } else {
-                            commander.cmd(Commander.FAST_FORWARD_2X);
+                            return;
                         }
                         break;
 
@@ -1336,13 +1335,37 @@ public class DialView extends View {
                                 commander.cmd(Commander.RESTORE_FILE);
                                 isMultiFingerMode = true;
                             }
-                        } else if (pointerCount == 2) {
-                            commander.cmd(Commander.FAST_BACKWARD_3X);
-                        } else {
-                            commander.cmd(Commander.FAST_BACKWARD_2X);
+                            return;
                         }
                         break;
+
+                    default:
+                        return;
                 }
+
+                // Dynamic seek speed based on distance of drag
+                float density = (activity != null) ? activity.getResources().getDisplayMetrics().density : 1.0f;
+                float dragDistanceDp = Math.abs(currentDragDeltaX) / (density > 0 ? density : 1.0f);
+
+                int baseStep;
+                if (dragDistanceDp < 60f) {
+                    baseStep = 1500;
+                } else if (dragDistanceDp < 110f) {
+                    baseStep = 3000;
+                } else if (dragDistanceDp < 170f) {
+                    baseStep = 7500;
+                } else if (dragDistanceDp < 240f) {
+                    baseStep = 15000;
+                } else {
+                    baseStep = 30000;
+                }
+
+                if (pointerCount == 2) {
+                    baseStep *= 2;
+                }
+
+                int offsetMs = (dir == LEFT_RIGHT) ? baseStep : -baseStep;
+                commander.fastSeekByOffset(offsetMs);
             }
 
             private void startFastNav(final int dir, final int pointerCount) {
@@ -1367,7 +1390,7 @@ public class DialView extends View {
                     return;
                 }
 
-                final long interval = 200L;
+                final long interval = 180L;
                 if (fastNavRunnable != null) {
                     fastNavHandler.removeCallbacks(fastNavRunnable);
                 }
@@ -1394,6 +1417,7 @@ public class DialView extends View {
                 }
                 currentHoldDir = NO_DIRECTION;
                 isHoldTriggered = false;
+                currentDragDeltaX = 0f;
                 if (SWIPE_HOLD) {
                     if (activity != null && activity.getCommander() != null) {
                         activity.getCommander().cmd(Commander.UPDATE_PLAY_ICON);
@@ -1428,6 +1452,8 @@ public class DialView extends View {
                     case MotionEvent.ACTION_DOWN:
                         stopFastNav();
                         isUserTouching = true;
+                        isFolderSwipeFired = false;
+                        currentDragDeltaX = 0f;
                         // To check gesture direction in ACTION_UP
                         // Set the position when the finger touches the screen
                         startX = event.getX();
@@ -1498,7 +1524,7 @@ public class DialView extends View {
                         long elapsed = System.currentTimeMillis() - startAction;
 
                         // 1. Stationary Long Press: Not enough movement during threshold time.
-                        if (!isLongpress && !SWIPE_HOLD && elapsed > LONGPRESS_THRESHOLD &&
+                        if (!isLongpress && !SWIPE_HOLD && !isFolderSwipeFired && elapsed > LONGPRESS_THRESHOLD &&
                                 (absX < swipeThreshold && absY < swipeThreshold)) {
                             cancelPendingTaps();
 
@@ -1519,7 +1545,7 @@ public class DialView extends View {
                         }
 
                         // 2. Rotary Dial Mode: dragged around the circular wheel while in long-press mode
-                        if (isDragging && isLongpress && !SWIPE_HOLD && absX < swipeThreshold * 1.5f && absY < swipeThreshold * 1.5f) {
+                        if (isDragging && isLongpress && !SWIPE_HOLD && !isFolderSwipeFired && absX < swipeThreshold * 1.5f && absY < swipeThreshold * 1.5f) {
                             float touchAngle = touchAngle(touchX1, touchY1);
                             float deltaAngle = (360 + touchAngle - startAngle + 180) % 360 - 180;
                             if (Math.abs(deltaAngle) > stepAngle) {
@@ -1547,13 +1573,37 @@ public class DialView extends View {
                                     ? getDirection(getDegreeFromCartesian(startX, startY, event.getX(), event.getY()))
                                     : getHexDirection(getDegreeFromCartesian(startX, startY, event.getX(), event.getY()));
 
-                            // If stationary long-press was speaking file info, mute speech now that user has swiped
+                            // If stationary long-press was speaking file info, mute speech now that user has moved
                             if (isFired && !SWIPE_HOLD && isLongpress) {
                                 if (activity != null) ((MainActivity) activity).alwaysSpeak("");
                                 isFired = false;
                             }
 
+                            // Vertical folder navigation: fires immediately on crossing threshold in ACTION_MOVE
+                            if (absY > swipeThreshold && absY > absX) {
+                                if (!isFolderSwipeFired) {
+                                    isFolderSwipeFired = true;
+                                    if (deltaY < 0 || dir == BOTTOM_TOP) {
+                                        if (effectivePointers >= 2) {
+                                            cmd(Commander.FAST_SEEK_NEXT_FOLDER);
+                                        } else {
+                                            cmd(Commander.NEXT_FOLDER);
+                                        }
+                                    } else if (deltaY > 0 || dir == TOP_BOTTOM) {
+                                        if (effectivePointers >= 2) {
+                                            cmd(Commander.FAST_SEEK_PREVIOUS_FOLDER);
+                                        } else {
+                                            cmd(Commander.PREVIOUS_FOLDER);
+                                        }
+                                    }
+                                }
+                                setInteractiveDragDelta(deltaX, deltaY);
+                                return true;
+                            }
+
+                            // Horizontal seeking (Swipe_Hold only fastforward and fast rewind)
                             if (dir == LEFT_RIGHT || dir == RIGHT_LEFT) {
+                                currentDragDeltaX = deltaX;
                                 if (elapsed >= LONGPRESS_THRESHOLD) {
                                     // Finger has been held for >= LONGPRESS_THRESHOLD (250ms) -> SWIPE_HOLD!
                                     if (!SWIPE_HOLD) {
@@ -1581,12 +1631,12 @@ public class DialView extends View {
                                     }
                                 }
                             } else {
-                                // Up / Down movement: Swipe_Hold only fastforward and fast rewind
                                 setInteractiveDragDelta(deltaX, deltaY);
                             }
                             return true;
                         } else {
                             if (!SWIPE_HOLD) {
+                                currentDragDeltaX = 0f;
                                 setInteractiveDragDelta(deltaX, deltaY);
                                 if (swipeHoldCheckRunnable != null) {
                                     fastNavHandler.removeCallbacks(swipeHoldCheckRunnable);
@@ -1601,6 +1651,7 @@ public class DialView extends View {
 
                     case MotionEvent.ACTION_UP:
                         isUserTouching = false;
+                        currentDragDeltaX = 0f;
                         setInteractiveDragDelta(0, 0);
 
                         if (swipeHoldCheckRunnable != null) {
@@ -1617,6 +1668,14 @@ public class DialView extends View {
                         }
 
                         isMultiFingerMode = false;
+
+                        // If folder swipe already fired in real-time during ACTION_MOVE:
+                        if (isFolderSwipeFired) {
+                            isFolderSwipeFired = false;
+                            cancelPendingTaps();
+                            isFired = false;
+                            return true;
+                        }
 
                         // If SWIPE_HOLD was active, fast navigation has finished:
                         if (SWIPE_HOLD) {
@@ -1637,11 +1696,6 @@ public class DialView extends View {
                             maxPointerCount = event.getPointerCount();
                         }
                         int effectivePointers = Math.max(touchCnt, maxPointerCount);
-
-                        if (effectivePointers == 2) {
-                            cancelPendingTaps();
-                            return true;
-                        }
 
                         float densityUp = (activity != null) ? activity.getResources().getDisplayMetrics().density : 1.0f;
                         float swipeThresholdUp = Math.max(25f, 28 * densityUp);
@@ -1730,6 +1784,8 @@ public class DialView extends View {
 
                     case MotionEvent.ACTION_CANCEL:
                         isUserTouching = false;
+                        currentDragDeltaX = 0f;
+                        isFolderSwipeFired = false;
                         setInteractiveDragDelta(0, 0);
                         isStartedFromEdge = false;
                         cancelPendingTaps();
