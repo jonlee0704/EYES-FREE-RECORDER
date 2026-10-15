@@ -46,9 +46,12 @@ You can operate EYES-FREE VOICE RECORDER while walking, with the phone resting i
 | **3 Taps** | **Add Bookmark** | Spoken confirmation: *"Bookmark added at [time]"* |
 | **Swipe Left / Right** | **Next / Previous Track** | Speaks title and previews audio |
 | **Swipe Up / Down** | **Next / Previous Folder** | Speaks folder name and total folder index |
+| **Swipe & Hold Left / Right** | **Continuous Rewind / Fast-Forward** | Seeking speed accelerates dynamically with drag distance (1.5s to 30s steps) |
+| **Swipe & Hold Up / Down** | **Continuous Fast Folder Navigation** | Folder navigation accelerates with drag distance (400ms down to 70ms); far drag (≥300dp) converts to Alphabet Mode |
 | **2-Finger Swipe Left / Right** | **Fast Seek by Letter** | Alphabetical jump across track titles |
 | **2-Finger Swipe Up / Down** | **Fast Seek by Month** | Chronological jump across recordings |
-| **Swipe & Hold Left / Right** | **Rewind / Fast Forward** | Continuous 2X speed scrubbing |
+| **2-Finger Swipe & Hold Left / Right** | **Rapid Track Navigation** | Rapidly steps track-by-track with distance-based speed scaling |
+| **2-Finger Swipe & Hold Up / Down** | **Rapid Folder Navigation** | Rapidly steps folder-by-folder with distance-based speed scaling |
 | **1-Finger Long Press** | **Spoken File Info** | Full track details, duration, and path |
 | **2-Finger Long Press** | **Date, Time & Battery** | Speaks current time, day, date, and battery level |
 | **3-Finger Long Press** | **Toggle Favorite** | Marks/unmarks recording as favorite |

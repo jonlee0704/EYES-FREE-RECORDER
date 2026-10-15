@@ -86,22 +86,26 @@ All gestures are performed on the main touchscreen:
 | **Top-Right Corner Tap** | 1 Finger | **Toggle Speech Prompts** | Double-pulse; toggles TTS speech on/off. |
 | **Bottom-Left Corner Tap** | 1 Finger | **Time, Battery & Storage** | Double-pulse; speaks time, battery %, and free GB. |
 | **Bottom-Right Corner Tap**| 1 Finger | **Start / Stop Recording** | Crescendo pulse; activates/deactivates mic. |
-| **Double Tap** | 1 Finger | **Speak File Information** | Speaks current track title and duration. |
-| **Triple Tap** | 1 Finger | **"Where Am I?" Spatial Query** | Full spatial status report (Folder X of Y, File A of B). |
+| **Double Tap** | 1 Finger | **Start / Stop Recording** | Sharp double-pulse; speaks *"Recording started"* or *"Recording saved"*. |
+| **Triple Tap (or 2-Finger Tap)** | 1 or 2 | **Add Bookmark** | Spoken confirmation: *"Bookmark added at [time]"*. |
 | **Swipe Left $\rightarrow$ Right** | 1 Finger | **Next File** | Rising chirp (panned right) + rolling tick. |
 | **Swipe Right $\rightarrow$ Left** | 1 Finger | **Previous File** | Falling chirp (panned left) + reverse tick. |
 | **Swipe Down $\rightarrow$ Up** | 1 Finger | **Next Folder** | Ascending chime + heavy mechanical gear pulse. |
 | **Swipe Up $\rightarrow$ Down** | 1 Finger | **Previous Folder** | Descending chime + heavy mechanical gear pulse. |
 | **Two-Finger Swipe Left / Right** | 2 Fingers | **Fast Seek File by First Letter** | Jumps across alphabetical letter sections (A, B, C...). |
 | **Two-Finger Swipe Up / Down** | 2 Fingers | **Fast Seek Folder by Month / Letter** | Jumps folders grouped by date/month or category. |
-| **Swipe & Hold Left** | 1 Finger | **Continuous Rewind (2X Speed)** | Audio chirps backward rapidly until released. |
-| **Swipe & Hold Right** | 1 Finger | **Continuous Fast-Forward (2X Speed)** | Audio plays forward at double speed until released. |
-| **Swipe & Hold Up / Down** | 1 Finger | **Fast Folder Roll** | Rapidly cycles through folders with rapid haptic clicks. |
+| **Swipe & Hold Left / Right** | 1 Finger | **Continuous Rewind / Fast-Forward with Distance Scaling** | Seeking speed accelerates dynamically with drag distance (1.5s, 3s, 7.5s, 15s, 30s per tick). Lift to resume. |
+| **Swipe & Hold Up / Down** | 1 Finger | **Continuous Fast Folder Navigation with Distance Scaling** | Folder stepping accelerates dynamically with drag distance (400ms down to 70ms tick interval). |
+| **Swipe & Hold Up / Down Far ($\ge$300dp)** | 1 Finger | **Alphabet Mode Folder Navigation** | When dragged to the farthest reach, automatically transitions to jumping folders by initial alphabet letter (*"Alphabet [Letter], Folder [Name]"*). |
+| **Two-Finger Swipe & Hold Left / Right** | 2 Fingers | **Continuous Rapid Track Navigation** | Rapidly steps track-by-track with distance-based speed scaling. |
+| **Two-Finger Swipe & Hold Up / Down** | 2 Fingers | **Continuous Rapid Folder Navigation** | Rapidly steps folder-by-folder with distance-based speed scaling. |
 | **Long Press (Hold stationary >0.5s)** | 1 Finger | **Speak File & Folder Info** | Speaks full title, length, folder path, and date. |
+| **Long Press & Swipe Up / Down** | 1 Finger | **Rotary Wheel Controller** | Smooth circular dial scrub through folders with ambient acoustic previews. |
 | **Two-Finger Long Press (>0.45s)** | 2 Fingers | **Speak Time, Date & Battery** | Speaks: *"It is 3:45 PM, Wednesday, Battery 82 percent"*. |
 | **Three-Finger Triple Tap** | 3 Fingers | **Toggle Screen Curtain (OLED Battery Saver)** | iOS VoiceOver consistent gesture (tap 3 times with 3 fingers). Shuts display pixels completely black (0 nits) for total privacy & maximum battery savings while keeping touch, haptics & audio active. Spoken announcement: *"Screen curtain on"* or *"Screen curtain off"*. |
 | **Three-Finger Long Press** | 3 Fingers | **Toggle Favorite Status** | Marks/unmarks recording as a priority favorite. |
 | **Three-Finger Swipe Down** | 3 Fingers | **Open App Settings Menu** | Opens audio settings, speech configuration, and options. |
+| **Three-Finger Swipe Up** | 3 Fingers | **Cloud Backup & Sync** | Triggers Google Drive backup routine. |
 | **Four-Finger Swipe Right** | 4 Fingers | **Delete Current Recording** | Moves to trash. Spoken: *"Moved to trash: [File Name]. Swipe left with 4 fingers to undo."* |
 | **Four-Finger Swipe Left** | 4 Fingers | **Restore Deleted Recording (Undo)** | Restores the most recently trashed file. Spoken confirmation: *"Restored [File Name]"*. |
 | **Circular Dial Scrub (Jog)** | 1 Finger | **Fine-Grained Jog Audio Scrubbing** | Clockwise scrubs forward; counter-clockwise rewinds. |
@@ -115,6 +119,7 @@ All gestures are performed on the main touchscreen:
 2. **Double-tap anywhere on the glass with one finger.**
    - You will feel a sharp double pulse.
    - The microphone opens instantly and begins recording high-fidelity audio.
+   - A persistent foreground service notification ensures recording continues uninterrupted even if the screen turns off or the phone is locked in your pocket.
    - If audio was playing, it mutes automatically so your microphone captures pure speech.
 3. Speak clearly into the microphone.
 4. When finished, **double-tap the screen once more with one finger** (or single-tap the center).
@@ -125,14 +130,22 @@ All gestures are performed on the main touchscreen:
 ### 5.2 Browsing Folders and Tracks
 1. **Changing Folders**: Swipe your finger upward from the bottom to move to the next folder. Swipe downward to go to the previous folder.
    - Example: You swipe up and hear: *"Folder: Voice Memos"*. Swipe up again: *"Folder: Audiobooks"*.
-2. **Browsing Tracks in that Folder**: Swipe from left to right (swipe right) to step forward to the next track. Swipe from right to left (swipe left) to step backward to the previous track.
+2. **Continuous Fast Folder Navigation**: Swipe up or down and hold your finger on the screen without lifting. The app will rapidly roll through folders with rhythmic haptic clicks. The further you drag from your initial touch point, the faster it scrolls (accelerating from 400ms down to 70ms per folder).
+3. **Alphabet Mode Navigation**: While swiping and holding vertically, drag your finger toward the far edge of the screen ($\ge$300dp). The app automatically converts to Alphabet Navigation mode, announcing *"Alphabet [Letter], Folder [Name]"* to let you jump across massive libraries in seconds.
+4. **Browsing Tracks in that Folder**: Swipe from left to right (swipe right) to step forward to the next track. Swipe from right to left (swipe left) to step backward to the previous track.
    - Example: *"Lecture 1. Duration 42 minutes."* $\rightarrow$ Swipe Right $\rightarrow$ *"Lecture 2. Duration 38 minutes."*
-3. **Instant Playback**: Tap once anywhere with one finger. Playback starts immediately. Tap again to pause.
+5. **Instant Playback**: Tap once anywhere with one finger. Playback starts immediately. Tap again to pause.
 
 ### 5.3 Fast Scrubbing Through Long Recordings
 When listening to a 1-hour recording and searching for a specific sentence:
-- **Fast Forward**: Touch the glass, slide your finger slightly to the right, and **hold it down without lifting**. The recording will fast-forward at accelerated speed with audible speech fragments. Lift your finger to resume normal playback speed.
-- **Rewind**: Touch the glass, slide your finger to the left, and **hold it down**. The audio reverses rapidly. Lift your finger to resume listening.
+- **Fast Forward with Dynamic Distance Scaling**: Touch the glass, slide your finger to the right, and **hold it down without lifting**. The seek speed scales dynamically based on how far your finger moves:
+  - *Short drag (<80dp)*: 1.5 seconds per tick for fine precision.
+  - *Moderate drag (80–140dp)*: 3.0 seconds per tick.
+  - *Medium drag (140–200dp)*: 7.5 seconds per tick.
+  - *Long drag (200–260dp)*: 15.0 seconds per tick.
+  - *Far drag ($\ge$260dp)*: 30.0 seconds per tick for flying through long takes.
+  Lift your finger to resume normal playback speed.
+- **Rewind with Dynamic Distance Scaling**: Touch the glass, slide your finger to the left, and **hold it down**. The audio reverses with the same distance-scaled velocity. Lift your finger to resume listening.
 - **Precision Rotary Dial Scrub**: With your finger resting on the screen, trace a gentle circular clockwise motion (like turning a physical combination dial) to advance second-by-second. Trace counter-clockwise to rewind second-by-second.
 
 ### 5.4 Setting and Using Bookmarks
@@ -190,13 +203,24 @@ You can copy your own MP3, M4A, FLAC, OGG, or WAV files from a computer into the
 
 ## 8. Customizing Settings & Audio Quality
 
-To open the Settings screen, **swipe down with 3 fingers**, or tap the Help/Settings button. In Settings you can customize:
+To open the Settings screen, **swipe down with 3 fingers**, or tap the Settings gear icon in the top bar. In Settings you can customize:
 - **Speech Speed & Pitch**: Match your preferred listening rate for the TTS voice.
 - **Audio Recording Quality**:
   - *Standard Quality*: 16 kHz or 22.05 kHz mono (ideal for daily speech memos, minimal file size).
   - *High Fidelity*: 44.1 kHz or 48 kHz stereo WAV (ideal for music, interviews, and broadcast).
 - **Vibration Intensity**: Set tactile feedback to High, Medium, Light, or Mute.
 - **Navigation Mode (`isNavModeEnabled`)**: When enabled, swiping between files only announces titles without auto-playing until you tap to confirm.
+- **Display & Animation Style (Visualizer)**: Choose between:
+  - *Simplest Split UI (Default)*: Accessible high-contrast layout with folders on the left, tracks on the right, and scrolling marquee.
+  - *Circle Wave Ribbon Animation*: Smooth reactive sinusoidal waveforms.
+  - *32-Band Frequency Analyzer Animation*: Real-time audio spectrum analyzer bars.
+  - *Radial Sonic Starburst Animation*: Dynamic pulsing acoustic jewel starburst.
+- **Whole-Screen Recording Ambient Visualizer**:
+  - While recording, the entire screen surface, physical bezel margins, and active UI cards react dynamically in real-time to microphone volume levels.
+  - Displays a dynamic perimeter glowing border and corner vignette shifting from Crimson (`#FF1744`) to Sunset Coral (`#FF5722`) to Radiant Amber (`#FFAB00`), providing instant peripheral confirmation for partially sighted users and companions that recording is actively capturing sound.
+  - *Strict Screen Curtain Compliance*: When Screen Curtain is enabled (3-finger triple tap), the display is forced to complete 100% black (0 nits), maintaining total privacy and maximum OLED battery savings.
+- **TalkBack Coexistence Mode**: Configure whether app TTS automatically mutes when TalkBack is actively running to prevent dual-voice audio overlap.
+- **Save Location with Recordings**: Geotagging is set to **Off by default** for strict user privacy, but can be enabled if you wish to record GPS coordinates with field audio.
 
 ---
 

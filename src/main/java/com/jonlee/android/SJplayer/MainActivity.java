@@ -1171,8 +1171,11 @@ public class MainActivity extends SampleActivityBase {
                         "Swipe right to jump to the next track. " +
                         "Swipe left to jump to the previous track. " +
                         "Swipe up or down to switch folders. " +
-                        "Long press and swipe up or down to activate the rotary wheel controller for continuous folder browsing with ambient preview. " +
-                        "Swipe left or right and hold for continuous fast forward or rewind.",
+                        "Swipe up or down and hold for continuous fast folder navigation, which navigates faster the further you drag. " +
+                        "Dragging far up or down reaches Alphabet mode navigation, jumping folders alphabetically by initial letter. " +
+                        "Swipe left or right and hold for continuous fast forward or rewind, with seek speed scaling dynamically based on drag distance. " +
+                        "Two finger swipe up, down, left, or right and hold performs rapid folder and track navigation with distance scaling. " +
+                        "Long press and swipe up or down to activate the rotary wheel controller for continuous folder browsing with ambient preview.",
                 "Multi-finger accessibility shortcuts: " +
                         "Two finger swipe left or right performs fast seek across files by alphabet letter. " +
                         "Two finger swipe up or down performs fast seek across folders by month for date folders, or by alphabet letter. " +
@@ -1183,9 +1186,11 @@ public class MainActivity extends SampleActivityBase {
                         "Three finger long press marks or unmarks the track as a favorite. " +
                         "Three finger swipe down opens settings. " +
                         "Three finger swipe up starts cloud backup. " +
-                        "Four finger swipe right and hold deletes the current audio file.",
+                        "Four finger swipe right and hold moves the current audio file to trash. " +
+                        "Four finger swipe left restores the last deleted audio file.",
                 "Display modes and visualizers: " +
                         "The default split user interface displays folders on the left and audio files on the right with vertical scrolling and text marquee for long titles. " +
+                        "During recording, the whole screen and outer edges glow and react in real-time to microphone volume for immediate visual confirmation. " +
                         "Display animation styles such as Circular Dial, Frequency Spectrum, and Starburst can be selected in settings under Animation and Visualizer.",
                 "Top controls: " +
                         "Tap question mark for help. Tap the Pro button to change recording mode, or hold it for Pro settings. Tap gear icon for settings. Tap TTS pill to toggle voice assistance on or off."
@@ -1256,11 +1261,14 @@ public class MainActivity extends SampleActivityBase {
                 "• <b>3x Tap (Triple Tap)</b>: Add Bookmark at current playback time.<br/>" +
                 "<br/>" +
                 "<font color=\"#FFD54F\"><b>↔ TRACK &amp; FOLDER NAVIGATION (SWIPES)</b></font><br/>" +
-                "• <b>Swipe Right</b>: Next track / audio file.<br/>" +
-                "• <b>Swipe Left</b>: Previous track / audio file.<br/>" +
-                "• <b>Swipe Up/Down</b>: Previous / Next folder (ambient wheel display).<br/>" +
-                "• <b>Long Press &amp; Swipe Up/Down</b>: Rotary Wheel Controller — drag continuously through folders with ambient previous &amp; next preview.<br/>" +
-                "• <b>Swipe Left/Right &amp; Hold</b>: Continuous Fast Forward / Rewind.<br/>" +
+                "• <b>Swipe Right / Left</b>: Next / Previous audio file.<br/>" +
+                "• <b>Swipe Up / Down</b>: Next / Previous folder.<br/>" +
+                "• <b>Swipe Up/Down &amp; Hold</b>: Continuous Fast Folder Navigation — navigates faster the further you drag (400ms down to 70ms).<br/>" +
+                "• <b>Swipe Up/Down Far (Farthest reach &gt;= 300dp)</b>: Converts into <b>Alphabet Mode Navigation</b>, jumping folders by initial letter.<br/>" +
+                "• <b>Swipe Left/Right &amp; Hold</b>: Continuous Fast Forward / Rewind — seek speed scales dynamically with drag distance (1.5s to 30s steps).<br/>" +
+                "• <b>2-Finger Swipe Left/Right &amp; Hold</b>: Rapid file navigation with distance-based speed scaling.<br/>" +
+                "• <b>2-Finger Swipe Up/Down &amp; Hold</b>: Rapid folder navigation with distance-based speed scaling.<br/>" +
+                "• <b>Long Press &amp; Swipe Up/Down</b>: Rotary Wheel Controller — drag continuously through folders with ambient preview.<br/>" +
                 "<br/>" +
                 "<font color=\"#00E5FF\"><b>✦ MULTI-FINGER ACCESSIBILITY SHORTCUTS</b></font><br/>" +
                 "• <b>3-Finger Triple Tap</b>: Toggle Screen Curtain (pure black display for privacy &amp; battery savings).<br/>" +
@@ -1268,24 +1276,26 @@ public class MainActivity extends SampleActivityBase {
                 "• <b>2-Finger Long Press</b>: Voice readout of Current Time &amp; Battery Level.<br/>" +
                 "• <b>3-Finger Long Press</b>: Mark / Unmark track as Favorite.<br/>" +
                 "• <b>2-Finger Tap</b>: Quick Bookmark (alternate shortcut).<br/>" +
-                "• <b>2-Finger Swipe Right / Left</b>: Jump to Next / Previous Bookmark.<br/>" +
+                "• <b>2-Finger Swipe Right / Left</b>: Jump across file letter sections.<br/>" +
+                "• <b>2-Finger Swipe Up / Down</b>: Jump folders by month or letter.<br/>" +
                 "• <b>3-Finger Swipe Down</b>: Open Settings.<br/>" +
-                "• <b>4-Finger Swipe Right &amp; Hold</b>: Delete current audio file.<br/>" +
+                "• <b>4-Finger Swipe Right &amp; Hold</b>: Move current audio file to trash.<br/>" +
                 "• <b>4-Finger Swipe Left</b>: Restore last deleted audio file (Undo).<br/>" +
                 "<br/>" +
                 "<font color=\"#B388FF\"><b>🎚 PRO RECORDING MODE</b></font><br/>" +
-                "• <b>Pro button (top bar)</b>: Tap for the next mode (Standard, Meeting room, Small music venue, Stadium, Street). Long press for the Pro menu.<br/>" +
-                "• <b>3-Finger Double Tap</b>: Open or close the spoken Pro menu: Pro mode on/off, environment, focus, noise reduction, gain mode, input gain, sound check, presets, keep original, monitoring.<br/>" +
-                "• <b>In the Pro menu</b>: Swipe right/left for items, up/down to change, tap to select, long press for help (on Presets: save). Double tap closes the menu and records.<br/>" +
-                "• <b>3-Finger Swipe Left/Right</b> (Pro mode, idle): Choose the environment — Meeting room, Small music venue, Stadium, Street.<br/>" +
-                "• <b>3-Finger Swipe Up/Down</b> (Pro mode, idle): Choose the focus — Voice, Music, Natural. Settings and Backup stay in the Settings menu.<br/>" +
+                "• <b>Pro button (top bar)</b>: Tap for next mode (Standard, Meeting room, Small music venue, Stadium, Street). Long press for Pro menu.<br/>" +
+                "• <b>3-Finger Double Tap</b>: Open or close spoken Pro menu: Pro mode on/off, environment, focus, noise reduction, gain, sound check, presets.<br/>" +
+                "• <b>In the Pro menu</b>: Swipe right/left for items, up/down to change, tap to select, long press for help. Double tap closes and records.<br/>" +
+                "• <b>3-Finger Swipe Left/Right</b> (Pro mode, idle): Choose environment — Meeting room, Small music venue, Stadium, Street.<br/>" +
+                "• <b>3-Finger Swipe Up/Down</b> (Pro mode, idle): Choose focus — Voice, Music, Natural.<br/>" +
                 "• <b>2-Finger Swipe Up/Down</b> (while recording): Raise / lower noise reduction live.<br/>" +
                 "• <b>Volume Buttons</b> (Manual gain): Input gain in 3 dB steps, from −24 to +12 dB.<br/>" +
-                "• <b>Long Press twice</b> (on a Pro recording): Choose the main recording, safety track or original; tap plays it.<br/>" +
-                "• Without headphones, Pro mode stays silent while recording (haptics only) so no speech ends up in the take; changes are read out when you stop.<br/>" +
+                "• <b>Long Press twice</b> (on a Pro recording): Choose main recording, safety track or original; tap plays it.<br/>" +
+                "• Without headphones, Pro mode stays silent while recording (haptics only); changes are read out when you stop.<br/>" +
                 "<br/>" +
                 "<font color=\"#FF9100\"><b>◆ DISPLAY MODES &amp; VISUALIZERS</b></font><br/>" +
-                "• <b>Simplest Split UI (Default)</b>: Folders on the left, audio files on the right with vertical scrolling and text marquee for long titles.<br/>" +
+                "• <b>Simplest Split UI (Default)</b>: Folders on left, audio files on right with vertical scrolling and text marquee for long titles.<br/>" +
+                "• <b>Whole-Screen Recording Ambient Visualizer</b>: During recording, the whole screen and outer edges glow and react in real-time to microphone volume (Crimson → Sunset Coral → Radiant Amber) for instant visual confirmation.<br/>" +
                 "• <b>Circular Dial &amp; Diamonds</b>: Circulating progress bar with amber diamonds and jewel markers.<br/>" +
                 "• <b>Change Modes</b>: Select between Split UI, Frequency Spectrum, and Starburst in Settings under Animation &amp; Visualizer.<br/>" +
                 "<br/>" +

@@ -281,21 +281,26 @@ The whole screen is one control surface. The meaning of a gesture depends on fou
 | 1 | Tap bottom-right corner | Start recording | Start recording | Stop and save |
 | 1 | Swipe right / left | Next / previous file | Next / previous file | Ignored ("on air") |
 | 1 | Swipe up / down | Next / previous folder | Same | Ignored |
-| 1 | Swipe and hold right / left | — | Fast-forward / rewind | — |
-| 1 | Swipe and hold up / down | Fast folder roll | Fast folder roll | — |
+| 1 | Swipe and hold right / left | — | Fast-forward / rewind (dynamic distance speed scaling: 1.5s–30s) | — |
+| 1 | Swipe and hold up / down | Fast folder roll (distance scaling 400ms–70ms) | Fast folder roll (distance scaling 400ms–70ms) | — |
+| 1 | Swipe and hold up / down far ($\ge$300dp) | Alphabet Mode navigation (jumps folders by letter) | Alphabet Mode navigation (jumps folders by letter) | — |
 | 1 | Long press (> 0.5 s) | File info | File info | — |
+| 1 | Long press & swipe up / down | Rotary wheel folder browser with ambient audio preview | Same | — |
 | 1 | Circular drag | Jog through files or folders | Jog scrub (clockwise = forward) | — |
 | 1 | Diagonal swipe (media-scan mode) | Next / previous artist | Same | — |
+| 2 | Tap | Add bookmark | Add bookmark at position | Add bookmark at offset |
 | 2 | Swipe right / left | Seek file section (letter or hour) | Same | — |
 | 2 | Swipe up / down | Seek folder section (month or letter) | Same | — |
-| 2 | Swipe and hold right | — | 3x fast-forward | — |
+| 2 | Swipe and hold right / left | Rapid file navigation with distance scaling | Rapid file navigation with distance scaling | — |
+| 2 | Swipe and hold up / down | Rapid folder navigation with distance scaling | Rapid folder navigation with distance scaling | — |
 | 2 | Long press (> 0.45 s) | Time, date, battery | Same, then resume | — |
 | 3 | Double tap | Open / close the Pro menu | Same | "On air" |
 | 3 | Triple tap | Toggle screen curtain | Same | Same |
 | 3 | Long press | Toggle favorite | Toggle favorite | — |
 | 3 | Swipe down | Open Settings | Open Settings | — |
 | 3 | Swipe up | Start / stop backup | Same | — |
-| 4 | Swipe right | Delete current file | Delete current file | — |
+| 4 | Swipe right | Delete current file (move to trash) | Delete current file (move to trash) | — |
+| 4 | Swipe left | Restore deleted file (Undo trash) | Restore deleted file (Undo trash) | — |
 
 ### Recognition rules
 
@@ -500,6 +505,7 @@ v4.2.0 is the current build, but the last version Play reviewed (v4.1.2) was rej
 
 | Date | Version | What shipped |
 | --- | --- | --- |
+| 2026-10-15 | v4.2.1 (code 98) | Dynamic distance-based speed scaling on swipe-and-hold (folder roll 400ms→70ms, seek 1.5s–30s); Alphabet Mode folder navigation (threshold $\ge$300dp); Whole-screen real-time recording ambient visualizer (perimeter glow, ribbons, VU meters) with screen curtain compliance; Persistent microphone foreground service (`SJplayerStatusService`); TalkBack coexistence auto-mute in `SettingsActivity`; 4-finger trash restore undo; Top button visual polish; In-app spoken & visual gesture guides updated |
 | 2026-10-02 | v4.2.0 (code 97) | Animated gesture tutorial with a text-help shortcut; 2-finger section search; screen curtain toggle; AI-training prohibition across docs; iOS master plan |
 | 2026-10-01 | — | Play rejected code 95: crash after opening |
 | 2026-09-30 | v4.1.2 (code 95) | Play submission build; null-safety in `Recorder`; blind user manual, ToS, Privacy Policy, legal disclaimers; ToS gate on first launch; rebrand to EYES-FREE VOICE RECORDER |
