@@ -457,17 +457,20 @@ public class SwipeGestureTest {
 
     @Test
     public void testAlphabetModeNavigationAtFarthestDistance() {
-        // Below 190dp (80% farest threshold) -> Normal folder navigation
+        // Below 300dp (increased threshold) -> Normal fast folder navigation
         assertEquals(Commander.NEXT_FOLDER, resolveVerticalFolderCommand(BOTTOM_TOP, 1, 50f));
         assertEquals(Commander.NEXT_FOLDER, resolveVerticalFolderCommand(BOTTOM_TOP, 1, 120f));
-        assertEquals(Commander.NEXT_FOLDER, resolveVerticalFolderCommand(BOTTOM_TOP, 1, 185f));
-        assertEquals(Commander.PREVIOUS_FOLDER, resolveVerticalFolderCommand(TOP_BOTTOM, 1, 100f));
+        assertEquals(Commander.NEXT_FOLDER, resolveVerticalFolderCommand(BOTTOM_TOP, 1, 190f));
+        assertEquals(Commander.NEXT_FOLDER, resolveVerticalFolderCommand(BOTTOM_TOP, 1, 240f));
+        assertEquals(Commander.NEXT_FOLDER, resolveVerticalFolderCommand(BOTTOM_TOP, 1, 295f));
+        assertEquals(Commander.PREVIOUS_FOLDER, resolveVerticalFolderCommand(TOP_BOTTOM, 1, 200f));
+        assertEquals(Commander.PREVIOUS_FOLDER, resolveVerticalFolderCommand(TOP_BOTTOM, 1, 290f));
 
-        // At or above 190dp (80% farest or so) -> Alphabet mode navigation even with 1 finger!
-        assertEquals(Commander.FAST_SEEK_NEXT_FOLDER, resolveVerticalFolderCommand(BOTTOM_TOP, 1, 190f));
-        assertEquals(Commander.FAST_SEEK_NEXT_FOLDER, resolveVerticalFolderCommand(BOTTOM_TOP, 1, 220f));
-        assertEquals(Commander.FAST_SEEK_NEXT_FOLDER, resolveVerticalFolderCommand(BOTTOM_TOP, 1, 260f));
-        assertEquals(Commander.FAST_SEEK_PREVIOUS_FOLDER, resolveVerticalFolderCommand(TOP_BOTTOM, 1, 200f));
+        // At or above 300dp (farthest threshold) -> Alphabet mode navigation with 1 finger
+        assertEquals(Commander.FAST_SEEK_NEXT_FOLDER, resolveVerticalFolderCommand(BOTTOM_TOP, 1, 300f));
+        assertEquals(Commander.FAST_SEEK_NEXT_FOLDER, resolveVerticalFolderCommand(BOTTOM_TOP, 1, 330f));
+        assertEquals(Commander.FAST_SEEK_NEXT_FOLDER, resolveVerticalFolderCommand(BOTTOM_TOP, 1, 380f));
+        assertEquals(Commander.FAST_SEEK_PREVIOUS_FOLDER, resolveVerticalFolderCommand(TOP_BOTTOM, 1, 310f));
 
         // 2 fingers is always Alphabet mode regardless of distance
         assertEquals(Commander.FAST_SEEK_NEXT_FOLDER, resolveVerticalFolderCommand(BOTTOM_TOP, 2, 40f));

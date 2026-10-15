@@ -52,7 +52,7 @@ public class DialView extends View {
     public static final String TAG = "DialView";
     public static final int DIR_MODE_4 = 4;
     public static final int DIR_MODE_8 = 8;
-    public static final float ALPHABET_MODE_THRESHOLD_DP = 190f;
+    public static final float ALPHABET_MODE_THRESHOLD_DP = 300f;
 
     private int DIAL_COLOR = Color.GRAY;
     private boolean progressBarMode = false;
@@ -1414,7 +1414,7 @@ public class DialView extends View {
                 }
 
                 // 2. Vertical Folder Navigation (Up / Down)
-                // When swipe up/down distance reaches ~80% farest (>= 190dp), it goes to Alphabet mode navigation!
+                // When swipe up/down distance reaches farthest tier (>= 300dp), it goes to Alphabet mode navigation!
                 float densityY = (activity != null) ? activity.getResources().getDisplayMetrics().density : 1.0f;
                 float dragDistanceYDp = Math.abs(currentDragDeltaY) / (densityY > 0 ? densityY : 1.0f);
                 boolean isAlphabet = (pointerCount >= 2) || isAlphabetModeDistance(dragDistanceYDp);
@@ -1739,7 +1739,7 @@ public class DialView extends View {
 
                             // Vertical folder navigation: fires immediately on crossing threshold in ACTION_MOVE,
                             // and transitions into SWIPE_HOLD to continuously navigate faster based on drag distance!
-                            // When swipe up/down distance reaches ~80% farest (>= 190dp), it enters Alphabet mode navigation!
+                            // When swipe up/down distance reaches farthest threshold (>= 300dp), it enters Alphabet mode navigation!
                             if (absY > swipeThreshold && absY > absX) {
                                 int vDir = (deltaY < 0 || dir == BOTTOM_TOP) ? BOTTOM_TOP : TOP_BOTTOM;
                                 float dragYDp = absY / density;
@@ -1763,7 +1763,7 @@ public class DialView extends View {
                                         }
                                     }
                                 } else if (effectivePointers == 1 && isFarAlphabet && !isAlphabetModeFired) {
-                                    // Dragged further into 80% farest during ongoing swipe/hold:
+                                    // Dragged further into farthest threshold (>= 300dp) during ongoing swipe/hold:
                                     isAlphabetModeFired = true;
                                     if (vDir == BOTTOM_TOP) {
                                         cmd(Commander.FAST_SEEK_NEXT_FOLDER);
@@ -1771,7 +1771,7 @@ public class DialView extends View {
                                         cmd(Commander.FAST_SEEK_PREVIOUS_FOLDER);
                                     }
                                 } else if (effectivePointers == 1 && !isFarAlphabet && isAlphabetModeFired) {
-                                    // Finger moved back below 80% farest threshold:
+                                    // Finger moved back below farthest threshold:
                                     isAlphabetModeFired = false;
                                 }
 
