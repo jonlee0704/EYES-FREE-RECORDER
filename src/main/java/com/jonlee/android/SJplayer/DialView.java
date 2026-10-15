@@ -1342,33 +1342,12 @@ public class DialView extends View {
                             commander.cmd(Commander.FAST_BACKWARD_2X);
                         }
                         break;
-
-                    case BOTTOM_TOP:
-                        if (pointerCount == 3) {
-                            if (!isMultiFingerMode) {
-                                commander.cmd(Commander.START_STOP_BACKUP);
-                                isMultiFingerMode = true;
-                            }
-                        } else {
-                            commander.cmd(Commander.FAST_SEEK_NEXT_FOLDER);
-                        }
-                        break;
-
-                    case TOP_BOTTOM:
-                        if (pointerCount == 3) {
-                            if (!isMultiFingerMode) {
-                                commander.cmd(Commander.SETTINGS);
-                                isMultiFingerMode = true;
-                            }
-                        } else {
-                            commander.cmd(Commander.FAST_SEEK_PREVIOUS_FOLDER);
-                        }
-                        break;
                 }
             }
 
             private void startFastNav(final int dir, final int pointerCount) {
-                if (dir == NO_DIRECTION) return;
+                // Swipe_Hold only fastforward (LEFT_RIGHT) and fast rewind (RIGHT_LEFT)
+                if (dir != LEFT_RIGHT && dir != RIGHT_LEFT) return;
                 if (SWIPE_HOLD && currentHoldDir == dir && isHoldTriggered) {
                     return;
                 }
@@ -1388,14 +1367,14 @@ public class DialView extends View {
                     return;
                 }
 
-                final long interval = (dir == BOTTOM_TOP || dir == TOP_BOTTOM) ? 500L : 200L;
+                final long interval = 200L;
                 if (fastNavRunnable != null) {
                     fastNavHandler.removeCallbacks(fastNavRunnable);
                 }
                 fastNavRunnable = new Runnable() {
                     @Override
                     public void run() {
-                        if (isUserTouching && SWIPE_HOLD && currentHoldDir != NO_DIRECTION) {
+                        if (isUserTouching && SWIPE_HOLD && (currentHoldDir == LEFT_RIGHT || currentHoldDir == RIGHT_LEFT)) {
                             executeFastNav(currentHoldDir, currentHoldPointers);
                             fastNavHandler.postDelayed(this, interval);
                         }
@@ -1574,31 +1553,36 @@ public class DialView extends View {
                                 isFired = false;
                             }
 
-                            if (elapsed >= LONGPRESS_THRESHOLD) {
-                                // Finger has been held for >= LONGPRESS_THRESHOLD (250ms) -> SWIPE_HOLD!
-                                if (!SWIPE_HOLD) {
-                                    startFastNav(dir, effectivePointers);
-                                } else if (dir != currentHoldDir && dir != NO_DIRECTION) {
-                                    startFastNav(dir, effectivePointers);
-                                }
-                                setInteractiveDragDelta(deltaX, deltaY);
-                            } else {
-                                // Finger just moved past threshold quickly (< 250ms)
-                                setInteractiveDragDelta(deltaX, deltaY);
+                            if (dir == LEFT_RIGHT || dir == RIGHT_LEFT) {
+                                if (elapsed >= LONGPRESS_THRESHOLD) {
+                                    // Finger has been held for >= LONGPRESS_THRESHOLD (250ms) -> SWIPE_HOLD!
+                                    if (!SWIPE_HOLD) {
+                                        startFastNav(dir, effectivePointers);
+                                    } else if (dir != currentHoldDir && dir != NO_DIRECTION) {
+                                        startFastNav(dir, effectivePointers);
+                                    }
+                                    setInteractiveDragDelta(deltaX, deltaY);
+                                } else {
+                                    // Finger just moved past threshold quickly (< 250ms)
+                                    setInteractiveDragDelta(deltaX, deltaY);
 
-                                // Schedule hold check so if user doesn't lift, it seamlessly transitions into SWIPE_HOLD at 250ms
-                                if (swipeHoldCheckRunnable == null && !SWIPE_HOLD) {
-                                    swipeHoldCheckRunnable = new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            swipeHoldCheckRunnable = null;
-                                            if (isUserTouching && !SWIPE_HOLD) {
-                                                startFastNav(dir, effectivePointers);
+                                    // Schedule hold check so if user doesn't lift, it seamlessly transitions into SWIPE_HOLD at 250ms
+                                    if (swipeHoldCheckRunnable == null && !SWIPE_HOLD) {
+                                        swipeHoldCheckRunnable = new Runnable() {
+                                            @Override
+                                            public void run() {
+                                                swipeHoldCheckRunnable = null;
+                                                if (isUserTouching && !SWIPE_HOLD) {
+                                                    startFastNav(dir, effectivePointers);
+                                                }
                                             }
-                                        }
-                                    };
-                                    fastNavHandler.postDelayed(swipeHoldCheckRunnable, Math.max(10L, LONGPRESS_THRESHOLD - elapsed));
+                                        };
+                                        fastNavHandler.postDelayed(swipeHoldCheckRunnable, Math.max(10L, LONGPRESS_THRESHOLD - elapsed));
+                                    }
                                 }
+                            } else {
+                                // Up / Down movement: Swipe_Hold only fastforward and fast rewind
+                                setInteractiveDragDelta(deltaX, deltaY);
                             }
                             return true;
                         } else {

@@ -1791,20 +1791,24 @@ public class Commander{
                     }
                     vibrateFileInfo();
                     imageView.setImageResource(R.drawable.ic_action_about);
+                    String folderName = recorder.getCurrentDirectoryName();
+                    String spokenFolder = getSpokenDirectoryName(folderName);
+                    String folderDisplay = (spokenFolder != null && !spokenFolder.isEmpty()) ? spokenFolder : folderName;
                     String fileInfo = recorder.getCurrentFileDisplayInformation();
+                    String combinedInfo = "Folder: " + folderDisplay + "\n" + fileInfo;
                     lastFileInfoTime = System.currentTimeMillis();
                     lastFileInfoPath = recorder.getCurrentFileFullPath();
                     File selectedVersion = recorder.getSelectedProVersion();
                     if (selectedVersion != null) {
-                        fileInfo += selectedVersion.getName().contains(Recorder.PRO_SAFETY_SUFFIX + ".")
+                        combinedInfo += selectedVersion.getName().contains(Recorder.PRO_SAFETY_SUFFIX + ".")
                                 ? "\nSafety track selected for playback" : "\nOriginal selected for playback";
                     }
                     if (!recorder.getCurrentProCompanionFiles().isEmpty()) {
-                        fileInfo += "\nLong press again to choose the safety track or original.";
+                        combinedInfo += "\nLong press again to choose the safety track or original.";
                     }
-                    this.displayText(fileInfo);
-                    this.displayNotification(fileInfo, R.drawable.ic_action_about);
-                    this.alwaysSpeak(fileInfo);
+                    this.displayText(combinedInfo);
+                    this.displayNotification(combinedInfo, R.drawable.ic_action_about);
+                    this.alwaysSpeak("Folder " + folderDisplay + ". " + fileInfo);
                     break;
                 case Commander.SPEAK_DATE_TIME:
                     vibrateFileInfo();
