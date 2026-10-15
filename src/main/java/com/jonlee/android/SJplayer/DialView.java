@@ -1319,6 +1319,22 @@ public class DialView extends View {
                 if (activity == null || activity.getCommander() == null) return;
                 Commander commander = activity.getCommander();
                 switch (dir) {
+                    case BOTTOM_TOP:
+                        if (pointerCount >= 2) {
+                            commander.cmd(Commander.FAST_SEEK_NEXT_FOLDER);
+                        } else {
+                            commander.cmd(Commander.NEXT_FOLDER);
+                        }
+                        return;
+
+                    case TOP_BOTTOM:
+                        if (pointerCount >= 2) {
+                            commander.cmd(Commander.FAST_SEEK_PREVIOUS_FOLDER);
+                        } else {
+                            commander.cmd(Commander.PREVIOUS_FOLDER);
+                        }
+                        return;
+
                     case LEFT_RIGHT:
                         if (pointerCount == 4) {
                             if (!isMultiFingerMode) {
@@ -1369,8 +1385,7 @@ public class DialView extends View {
             }
 
             private void startFastNav(final int dir, final int pointerCount) {
-                // Swipe_Hold only fastforward (LEFT_RIGHT) and fast rewind (RIGHT_LEFT)
-                if (dir != LEFT_RIGHT && dir != RIGHT_LEFT) return;
+                if (dir != LEFT_RIGHT && dir != RIGHT_LEFT && dir != BOTTOM_TOP && dir != TOP_BOTTOM) return;
                 if (SWIPE_HOLD && currentHoldDir == dir && isHoldTriggered) {
                     return;
                 }
@@ -1379,27 +1394,31 @@ public class DialView extends View {
                 currentHoldDir = dir;
                 currentHoldPointers = pointerCount;
 
-                if (activity != null) {
-                    activity.alwaysSpeak("");
+                if (dir == LEFT_RIGHT || dir == RIGHT_LEFT) {
+                    if (activity != null) {
+                        activity.alwaysSpeak("");
+                    }
+                    executeFastNav(dir, pointerCount);
                 }
 
-                executeFastNav(dir, pointerCount);
-
                 // Multi-finger single actions trigger once upon hold
-                if (pointerCount >= 3) {
+                if (pointerCount >= 4 && (dir == LEFT_RIGHT || dir == RIGHT_LEFT)) {
                     return;
                 }
 
-                final long interval = 180L;
+                final boolean isFolderDir = (dir == BOTTOM_TOP || dir == TOP_BOTTOM);
+                final long interval = isFolderDir ? 550L : 180L;
+
                 if (fastNavRunnable != null) {
                     fastNavHandler.removeCallbacks(fastNavRunnable);
                 }
                 fastNavRunnable = new Runnable() {
                     @Override
                     public void run() {
-                        if (isUserTouching && SWIPE_HOLD && (currentHoldDir == LEFT_RIGHT || currentHoldDir == RIGHT_LEFT)) {
+                        if (isUserTouching && SWIPE_HOLD && currentHoldDir != NO_DIRECTION) {
                             executeFastNav(currentHoldDir, currentHoldPointers);
-                            fastNavHandler.postDelayed(this, interval);
+                            long nextInterval = (currentHoldDir == BOTTOM_TOP || currentHoldDir == TOP_BOTTOM) ? 550L : 180L;
+                            fastNavHandler.postDelayed(this, nextInterval);
                         }
                     }
                 };
@@ -1579,22 +1598,46 @@ public class DialView extends View {
                                 isFired = false;
                             }
 
-                            // Vertical folder navigation: fires immediately on crossing threshold in ACTION_MOVE
+                            // Vertical folder navigation: fires immediately on crossing threshold in ACTION_MOVE,
+                            // and supports continuous folder switching via SWIPE_HOLD when held
                             if (absY > swipeThreshold && absY > absX) {
+                                final int folderDir = (deltaY < 0 || dir == BOTTOM_TOP) ? BOTTOM_TOP : TOP_BOTTOM;
                                 if (!isFolderSwipeFired) {
                                     isFolderSwipeFired = true;
-                                    if (deltaY < 0 || dir == BOTTOM_TOP) {
+                                    if (folderDir == BOTTOM_TOP) {
                                         if (effectivePointers >= 2) {
                                             cmd(Commander.FAST_SEEK_NEXT_FOLDER);
                                         } else {
                                             cmd(Commander.NEXT_FOLDER);
                                         }
-                                    } else if (deltaY > 0 || dir == TOP_BOTTOM) {
+                                    } else {
                                         if (effectivePointers >= 2) {
                                             cmd(Commander.FAST_SEEK_PREVIOUS_FOLDER);
                                         } else {
                                             cmd(Commander.PREVIOUS_FOLDER);
                                         }
+                                    }
+                                }
+
+                                if (elapsed >= LONGPRESS_THRESHOLD) {
+                                    // Finger held >= LONGPRESS_THRESHOLD (250ms) -> SWIPE_HOLD folder nav!
+                                    if (!SWIPE_HOLD) {
+                                        startFastNav(folderDir, effectivePointers);
+                                    } else if (folderDir != currentHoldDir && folderDir != NO_DIRECTION) {
+                                        startFastNav(folderDir, effectivePointers);
+                                    }
+                                } else {
+                                    if (swipeHoldCheckRunnable == null && !SWIPE_HOLD) {
+                                        swipeHoldCheckRunnable = new Runnable() {
+                                            @Override
+                                            public void run() {
+                                                swipeHoldCheckRunnable = null;
+                                                if (isUserTouching && !SWIPE_HOLD) {
+                                                    startFastNav(folderDir, effectivePointers);
+                                                }
+                                            }
+                                        };
+                                        fastNavHandler.postDelayed(swipeHoldCheckRunnable, Math.max(10L, LONGPRESS_THRESHOLD - elapsed));
                                     }
                                 }
                                 setInteractiveDragDelta(deltaX, deltaY);
@@ -1669,17 +1712,18 @@ public class DialView extends View {
 
                         isMultiFingerMode = false;
 
-                        // If folder swipe already fired in real-time during ACTION_MOVE:
-                        if (isFolderSwipeFired) {
-                            isFolderSwipeFired = false;
+                        // If SWIPE_HOLD was active, fast navigation has finished:
+                        if (SWIPE_HOLD) {
+                            stopFastNav();
                             cancelPendingTaps();
+                            isFolderSwipeFired = false;
                             isFired = false;
                             return true;
                         }
 
-                        // If SWIPE_HOLD was active, fast navigation has finished:
-                        if (SWIPE_HOLD) {
-                            stopFastNav();
+                        // If folder swipe already fired in real-time during ACTION_MOVE:
+                        if (isFolderSwipeFired) {
+                            isFolderSwipeFired = false;
                             cancelPendingTaps();
                             isFired = false;
                             return true;

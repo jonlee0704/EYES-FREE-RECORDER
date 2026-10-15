@@ -176,6 +176,12 @@ public class SwipeGestureTest {
 
     public int resolveFastNavCommand(int dir, int pointerCount) {
         switch (dir) {
+            case BOTTOM_TOP:
+                return (pointerCount >= 2) ? Commander.FAST_SEEK_NEXT_FOLDER : Commander.NEXT_FOLDER;
+
+            case TOP_BOTTOM:
+                return (pointerCount >= 2) ? Commander.FAST_SEEK_PREVIOUS_FOLDER : Commander.PREVIOUS_FOLDER;
+
             case LEFT_RIGHT:
                 if (pointerCount == 4) return Commander.DELETE_FILE;
                 if (pointerCount == 2) return Commander.FAST_FORWARD_3X;
@@ -187,7 +193,6 @@ public class SwipeGestureTest {
                 return Commander.FAST_BACKWARD_2X;
 
             default:
-                // Swipe_Hold only fastforward and fast rewind
                 return Commander.NOTHING;
         }
     }
@@ -203,11 +208,11 @@ public class SwipeGestureTest {
         assertEquals(Commander.FAST_BACKWARD_3X, resolveFastNavCommand(RIGHT_LEFT, 2));
         assertEquals(Commander.RESTORE_FILE, resolveFastNavCommand(RIGHT_LEFT, 4));
 
-        // Vertical Swipe_Hold is excluded (Swipe_Hold only fastforward and fast rewind):
-        assertEquals(Commander.NOTHING, resolveFastNavCommand(BOTTOM_TOP, 1));
-        assertEquals(Commander.NOTHING, resolveFastNavCommand(BOTTOM_TOP, 2));
-        assertEquals(Commander.NOTHING, resolveFastNavCommand(TOP_BOTTOM, 1));
-        assertEquals(Commander.NOTHING, resolveFastNavCommand(TOP_BOTTOM, 2));
+        // Vertical Swipe_Hold supports folder navigation:
+        assertEquals(Commander.NEXT_FOLDER, resolveFastNavCommand(BOTTOM_TOP, 1));
+        assertEquals(Commander.FAST_SEEK_NEXT_FOLDER, resolveFastNavCommand(BOTTOM_TOP, 2));
+        assertEquals(Commander.PREVIOUS_FOLDER, resolveFastNavCommand(TOP_BOTTOM, 1));
+        assertEquals(Commander.FAST_SEEK_PREVIOUS_FOLDER, resolveFastNavCommand(TOP_BOTTOM, 2));
     }
 
     @Test
