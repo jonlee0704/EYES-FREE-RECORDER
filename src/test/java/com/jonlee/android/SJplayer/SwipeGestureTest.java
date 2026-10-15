@@ -217,22 +217,17 @@ public class SwipeGestureTest {
 
     public long calculateDynamicFastNavInterval(int dir, float dragDistanceDp, int pointerCount) {
         if (dir == BOTTOM_TOP || dir == TOP_BOTTOM) {
-            if (pointerCount >= 2) {
-                if (dragDistanceDp < 80f) return 450L;
-                if (dragDistanceDp < 140f) return 320L;
-                if (dragDistanceDp < 200f) return 240L;
-                return 180L;
-            } else {
-                if (dragDistanceDp < 60f) return 400L;
-                if (dragDistanceDp < 110f) return 260L;
-                if (dragDistanceDp < 170f) return 180L;
-                if (dragDistanceDp < 240f) return 120L;
-                return 70L;
-            }
+            if (dragDistanceDp < 60f) return 400L;
+            if (dragDistanceDp < 110f) return 260L;
+            if (dragDistanceDp < 170f) return 180L;
+            if (dragDistanceDp < 240f) return 120L;
+            return 70L;
         } else if (dir == LEFT_RIGHT || dir == RIGHT_LEFT) {
-            if (dragDistanceDp < 110f) return 180L;
-            if (dragDistanceDp < 200f) return 150L;
-            return 120L;
+            if (dragDistanceDp < 60f) return 200L;
+            if (dragDistanceDp < 110f) return 160L;
+            if (dragDistanceDp < 170f) return 120L;
+            if (dragDistanceDp < 240f) return 90L;
+            return 60L;
         }
         return 200L;
     }
@@ -251,8 +246,37 @@ public class SwipeGestureTest {
         assertEquals(70L, calculateDynamicFastNavInterval(TOP_BOTTOM, 260f, 1));
 
         // Two-finger folder fast seek:
-        assertEquals(450L, calculateDynamicFastNavInterval(BOTTOM_TOP, 40f, 2));
-        assertEquals(180L, calculateDynamicFastNavInterval(BOTTOM_TOP, 240f, 2));
+        assertEquals(400L, calculateDynamicFastNavInterval(BOTTOM_TOP, 40f, 2));
+        assertEquals(70L, calculateDynamicFastNavInterval(BOTTOM_TOP, 260f, 2));
+    }
+
+    @Test
+    public void testTwoFingerCenterOfGravityDistanceAndAcceleration() {
+        // Start positions of two fingers:
+        float f1StartX = 100f, f1StartY = 200f;
+        float f2StartX = 160f, f2StartY = 240f;
+        float startGravityX = (f1StartX + f2StartX) / 2f; // 130f
+        float startGravityY = (f1StartY + f2StartY) / 2f; // 220f
+
+        // End positions after moving upward:
+        float f1EndY = f1StartY - 180f;
+        float f2EndY = f2StartY - 180f;
+        float endGravityY = (f1EndY + f2EndY) / 2f; // 40f
+
+        float deltaY = endGravityY - startGravityY; // -180f
+        float density = 3.0f;
+        float dragDistanceDp = Math.abs(deltaY) / density; // 60dp
+
+        // Dynamic interval scales based on distance of center of gravity:
+        assertEquals(260L, calculateDynamicFastNavInterval(BOTTOM_TOP, dragDistanceDp, 2));
+
+        // Dragging further (360px up = 120dp):
+        float dragFarDistanceDp = 120f;
+        assertEquals(180L, calculateDynamicFastNavInterval(BOTTOM_TOP, dragFarDistanceDp, 2));
+
+        // Dragging extreme (750px up = 250dp):
+        float dragExtremeDistanceDp = 250f;
+        assertEquals(70L, calculateDynamicFastNavInterval(BOTTOM_TOP, dragExtremeDistanceDp, 2));
     }
 
     @Test

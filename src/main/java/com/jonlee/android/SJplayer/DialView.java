@@ -1380,29 +1380,46 @@ public class DialView extends View {
                 }
             }
 
+            private float getCentroidX(MotionEvent event) {
+                int count = event.getPointerCount();
+                if (count <= 1) return event.getX();
+                float sum = 0f;
+                for (int i = 0; i < count; i++) {
+                    sum += event.getX(i);
+                }
+                return sum / count;
+            }
+
+            private float getCentroidY(MotionEvent event) {
+                int count = event.getPointerCount();
+                if (count <= 1) return event.getY();
+                float sum = 0f;
+                for (int i = 0; i < count; i++) {
+                    sum += event.getY(i);
+                }
+                return sum / count;
+            }
+
             private long getFastNavInterval(int dir, int pointerCount) {
                 float density = (activity != null) ? activity.getResources().getDisplayMetrics().density : 1.0f;
                 if (density <= 0) density = 1.0f;
 
                 if (dir == BOTTOM_TOP || dir == TOP_BOTTOM) {
                     float dragDistanceDp = Math.abs(currentDragDeltaY) / density;
-                    if (pointerCount >= 2) {
-                        if (dragDistanceDp < 80f) return 450L;
-                        if (dragDistanceDp < 140f) return 320L;
-                        if (dragDistanceDp < 200f) return 240L;
-                        return 180L;
-                    } else {
-                        if (dragDistanceDp < 60f) return 400L;
-                        if (dragDistanceDp < 110f) return 260L;
-                        if (dragDistanceDp < 170f) return 180L;
-                        if (dragDistanceDp < 240f) return 120L;
-                        return 70L;
-                    }
+                    // Dynamic scaling for both 1-finger and 2-finger folder navigation based on distance from start gravity:
+                    // If it goes far, navigate faster!
+                    if (dragDistanceDp < 60f) return 400L;
+                    if (dragDistanceDp < 110f) return 260L;
+                    if (dragDistanceDp < 170f) return 180L;
+                    if (dragDistanceDp < 240f) return 120L;
+                    return 70L;
                 } else if (dir == LEFT_RIGHT || dir == RIGHT_LEFT) {
                     float dragDistanceDp = Math.abs(currentDragDeltaX) / density;
-                    if (dragDistanceDp < 110f) return 180L;
-                    if (dragDistanceDp < 200f) return 150L;
-                    return 120L;
+                    if (dragDistanceDp < 60f) return 200L;
+                    if (dragDistanceDp < 110f) return 160L;
+                    if (dragDistanceDp < 170f) return 120L;
+                    if (dragDistanceDp < 240f) return 90L;
+                    return 60L;
                 }
                 return 200L;
             }
@@ -1543,6 +1560,16 @@ public class DialView extends View {
                             maxPointerCount = event.getPointerCount();
                         }
                         cancelPendingTaps();
+                        // Update startX and startY to centroid (center of gravity) if gesture hasn't fired yet:
+                        if (!SWIPE_HOLD && !isFolderSwipeFired) {
+                            startX = getCentroidX(event);
+                            startY = getCentroidY(event);
+                            startAngle = touchAngle(startX, startY);
+                            startAction = System.currentTimeMillis();
+                        }
+                        return true;
+
+                    case MotionEvent.ACTION_POINTER_UP:
                         return true;
 
                     case MotionEvent.ACTION_MOVE:
@@ -1555,8 +1582,11 @@ public class DialView extends View {
                             maxPointerCount = touchCnt;
                         }
 
-                        float deltaX = event.getX() - startX;
-                        float deltaY = event.getY() - startY;
+                        float currentX = getCentroidX(event);
+                        float currentY = getCentroidY(event);
+
+                        float deltaX = currentX - startX;
+                        float deltaY = currentY - startY;
                         float absX = Math.abs(deltaX);
                         float absY = Math.abs(deltaY);
 
@@ -1581,11 +1611,12 @@ public class DialView extends View {
                                 this.isLongpress = true;
 
                             if (!isFired) {
-                                if (touchCnt == 1)
+                                int effectivePointers = Math.max(touchCnt, maxPointerCount);
+                                if (effectivePointers == 1)
                                     cmd(Commander.SPEAK_FILE_INFO);
-                                else if (touchCnt == 2)
+                                else if (effectivePointers == 2)
                                     cmd(Commander.SPEAK_DATE_TIME);
-                                else if (touchCnt >= 3)
+                                else if (effectivePointers >= 3)
                                     cmd(Commander.TOGGLE_FAVORITE);
 
                                 isFired = true;
@@ -1595,7 +1626,7 @@ public class DialView extends View {
 
                         // 2. Rotary Dial Mode: dragged around the circular wheel while in long-press mode
                         if (isDragging && isLongpress && !SWIPE_HOLD && !isFolderSwipeFired && absX < swipeThreshold * 1.5f && absY < swipeThreshold * 1.5f) {
-                            float touchAngle = touchAngle(touchX1, touchY1);
+                            float touchAngle = touchAngle(currentX, currentY);
                             float deltaAngle = (360 + touchAngle - startAngle + 180) % 360 - 180;
                             if (Math.abs(deltaAngle) > stepAngle) {
                                 if (activity != null) ((MainActivity) activity).alwaysSpeak("");
@@ -1619,8 +1650,8 @@ public class DialView extends View {
 
                             final int effectivePointers = Math.max(touchCnt, maxPointerCount);
                             final int dir = (dir_mode == DIR_MODE_4)
-                                    ? getDirection(getDegreeFromCartesian(startX, startY, event.getX(), event.getY()))
-                                    : getHexDirection(getDegreeFromCartesian(startX, startY, event.getX(), event.getY()));
+                                    ? getDirection(getDegreeFromCartesian(startX, startY, currentX, currentY))
+                                    : getHexDirection(getDegreeFromCartesian(startX, startY, currentX, currentY));
 
                             // If stationary long-press was speaking file info, mute speech now that user has moved
                             if (isFired && !SWIPE_HOLD && isLongpress) {
@@ -1779,16 +1810,18 @@ public class DialView extends View {
                         float densityUp = (activity != null) ? activity.getResources().getDisplayMetrics().density : 1.0f;
                         float swipeThresholdUp = Math.max(25f, 28 * densityUp);
 
-                        float absUpX = Math.abs(event.getX() - startX);
-                        float absUpY = Math.abs(event.getY() - startY);
+                        float currentUpX = getCentroidX(event);
+                        float currentUpY = getCentroidY(event);
+                        float absUpX = Math.abs(currentUpX - startX);
+                        float absUpY = Math.abs(currentUpY - startY);
 
                         // If movement exceeds swipeThreshold, trigger directional swipe (Quick Swipe):
                         if (absUpX > swipeThresholdUp || absUpY > swipeThresholdUp) {
                             cancelPendingTaps();
 
                             int dir = (dir_mode == DIR_MODE_4)
-                                    ? getDirection(getDegreeFromCartesian(startX, startY, event.getX(), event.getY()))
-                                    : getHexDirection(getDegreeFromCartesian(startX, startY, event.getX(), event.getY()));
+                                    ? getDirection(getDegreeFromCartesian(startX, startY, currentUpX, currentUpY))
+                                    : getHexDirection(getDegreeFromCartesian(startX, startY, currentUpX, currentUpY));
 
                             switch (dir) {
                                 case BOTTOM_TOP:
