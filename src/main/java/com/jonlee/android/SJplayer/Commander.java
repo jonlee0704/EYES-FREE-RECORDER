@@ -1417,9 +1417,9 @@ public class Commander{
                     }
 
                     Log.i(TAG, "isPaused:"+recorder.isPaused()+":isPlaying:"+recorder.isPlaying());
-                    if (recorder.isPlaying()) {
+                    if (recorder.isPlaying() || recorder.isPreparing()) {
                         vibratePause();
-                        recorder.pause();
+                        recorder.stopPlaying();
                         cmdStr = getResources().getString(R.string.PAUSE);
                         imageView.setImageResource(R.drawable.ic_action_stop);
                         speak(cmdStr);
@@ -1439,7 +1439,7 @@ public class Commander{
                     }
                     break;
                 case Commander.STOP_PLAYBACK:
-                    if (recorder.isPlaying() || recorder.isPaused()) {
+                    if (recorder.isPlaying() || recorder.isPreparing() || recorder.isPaused()) {
                         vibratePause();
                         recorder.stopPlaying();
                         cmdStr = getResources().getString(R.string.STOP_PLAYBACK);
@@ -1558,7 +1558,7 @@ public class Commander{
                     break;
                 case Commander.FAST_SEEK_NEXT_FILE:
                     vibrateFastSeek();
-                    boolean wasPlayingNext = (recorder != null && recorder.isPlaying());
+                    boolean wasPlayingNext = (recorder != null && (recorder.isPlaying() || recorder.isPreparing()));
                     recorder.stopPlaying();
                     if (recorder.fastSeekFile(1)) {
                         if (wasPlayingNext) {
@@ -1598,7 +1598,7 @@ public class Commander{
                     break;
                 case Commander.FAST_SEEK_PREVIOUS_FILE:
                     vibrateFastSeek();
-                    boolean wasPlayingPrev = (recorder != null && recorder.isPlaying());
+                    boolean wasPlayingPrev = (recorder != null && (recorder.isPlaying() || recorder.isPreparing()));
                     recorder.stopPlaying();
                     if (recorder.fastSeekFile(-1)) {
                         if (wasPlayingPrev) {

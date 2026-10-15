@@ -86,6 +86,8 @@ public class Recorder {
     private boolean isRecording = false;
     private boolean isPlaying = false;
     private boolean isPaused = false;
+    private volatile boolean isPrepared = false;
+    private volatile boolean isPreparing = false;
     private boolean isHomeWorkMode = false;
     private MediaPlayer mPlayer = null;
     private MediaRecorder mRecorder = null;
@@ -952,7 +954,15 @@ public class Recorder {
     }
 
     public boolean isPlaying() {
-        return this.isPlaying;
+        return this.isPlaying && this.isPrepared && this.mPlayer != null;
+    }
+
+    public boolean isPreparing() {
+        return this.isPreparing;
+    }
+
+    public boolean isPrepared() {
+        return this.isPrepared;
     }
 
     public void isPlaying(boolean i) {
@@ -973,13 +983,17 @@ public class Recorder {
      * Once it's called, it's +10 on current index.
      */
     public void seek(int d) {
-        //When Folder is changed, mPlayer will be NULL
-        if (d > 0) {
-            if (mPlayer != null && this.audioFileDuration > mPlayer.getCurrentPosition() + d && d > 0)
-                mPlayer.seekTo(mPlayer.getCurrentPosition() + d);
-        } else {
-            if (mPlayer != null && mPlayer.getCurrentPosition() + d > 0)
-                mPlayer.seekTo(mPlayer.getCurrentPosition() + d);
+        if (mPlayer != null && isPrepared) {
+            try {
+                int cur = mPlayer.getCurrentPosition();
+                if (d > 0) {
+                    if (this.audioFileDuration > cur + d)
+                        mPlayer.seekTo(cur + d);
+                } else {
+                    if (cur + d > 0)
+                        mPlayer.seekTo(cur + d);
+                }
+            } catch (Exception ignored) {}
         }
     }
 
@@ -989,14 +1003,11 @@ public class Recorder {
      */
     public String getPosition(){
         String pos;
-        if(mPlayer != null) {
+        if(mPlayer != null && isPrepared) {
             try {
                 pos = getDurationBreakdown(mPlayer.getCurrentPosition(), this.DURATION_SHORT_FORM)
                         + "/" + getDurationBreakdown(mPlayer.getDuration(), this.DURATION_SHORT_FORM);
-                //pos = mPlayer.getCurrentPosition() + "/" + mPlayer.getDuration();
-//                pos = (mPlayer.getCurrentPosition()*100)/mPlayer.getDuration() + "%";
-            }catch(java.lang.IllegalStateException e){
-                //e.printStackTrace();
+            } catch(Exception e){
                 pos = "---";
             }
         }
@@ -1017,20 +1028,66 @@ public class Recorder {
         if(audibleFiles == null || audibleFiles.size() == 0)
             return;
 
-        this.isPlaying = true;
+        this.isPlaying = false;
+        this.isPrepared = false;
+        this.isPreparing = true;
+        this.audioFileDuration = 0;
 
         Log.i(TAG, "startPlaying() ===> " + currentFileIndex + ":" + audibleFiles.size());
 
         try {
-            if (!isPaused || mPlayer == null) { // Resume does not need to initiate Instance
-                mPlayer = new MediaPlayer();
+            if (mPlayer != null) {
+                try {
+                    mPlayer.reset();
+                    mPlayer.release();
+                } catch (Exception ignored) {}
+                mPlayer = null;
             }
+
+            mPlayer = new MediaPlayer();
+
+            mPlayer.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
+                @Override
+                public void onPrepared(MediaPlayer mediaPlayer) {
+                    isPreparing = false;
+                    isPrepared = true;
+                    isPlaying = true;
+                    requestAudioFocus();
+                    try {
+                        mediaPlayer.start();
+                    } catch (Exception e) {
+                        Log.e(TAG, "Failed to start mediaPlayer onPrepared", e);
+                    }
+                    isPaused = false;
+                    try {
+                        audioFileDuration = mediaPlayer.getDuration();
+                    } catch (Exception e) {
+                        audioFileDuration = 0;
+                    }
+                    updateCurrentPosition();
+                }
+            });
+
+            mPlayer.setOnErrorListener(new MediaPlayer.OnErrorListener() {
+                @Override
+                public boolean onError(MediaPlayer mp, int what, int extra) {
+                    Log.e(TAG, "MediaPlayer error: what=" + what + ", extra=" + extra);
+                    isPreparing = false;
+                    isPrepared = false;
+                    isPlaying = false;
+                    return true; // Handled. Prevents framework from calling onCompletionListener!
+                }
+            });
 
             mPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
                 @Override
                 public void onCompletion(MediaPlayer mp) {
-                    // 1) In case, phone incorrectly sending onCompletion event
-                    // 2) Preventing to move next song in case Exception or 0 duration audio file exist.
+                    if (!isPrepared) {
+                        Log.w(TAG, "Ignored onCompletion because player was not in prepared state");
+                        return;
+                    }
+                    isPrepared = false;
+                    isPlaying = false;
                     new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
                         @Override
                         public void run() {
@@ -1081,34 +1138,18 @@ public class Recorder {
                     }
                 }
             }
-            mPlayer.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
-                @Override
-                public void onPrepared(MediaPlayer mediaPlayer) {
-                    requestAudioFocus();
-                    mediaPlayer.start();
-                    isPaused = false;
-                    audioFileDuration = mediaPlayer.getDuration();
-                    updateCurrentPosition();
-                }
-            });
             mPlayer.prepareAsync();
 
         }catch(IllegalStateException ie){ //In case failed to play the datasource
+            isPreparing = false;
+            isPrepared = false;
+            isPlaying = false;
             displayStatus("Something happened when to play back. Please try another cool sounds.");
             ie.printStackTrace();
         } catch (IOException e) {
-//            //Log.i(TAG, "prepare() failed");
-//            if(this.getCurrentFileName().startsWith("WELCOME.txt")) {
-//                this.mainActivity.speak(mainActivity.getResources().getString(R.string.WELCOME));
-//            } else {
-//                //TODO Should be moving onto the next song or wait for user's action?
-//                //TODO Waiting for user's action is better way.
-//                //mainActivity.cmd(Commander.NEXT_SONG);
-//                this.mainActivity.speak(mainActivity.getResources().getString(R.string.FAIL_TO_PLAY));
-//                this.isPaused = false;
-//                this.isPlaying = false;
-////                playCnt++;
-//            }
+            isPreparing = false;
+            isPrepared = false;
+            isPlaying = false;
             audioFileDuration = -1;
             displayStatus(e.toString());
             Log.i(TAG, e.toString());
@@ -1180,12 +1221,16 @@ public class Recorder {
     public void resume(){
         Log.i(TAG, currentFileIndex + ":" + audibleFiles.size());
 
-        if(mPlayer != null && !mPlayer.isPlaying()){
+        if(mPlayer != null && this.isPrepared && !this.isPlaying){
             requestAudioFocus();
-            mPlayer.start();
-            this.isPlaying = true;
-            this.isPaused = false;
-            updateCurrentPosition();
+            try {
+                mPlayer.start();
+                this.isPlaying = true;
+                this.isPaused = false;
+                updateCurrentPosition();
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to resume playback", e);
+            }
         }
     }
 
@@ -1193,8 +1238,10 @@ public class Recorder {
         Log.i(TAG, currentFileIndex + ":" + audibleFiles.size());
         playCnt = 0;
 
-        if(mPlayer != null && this.isPlaying) {
-            mPlayer.pause();
+        if(mPlayer != null && this.isPlaying && this.isPrepared) {
+            try {
+                mPlayer.pause();
+            } catch (Exception ignored) {}
             this.isPlaying = false;
             this.isPaused = true;
             abandonAudioFocus();
@@ -1205,11 +1252,16 @@ public class Recorder {
     public void stopPlaying() {
         playCnt = 0;
         abandonAudioFocus();
+        this.isPreparing = false;
+        this.isPrepared = false;
+        this.isPlaying = false;
+        this.isPaused = false;
         if(mPlayer != null) {
-            mPlayer.release();
+            try {
+                mPlayer.reset();
+                mPlayer.release();
+            } catch (Exception ignored) {}
             mPlayer = null;
-            this.isPlaying = false;
-            this.isPaused = false;
         }
         stopUpdateCurrentPosition();
     }
@@ -1851,7 +1903,7 @@ public class Recorder {
     }
 
     public int getAudioSessionId() {
-        if (mPlayer != null && isPlaying) {
+        if (mPlayer != null && isPlaying && isPrepared) {
             try {
                 return mPlayer.getAudioSessionId();
             } catch (Exception e) {
@@ -2796,25 +2848,23 @@ public class Recorder {
 
 
     int currentPos = 0;
-        Runnable playerCurrentPositionRunnable = new Runnable() {
+    Runnable playerCurrentPositionRunnable = new Runnable() {
         @Override
         public void run() {
-            currentPos =  mPlayer.getCurrentPosition();
-            int progressPercent = (int) (Math.round((double)currentPos*100/audioFileDuration));
-//            Log.i(TAG, "progressPercent===>" + (double)currentPos*100/audioFileDuration + ":" +
-//                    + progressPercent+"%:"+currentPos+":"+audioFileDuration);
-
-
-            currentPos = currentPos/1000;
-//            int hour = (int) currentPos/3600;
-//            int minutes = (int) currentPos/60;
-//            int seconds = (int) currentPos%60;
-            status_TextView.setText(
-                    String.format("%02d:%02d:%02d", (int) currentPos/3600, (int) currentPos/60, (int) currentPos%60) +"/"+
-                            String.format("%02d:%02d:%02d", (int) (audioFileDuration/1000)/3600, (int) (audioFileDuration/1000)/60, (int) (audioFileDuration/1000)%60));
+            if (mPlayer != null && isPrepared) {
+                try {
+                    currentPos = mPlayer.getCurrentPosition();
+                } catch (Exception ignored) {}
+            }
+            int posSec = currentPos / 1000;
+            long durSec = (audioFileDuration > 0) ? (audioFileDuration / 1000) : 0;
+            if (status_TextView != null) {
+                status_TextView.setText(
+                        String.format("%02d:%02d:%02d", posSec/3600, (posSec%3600)/60, posSec%60) + "/" +
+                        String.format("%02d:%02d:%02d", (int) (durSec/3600), (int) ((durSec%3600)/60), (int) (durSec%60)));
+            }
             timerHandler.postDelayed(this, 300);
         }
-
     };
 
     /**
@@ -3402,7 +3452,7 @@ public class Recorder {
     }
 
     public int getCurrentPositionMillis() {
-        if (mPlayer != null) {
+        if (mPlayer != null && isPrepared) {
             try {
                 return mPlayer.getCurrentPosition();
             } catch (Exception e) {
@@ -3413,7 +3463,7 @@ public class Recorder {
     }
 
     public int getDurationMillis() {
-        if (mPlayer != null) {
+        if (mPlayer != null && isPrepared) {
             try {
                 return mPlayer.getDuration();
             } catch (Exception e) {
@@ -3436,7 +3486,7 @@ public class Recorder {
         File current = audibleFiles.get(currentFileIndex);
         int currentMs = getCurrentPositionMillis();
         Integer target = AudioMetadataHelper.getNextBookmark(mainActivity, current, currentMs);
-        if (target != null && mPlayer != null) {
+        if (target != null && mPlayer != null && isPrepared) {
             try {
                 mPlayer.seekTo(target);
             } catch (Exception e) {
@@ -3451,7 +3501,7 @@ public class Recorder {
         File current = audibleFiles.get(currentFileIndex);
         int currentMs = getCurrentPositionMillis();
         Integer target = AudioMetadataHelper.getPreviousBookmark(mainActivity, current, currentMs);
-        if (target != null && mPlayer != null) {
+        if (target != null && mPlayer != null && isPrepared) {
             try {
                 mPlayer.seekTo(target);
             } catch (Exception e) {

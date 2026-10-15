@@ -1385,7 +1385,7 @@ public class DialView extends View {
                         return true;
 
                     case MotionEvent.ACTION_MOVE:
-                        if (isStartedFromEdge) {
+                        if (isStartedFromEdge || !isUserTouching) {
                             return false;
                         }
 
