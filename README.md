@@ -2,7 +2,7 @@
 *Designed with love for Sj, and built for the blind and visually impaired community.*
 
 [![Platform](https://img.shields.io/badge/Platform-Android%2014+-3DDC84.svg?style=flat&logo=android)](https://www.android.com)
-[![Release](https://img.shields.io/badge/Version-4.2.0%20(Code%2097)-blue.svg)](release/)
+[![Release](https://img.shields.io/badge/Version-4.2.1%20(Code%2098)-blue.svg)](release/)
 [![License](https://img.shields.io/badge/License-Proprietary-lightgrey.svg)](LICENSE)
 [![AI Training](https://img.shields.io/badge/AI%20Training-Strictly%20Prohibited-crimson.svg)](#-prohibition-on-ai--machine-learning-utilization)
 [![Privacy](https://img.shields.io/badge/Privacy-Zero%20Data%20Collection-green.svg)](docs/PRIVACY_POLICY.md)
