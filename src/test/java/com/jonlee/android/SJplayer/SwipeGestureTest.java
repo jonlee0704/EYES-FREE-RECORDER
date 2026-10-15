@@ -378,4 +378,71 @@ public class SwipeGestureTest {
         int cmdDownDouble = resolveCommand(TOP_BOTTOM, 2);
         assertEquals(Commander.FAST_SEEK_PREVIOUS_FOLDER, cmdDownDouble);
     }
+
+    public long calculateFastNavInterval(int dir, int pointerCount, float dragDistanceDp) {
+        if (dir == BOTTOM_TOP || dir == TOP_BOTTOM) {
+            if (dragDistanceDp < 60f) return 400L;
+            if (dragDistanceDp < 110f) return 260L;
+            if (dragDistanceDp < 170f) return 180L;
+            if (dragDistanceDp < 240f) return 120L;
+            return 70L;
+        } else if (dir == LEFT_RIGHT || dir == RIGHT_LEFT) {
+            if (pointerCount >= 2) {
+                if (dragDistanceDp < 60f) return 400L;
+                if (dragDistanceDp < 110f) return 260L;
+                if (dragDistanceDp < 170f) return 180L;
+                if (dragDistanceDp < 240f) return 120L;
+                return 70L;
+            }
+            if (dragDistanceDp < 60f) return 200L;
+            if (dragDistanceDp < 110f) return 160L;
+            if (dragDistanceDp < 170f) return 120L;
+            if (dragDistanceDp < 240f) return 90L;
+            return 60L;
+        }
+        return 200L;
+    }
+
+    @Test
+    public void testTwoFingerHorizontalFileNavigationTriggerDuringMove() {
+        float density = 3.0f;
+        float swipeThreshold = Math.max(25f, 28 * density); // 84 px
+
+        float deltaXRight = 95f;  // Swiping RIGHT
+        float deltaXLeft = -100f; // Swiping LEFT
+        float deltaY = 10f;
+
+        // 1. Two-finger horizontal drag exceeding threshold triggers immediate file fast seek:
+        boolean isRightSwipe = Math.abs(deltaXRight) > swipeThreshold && Math.abs(deltaXRight) > Math.abs(deltaY);
+        assertTrue(isRightSwipe);
+        assertEquals(Commander.FAST_SEEK_NEXT_FILE, resolveCommand(LEFT_RIGHT, 2));
+
+        boolean isLeftSwipe = Math.abs(deltaXLeft) > swipeThreshold && Math.abs(deltaXLeft) > Math.abs(deltaY);
+        assertTrue(isLeftSwipe);
+        assertEquals(Commander.FAST_SEEK_PREVIOUS_FILE, resolveCommand(RIGHT_LEFT, 2));
+    }
+
+    @Test
+    public void testTwoFingerFastNavIntervalScaling() {
+        // Two fingers vertically (folder section navigation)
+        assertEquals(400L, calculateFastNavInterval(BOTTOM_TOP, 2, 40f));
+        assertEquals(260L, calculateFastNavInterval(BOTTOM_TOP, 2, 80f));
+        assertEquals(180L, calculateFastNavInterval(BOTTOM_TOP, 2, 140f));
+        assertEquals(120L, calculateFastNavInterval(BOTTOM_TOP, 2, 200f));
+        assertEquals(70L, calculateFastNavInterval(BOTTOM_TOP, 2, 280f));
+
+        // Two fingers horizontally (file section navigation)
+        assertEquals(400L, calculateFastNavInterval(LEFT_RIGHT, 2, 40f));
+        assertEquals(260L, calculateFastNavInterval(LEFT_RIGHT, 2, 80f));
+        assertEquals(180L, calculateFastNavInterval(LEFT_RIGHT, 2, 140f));
+        assertEquals(120L, calculateFastNavInterval(LEFT_RIGHT, 2, 200f));
+        assertEquals(70L, calculateFastNavInterval(LEFT_RIGHT, 2, 280f));
+
+        // Single finger horizontally (audio scrubbing)
+        assertEquals(200L, calculateFastNavInterval(LEFT_RIGHT, 1, 40f));
+        assertEquals(160L, calculateFastNavInterval(LEFT_RIGHT, 1, 80f));
+        assertEquals(120L, calculateFastNavInterval(LEFT_RIGHT, 1, 140f));
+        assertEquals(90L, calculateFastNavInterval(LEFT_RIGHT, 1, 200f));
+        assertEquals(60L, calculateFastNavInterval(LEFT_RIGHT, 1, 280f));
+    }
 }

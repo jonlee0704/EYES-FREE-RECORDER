@@ -1303,6 +1303,7 @@ public class DialView extends View {
             private int currentHoldPointers = 1;
             private boolean isHoldTriggered = false;
             private boolean isFolderSwipeFired = false;
+            private boolean isFileSwipeFired = false;
             private float currentDragDeltaX = 0f;
             private float currentDragDeltaY = 0f;
 
@@ -1320,7 +1321,7 @@ public class DialView extends View {
                 if (activity == null || activity.getCommander() == null) return;
                 Commander commander = activity.getCommander();
 
-                // 1. Horizontal Seeking (Fast Forward / Rewind or 4-Finger Delete / Restore)
+                // 1. Horizontal Seeking (1 finger) or File Navigation (>= 2 fingers) or 4-Finger Delete / Restore
                 if (dir == LEFT_RIGHT || dir == RIGHT_LEFT) {
                     if (pointerCount == 4) {
                         if (!isMultiFingerMode) {
@@ -1334,7 +1335,17 @@ public class DialView extends View {
                         return;
                     }
 
-                    // Dynamic seek speed based on distance of drag
+                    // Multi-finger (>= 2) horizontal swipe_hold: navigate files fast automatically
+                    if (pointerCount >= 2) {
+                        if (dir == LEFT_RIGHT) {
+                            commander.cmd(Commander.FAST_SEEK_NEXT_FILE);
+                        } else {
+                            commander.cmd(Commander.FAST_SEEK_PREVIOUS_FILE);
+                        }
+                        return;
+                    }
+
+                    // Single-finger horizontal swipe_hold: fast forward / rewind within track
                     float density = (activity != null) ? activity.getResources().getDisplayMetrics().density : 1.0f;
                     float dragDistanceDp = Math.abs(currentDragDeltaX) / (density > 0 ? density : 1.0f);
 
@@ -1349,10 +1360,6 @@ public class DialView extends View {
                         baseStep = 15000;
                     } else {
                         baseStep = 30000;
-                    }
-
-                    if (pointerCount == 2) {
-                        baseStep *= 2;
                     }
 
                     int offsetMs = (dir == LEFT_RIGHT) ? baseStep : -baseStep;
@@ -1415,6 +1422,14 @@ public class DialView extends View {
                     return 70L;
                 } else if (dir == LEFT_RIGHT || dir == RIGHT_LEFT) {
                     float dragDistanceDp = Math.abs(currentDragDeltaX) / density;
+                    if (pointerCount >= 2) {
+                        // Two-finger file navigation scaling based on distance:
+                        if (dragDistanceDp < 60f) return 400L;
+                        if (dragDistanceDp < 110f) return 260L;
+                        if (dragDistanceDp < 170f) return 180L;
+                        if (dragDistanceDp < 240f) return 120L;
+                        return 70L;
+                    }
                     if (dragDistanceDp < 60f) return 200L;
                     if (dragDistanceDp < 110f) return 160L;
                     if (dragDistanceDp < 170f) return 120L;
@@ -1439,7 +1454,12 @@ public class DialView extends View {
                 }
 
                 if (dir == LEFT_RIGHT || dir == RIGHT_LEFT) {
-                    executeFastNav(dir, pointerCount);
+                    if (pointerCount < 2) {
+                        executeFastNav(dir, pointerCount);
+                    } else if (!isFileSwipeFired) {
+                        executeFastNav(dir, pointerCount);
+                        isFileSwipeFired = true;
+                    }
                 } else if (!isFolderSwipeFired) {
                     executeFastNav(dir, pointerCount);
                     isFolderSwipeFired = true;
@@ -1457,6 +1477,10 @@ public class DialView extends View {
                     @Override
                     public void run() {
                         if (isUserTouching && SWIPE_HOLD && currentHoldDir != NO_DIRECTION) {
+                            int currentPointers = Math.max(touchCnt, maxPointerCount);
+                            if (currentPointers > currentHoldPointers) {
+                                currentHoldPointers = currentPointers;
+                            }
                             executeFastNav(currentHoldDir, currentHoldPointers);
                             long nextInterval = getFastNavInterval(currentHoldDir, currentHoldPointers);
                             fastNavHandler.postDelayed(this, nextInterval);
@@ -1515,6 +1539,7 @@ public class DialView extends View {
                         stopFastNav();
                         isUserTouching = true;
                         isFolderSwipeFired = false;
+                        isFileSwipeFired = false;
                         currentDragDeltaX = 0f;
                         currentDragDeltaY = 0f;
                         // To check gesture direction in ACTION_UP
@@ -1561,7 +1586,7 @@ public class DialView extends View {
                         }
                         cancelPendingTaps();
                         // Update startX and startY to centroid (center of gravity) if gesture hasn't fired yet:
-                        if (!SWIPE_HOLD && !isFolderSwipeFired) {
+                        if (!SWIPE_HOLD && !isFolderSwipeFired && !isFileSwipeFired) {
                             startX = getCentroidX(event);
                             startY = getCentroidY(event);
                             startAngle = touchAngle(startX, startY);
@@ -1603,7 +1628,7 @@ public class DialView extends View {
                         long elapsed = System.currentTimeMillis() - startAction;
 
                         // 1. Stationary Long Press: Not enough movement during threshold time.
-                        if (!isLongpress && !SWIPE_HOLD && !isFolderSwipeFired && elapsed > LONGPRESS_THRESHOLD &&
+                        if (!isLongpress && !SWIPE_HOLD && !isFolderSwipeFired && !isFileSwipeFired && elapsed > LONGPRESS_THRESHOLD &&
                                 (absX < swipeThreshold && absY < swipeThreshold)) {
                             cancelPendingTaps();
 
@@ -1625,7 +1650,7 @@ public class DialView extends View {
                         }
 
                         // 2. Rotary Dial Mode: dragged around the circular wheel while in long-press mode
-                        if (isDragging && isLongpress && !SWIPE_HOLD && !isFolderSwipeFired && absX < swipeThreshold * 1.5f && absY < swipeThreshold * 1.5f) {
+                        if (isDragging && isLongpress && !SWIPE_HOLD && !isFolderSwipeFired && !isFileSwipeFired && absX < swipeThreshold * 1.5f && absY < swipeThreshold * 1.5f) {
                             float touchAngle = touchAngle(currentX, currentY);
                             float deltaAngle = (360 + touchAngle - startAngle + 180) % 360 - 180;
                             if (Math.abs(deltaAngle) > stepAngle) {
@@ -1650,7 +1675,7 @@ public class DialView extends View {
 
                             final int effectivePointers = Math.max(touchCnt, maxPointerCount);
                             final int dir = (dir_mode == DIR_MODE_4)
-                                    ? getDirection(getDegreeFromCartesian(startX, startY, currentX, currentY))
+                                     ? getDirection(getDegreeFromCartesian(startX, startY, currentX, currentY))
                                     : getHexDirection(getDegreeFromCartesian(startX, startY, currentX, currentY));
 
                             // If stationary long-press was speaking file info, mute speech now that user has moved
@@ -1697,7 +1722,8 @@ public class DialView extends View {
                                             public void run() {
                                                 swipeHoldCheckRunnable = null;
                                                 if (isUserTouching && !SWIPE_HOLD) {
-                                                    startFastNav(holdDir, effectivePointers);
+                                                    int currentPointers = Math.max(touchCnt, maxPointerCount);
+                                                    startFastNav(holdDir, currentPointers);
                                                 }
                                             }
                                         };
@@ -1709,34 +1735,69 @@ public class DialView extends View {
                                 return true;
                             }
 
-                            // Horizontal seeking (Swipe_Hold only fastforward and fast rewind)
+                            // Horizontal seeking (1 finger) or File Navigation (>= 2 fingers)
                             if (dir == LEFT_RIGHT || dir == RIGHT_LEFT) {
-                                if (elapsed >= LONGPRESS_THRESHOLD) {
-                                    // Finger has been held for >= LONGPRESS_THRESHOLD (250ms) -> SWIPE_HOLD!
-                                    if (!SWIPE_HOLD) {
-                                        startFastNav(dir, effectivePointers);
-                                    } else if (dir != currentHoldDir && dir != NO_DIRECTION) {
-                                        startFastNav(dir, effectivePointers);
+                                if (effectivePointers >= 2) {
+                                    int hDir = (deltaX > 0 || dir == LEFT_RIGHT) ? LEFT_RIGHT : RIGHT_LEFT;
+                                    if (!isFileSwipeFired) {
+                                        isFileSwipeFired = true;
+                                        if (hDir == LEFT_RIGHT) {
+                                            cmd(Commander.FAST_SEEK_NEXT_FILE);
+                                        } else {
+                                            cmd(Commander.FAST_SEEK_PREVIOUS_FILE);
+                                        }
                                     }
-                                    setInteractiveDragDelta(deltaX, deltaY);
-                                } else {
-                                    // Finger just moved past threshold quickly (< 250ms)
-                                    setInteractiveDragDelta(deltaX, deltaY);
 
-                                    // Schedule hold check so if user doesn't lift, it seamlessly transitions into SWIPE_HOLD at 250ms
-                                    if (swipeHoldCheckRunnable == null && !SWIPE_HOLD) {
-                                        swipeHoldCheckRunnable = new Runnable() {
-                                            @Override
-                                            public void run() {
-                                                swipeHoldCheckRunnable = null;
-                                                if (isUserTouching && !SWIPE_HOLD) {
-                                                    startFastNav(dir, effectivePointers);
+                                    if (elapsed >= LONGPRESS_THRESHOLD) {
+                                        if (!SWIPE_HOLD) {
+                                            startFastNav(hDir, effectivePointers);
+                                        } else if (hDir != currentHoldDir && hDir != NO_DIRECTION) {
+                                            startFastNav(hDir, effectivePointers);
+                                        }
+                                    } else {
+                                        if (swipeHoldCheckRunnable == null && !SWIPE_HOLD) {
+                                            final int holdDir = hDir;
+                                            swipeHoldCheckRunnable = new Runnable() {
+                                                @Override
+                                                public void run() {
+                                                    swipeHoldCheckRunnable = null;
+                                                    if (isUserTouching && !SWIPE_HOLD) {
+                                                        int currentPointers = Math.max(touchCnt, maxPointerCount);
+                                                        startFastNav(holdDir, currentPointers);
+                                                    }
                                                 }
-                                            }
-                                        };
-                                        fastNavHandler.postDelayed(swipeHoldCheckRunnable, Math.max(10L, LONGPRESS_THRESHOLD - elapsed));
+                                            };
+                                            fastNavHandler.postDelayed(swipeHoldCheckRunnable, Math.max(10L, LONGPRESS_THRESHOLD - elapsed));
+                                        }
+                                    }
+                                } else {
+                                    if (elapsed >= LONGPRESS_THRESHOLD) {
+                                        // Finger has been held for >= LONGPRESS_THRESHOLD (250ms) -> SWIPE_HOLD!
+                                        if (!SWIPE_HOLD) {
+                                            startFastNav(dir, effectivePointers);
+                                        } else if (dir != currentHoldDir && dir != NO_DIRECTION) {
+                                            startFastNav(dir, effectivePointers);
+                                        }
+                                    } else {
+                                        // Quick swipe moving, schedule hold check for 250ms transition
+                                        if (swipeHoldCheckRunnable == null && !SWIPE_HOLD) {
+                                            final int holdDir = dir;
+                                            swipeHoldCheckRunnable = new Runnable() {
+                                                @Override
+                                                public void run() {
+                                                    swipeHoldCheckRunnable = null;
+                                                    if (isUserTouching && !SWIPE_HOLD) {
+                                                        int currentPointers = Math.max(touchCnt, maxPointerCount);
+                                                        startFastNav(holdDir, currentPointers);
+                                                    }
+                                                }
+                                            };
+                                            fastNavHandler.postDelayed(swipeHoldCheckRunnable, Math.max(10L, LONGPRESS_THRESHOLD - elapsed));
+                                        }
                                     }
                                 }
+                                setInteractiveDragDelta(deltaX, deltaY);
+                                return true;
                             } else {
                                 setInteractiveDragDelta(deltaX, deltaY);
                             }
@@ -1783,6 +1844,7 @@ public class DialView extends View {
                             stopFastNav();
                             cancelPendingTaps();
                             isFolderSwipeFired = false;
+                            isFileSwipeFired = false;
                             isFired = false;
                             return true;
                         }
@@ -1790,6 +1852,14 @@ public class DialView extends View {
                         // If folder swipe already fired in real-time during ACTION_MOVE (quick swipe):
                         if (isFolderSwipeFired) {
                             isFolderSwipeFired = false;
+                            cancelPendingTaps();
+                            isFired = false;
+                            return true;
+                        }
+
+                        // If file swipe already fired in real-time during ACTION_MOVE (quick 2-finger swipe):
+                        if (isFileSwipeFired) {
+                            isFileSwipeFired = false;
                             cancelPendingTaps();
                             isFired = false;
                             return true;
@@ -1899,6 +1969,7 @@ public class DialView extends View {
                         currentDragDeltaX = 0f;
                         currentDragDeltaY = 0f;
                         isFolderSwipeFired = false;
+                        isFileSwipeFired = false;
                         setInteractiveDragDelta(0, 0);
                         isStartedFromEdge = false;
                         cancelPendingTaps();
