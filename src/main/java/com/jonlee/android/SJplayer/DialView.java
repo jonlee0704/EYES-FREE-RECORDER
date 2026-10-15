@@ -1349,10 +1349,8 @@ public class DialView extends View {
                                 commander.cmd(Commander.START_STOP_BACKUP);
                                 isMultiFingerMode = true;
                             }
-                        } else if (pointerCount >= 2) {
-                            commander.cmd(Commander.FAST_SEEK_NEXT_FOLDER);
                         } else {
-                            commander.cmd(Commander.FF_FOLDER);
+                            commander.cmd(Commander.FAST_SEEK_NEXT_FOLDER);
                         }
                         break;
 
@@ -1362,10 +1360,8 @@ public class DialView extends View {
                                 commander.cmd(Commander.SETTINGS);
                                 isMultiFingerMode = true;
                             }
-                        } else if (pointerCount >= 2) {
-                            commander.cmd(Commander.FAST_SEEK_PREVIOUS_FOLDER);
                         } else {
-                            commander.cmd(Commander.REWIND_FOLDER);
+                            commander.cmd(Commander.FAST_SEEK_PREVIOUS_FOLDER);
                         }
                         break;
                 }

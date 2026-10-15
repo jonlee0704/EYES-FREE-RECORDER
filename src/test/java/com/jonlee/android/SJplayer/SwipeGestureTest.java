@@ -188,13 +188,11 @@ public class SwipeGestureTest {
 
             case BOTTOM_TOP:
                 if (pointerCount == 3) return Commander.START_STOP_BACKUP;
-                if (pointerCount >= 2) return Commander.FAST_SEEK_NEXT_FOLDER;
-                return Commander.FF_FOLDER;
+                return Commander.FAST_SEEK_NEXT_FOLDER;
 
             case TOP_BOTTOM:
                 if (pointerCount == 3) return Commander.SETTINGS;
-                if (pointerCount >= 2) return Commander.FAST_SEEK_PREVIOUS_FOLDER;
-                return Commander.REWIND_FOLDER;
+                return Commander.FAST_SEEK_PREVIOUS_FOLDER;
 
             default:
                 return Commander.NOTHING;
@@ -212,12 +210,12 @@ public class SwipeGestureTest {
         assertEquals(Commander.FAST_BACKWARD_3X, resolveFastNavCommand(RIGHT_LEFT, 2));
         assertEquals(Commander.RESTORE_FILE, resolveFastNavCommand(RIGHT_LEFT, 4));
 
-        // Vertical Fast Folder Navigation:
-        assertEquals(Commander.FF_FOLDER, resolveFastNavCommand(BOTTOM_TOP, 1));
+        // Vertical Fast Folder Navigation (by alphabet and month):
+        assertEquals(Commander.FAST_SEEK_NEXT_FOLDER, resolveFastNavCommand(BOTTOM_TOP, 1));
         assertEquals(Commander.FAST_SEEK_NEXT_FOLDER, resolveFastNavCommand(BOTTOM_TOP, 2));
         assertEquals(Commander.START_STOP_BACKUP, resolveFastNavCommand(BOTTOM_TOP, 3));
 
-        assertEquals(Commander.REWIND_FOLDER, resolveFastNavCommand(TOP_BOTTOM, 1));
+        assertEquals(Commander.FAST_SEEK_PREVIOUS_FOLDER, resolveFastNavCommand(TOP_BOTTOM, 1));
         assertEquals(Commander.FAST_SEEK_PREVIOUS_FOLDER, resolveFastNavCommand(TOP_BOTTOM, 2));
         assertEquals(Commander.SETTINGS, resolveFastNavCommand(TOP_BOTTOM, 3));
     }
