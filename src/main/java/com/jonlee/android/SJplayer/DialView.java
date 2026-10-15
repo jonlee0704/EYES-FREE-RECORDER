@@ -294,6 +294,31 @@ public class DialView extends View {
     // Animated dynamic divider ratio (moves left when playing or focused on files to maximize active file space)
     private float currentDividerRatio = 0.50f;
 
+    // Whole-Screen Recording Ambient Visualizer
+    private float smoothRecordingVolume = 0f;
+    private float rawRecordingVolume = 0f;
+    private int cachedMicAmp = 0;
+    private long lastAmpSampleTime = 0L;
+
+    private Paint recAmbientBgPaint;
+    private Paint recEdgeGlowPaint;
+    private Paint recWaveRibbonPaint;
+    private Paint recPerimeterFramePaint;
+
+    private final RectF recEdgeRect = new RectF();
+    private final Path recWavePath1 = new Path();
+    private final Path recWavePath2 = new Path();
+
+    private Shader recBgAuraShader;
+    private Shader recEdgeTopShader;
+    private Shader recEdgeBottomShader;
+    private Shader recEdgeLeftShader;
+    private Shader recEdgeRightShader;
+    private float lastRecShaderW = -1f;
+    private float lastRecShaderH = -1f;
+    private float lastRecEdgeDepth = -1f;
+    private int lastRecEdgeColor = 0;
+
     // Full-Card Translucent Progress Bar & Output Volume Graphics
     private final Path splitCardClipPath = new Path();
     private final RectF splitProgressFillRect = new RectF();
@@ -950,6 +975,21 @@ public class DialView extends View {
         splitRecTextPaint.setColor(Color.parseColor("#FF5252"));
         splitRecTextPaint.setTextAlign(Paint.Align.CENTER);
         splitRecTextPaint.setLetterSpacing(0.08f);
+
+        // Whole-Screen Recording Ambient Visualizer Paints
+        recAmbientBgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        recAmbientBgPaint.setStyle(Paint.Style.FILL);
+
+        recEdgeGlowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        recEdgeGlowPaint.setStyle(Paint.Style.FILL);
+
+        recWaveRibbonPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        recWaveRibbonPaint.setStyle(Paint.Style.STROKE);
+        recWaveRibbonPaint.setStrokeCap(Paint.Cap.ROUND);
+        recWaveRibbonPaint.setStrokeJoin(Paint.Join.ROUND);
+
+        recPerimeterFramePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        recPerimeterFramePaint.setStyle(Paint.Style.STROKE);
 
         splitIdlePlayCuePaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
         splitIdlePlayCuePaint.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
@@ -2200,8 +2240,9 @@ public class DialView extends View {
         if (isRecording && rec != null) {
             waveTime += 0.042f; // Smooth organic undulation flow
 
-            // Live microphone amplitude from MediaRecorder (0..32767)
-            int amp = rec.getMaxAmplitude();
+            // Sample microphone input once per frame via updateRecordingVolume
+            updateRecordingVolume(rec, isRecording);
+            int amp = cachedMicAmp;
             // Fast, highly-sensitive acoustic voice response
             float normAmp = Math.min(1.0f, Math.max(0.06f, (float) amp / 20000f));
             float expAmp = (float) Math.pow(normAmp, 0.52);
@@ -2286,7 +2327,7 @@ public class DialView extends View {
             float bNorm = (float) b / (float) (NUM_FREQ_BANDS - 1); // 0 (sub-bass) to 1 (treble)
             float bandTarget;
             if (isRecording) {
-                int amp = (rec != null) ? rec.getMaxAmplitude() : 0;
+                int amp = cachedMicAmp;
                 float normAmp = Math.min(1.0f, Math.max(0.06f, (float) amp / 20000f));
                 float expAmp = (float) Math.pow(normAmp, 0.52);
                 float formant = (float) Math.exp(-Math.pow((bNorm - 0.45f) / 0.28f, 2.0));
@@ -2324,7 +2365,7 @@ public class DialView extends View {
         float targetVuLeft;
         float targetVuRight;
         if (isRecording && rec != null) {
-            int amp = rec.getMaxAmplitude();
+            int amp = cachedMicAmp;
             float normAmp = Math.min(1.0f, Math.max(0.05f, (float) amp / 20000f));
             targetVuLeft = normAmp;
             targetVuRight = normAmp * 0.95f;
@@ -3246,7 +3287,9 @@ public class DialView extends View {
             return;
         }
 
-        float radius = Math.min(getMeasuredWidth(), getMeasuredHeight()) / 2f;
+        float w = getMeasuredWidth();
+        float h = getMeasuredHeight();
+        float radius = Math.min(w, h) / 2f;
         if (radius <= 0) return;
 
         float density = getResources().getDisplayMetrics().density;
@@ -3270,6 +3313,14 @@ public class DialView extends View {
                 }
             }
         } catch (Exception ignored) {}
+
+        // Update live microphone volume and smoothing
+        updateRecordingVolume(rec, isRecording);
+
+        // Whole-Screen Recording Ambient Visualizer (Pass 1: Background Atmosphere)
+        if (isRecording || smoothRecordingVolume > 0.005f) {
+            drawRecordingBackgroundAtmosphere(canvas, w, h, density, smoothRecordingVolume);
+        }
 
         // Playback & Recording Progress tracking
         float playbackProgressFraction = 0f;
@@ -3302,7 +3353,11 @@ public class DialView extends View {
 
         // Option 0: Simplest UI (Clean Dual-Column Split Navigation: Folder on Left, Files on Right)
         if (visualizerMode == VISUALIZER_MODE_MINIMAL_SPLIT) {
-            drawMinimalSplitUI(canvas, getMeasuredWidth(), getMeasuredHeight(), density, rec, active, isRecording, isPlaying, playbackProgressFraction);
+            drawMinimalSplitUI(canvas, w, h, density, rec, active, isRecording, isPlaying, playbackProgressFraction);
+            // Whole-Screen Recording Ambient Visualizer (Pass 2: Perimeter Edge Vignette & Frame)
+            if (isRecording || smoothRecordingVolume > 0.005f) {
+                drawRecordingPerimeterEdgeGlow(canvas, w, h, density, smoothRecordingVolume);
+            }
             return;
         }
 
@@ -3586,10 +3641,8 @@ public class DialView extends View {
             }
 
             // Live microphone amplitude from MediaRecorder (0..32767)
-            int micAmp = (rec != null) ? rec.getMaxAmplitude() : 0;
-            // Convert to decibel (dB) amount: range -40 dB to 0 dBFS
-            double micDb = (micAmp > 35) ? (20.0 * Math.log10((double) micAmp / 32767.0)) : -45.0;
-            float micNormDb = (float) Math.max(0.08f, Math.min(1.0f, (micDb + 40.0) / 40.0));
+            int micAmp = (rec != null) ? cachedMicAmp : 0;
+            float micNormDb = (float) Math.max(0.08f, Math.min(1.0f, smoothRecordingVolume));
 
             // Record this volume (dB) at the current active node
             if (activeNodes > 0 && activeNodes <= NUM_ANGLES) {
@@ -3675,6 +3728,11 @@ public class DialView extends View {
             // IDLE / STOPPED STANDBY: Clean minimal dial without hour points
             smoothPlaybackProgress = 0f;
             wasRecordingLastFrame = false;
+        }
+
+        // Whole-Screen Recording Ambient Visualizer (Pass 2: Perimeter Edge Vignette & Frame for Radial Modes)
+        if (isRecording || smoothRecordingVolume > 0.005f) {
+            drawRecordingPerimeterEdgeGlow(canvas, w, h, density, smoothRecordingVolume);
         }
     }
 
@@ -4518,6 +4576,235 @@ public class DialView extends View {
     }
 
     /**
+     * Centralized hardware microphone amplitude sampling and ballistic volume tracking.
+     * Prevents multiple getMaxAmplitude() calls from clearing the hardware register within the same frame.
+     */
+    private void updateRecordingVolume(Recorder rec, boolean isRecording) {
+        if (!isRecording || rec == null) {
+            if (smoothRecordingVolume > 0.005f) {
+                smoothRecordingVolume += (0f - smoothRecordingVolume) * 0.18f;
+                postInvalidateOnAnimation();
+            } else {
+                smoothRecordingVolume = 0f;
+            }
+            rawRecordingVolume = 0f;
+            cachedMicAmp = 0;
+            return;
+        }
+
+        long now = SystemClock.uptimeMillis();
+        // Sample hardware at ~28ms cadence so MediaRecorder has a rich acoustic window
+        if (now - lastAmpSampleTime >= 28L) {
+            lastAmpSampleTime = now;
+            try {
+                int amp = rec.getMaxAmplitude();
+                if (amp > 0 || now - lastAmpSampleTime > 90L) {
+                    cachedMicAmp = amp;
+                }
+            } catch (Exception ignored) {
+                cachedMicAmp = 0;
+            }
+        }
+
+        float targetVol = calculateNormalizedRecordingVolume(cachedMicAmp);
+        rawRecordingVolume = targetVol;
+
+        // Snappy ballistic attack (instant vocal feedback) with smooth acoustic decay
+        if (targetVol > smoothRecordingVolume) {
+            smoothRecordingVolume += (targetVol - smoothRecordingVolume) * 0.46f;
+        } else {
+            smoothRecordingVolume += (targetVol - smoothRecordingVolume) * 0.12f;
+        }
+
+        // Keep continuous animation running while recording
+        postInvalidateOnAnimation();
+    }
+
+    /**
+     * Map hardware amplitude (0..32767) into natural decibel dynamic range (-44 dBFS to 0 dBFS).
+     * Exposed for deterministic unit testing.
+     */
+    public static float calculateNormalizedRecordingVolume(int micAmp) {
+        if (micAmp <= 25) return 0.0f;
+        double db = 20.0 * Math.log10((double) micAmp / 32767.0);
+        return (float) Math.max(0.0f, Math.min(1.0f, (db + 44.0) / 44.0));
+    }
+
+    public static final int RECORDING_COLOR_CRIMSON = 0xFFFF1744;
+    public static final int RECORDING_COLOR_CORAL = 0xFFFF5722;
+    public static final int RECORDING_COLOR_AMBER = 0xFFFFAB00;
+
+    /**
+     * Dynamic acoustic chromatic shift based on volume:
+     * - Low: Studio Crimson (0xFFFF1744)
+     * - Mid: Sunset Coral (0xFFFF5722)
+     * - High/Loud: Brilliant Radiant Amber (0xFFFFAB00)
+     */
+    public static int getRecordingEdgeColor(float volume) {
+        if (volume < 0.45f) {
+            return RECORDING_COLOR_CRIMSON;
+        } else if (volume < 0.78f) {
+            return RECORDING_COLOR_CORAL;
+        } else {
+            return RECORDING_COLOR_AMBER;
+        }
+    }
+
+    public float getSmoothRecordingVolume() {
+        return smoothRecordingVolume;
+    }
+
+    public void setSmoothRecordingVolumeForTesting(float vol) {
+        this.smoothRecordingVolume = vol;
+    }
+
+    /**
+     * Atmospheric whole-screen audio diffusion drawn in the background behind cards and wheels.
+     * Reacts to live microphone volume (whispers -> normal speech -> loud voice) with
+     * breathing radial aura and undulating acoustic waveforms across the canvas.
+     */
+    private void drawRecordingBackgroundAtmosphere(Canvas canvas, float w, float h, float density, float volume) {
+        if (w <= 0 || h <= 0) return;
+
+        float breathingPulse = 0.5f + 0.5f * (float) Math.sin(waveTime * 2.4f);
+        float effectiveVol = Math.max(0.04f + 0.05f * breathingPulse, volume);
+
+        // 1. Central Ambient Atmospheric Radial Diffusion
+        if (recBgAuraShader == null || Math.abs(lastRecShaderW - w) > 2f || Math.abs(lastRecShaderH - h) > 2f) {
+            lastRecShaderW = w;
+            lastRecShaderH = h;
+            float cx = w * 0.5f;
+            float cy = h * 0.48f;
+            float auraR = Math.max(w, h) * 0.72f;
+            recBgAuraShader = new RadialGradient(
+                    cx, cy, auraR,
+                    new int[]{
+                            0x44FF1744, // Warm recording crimson center
+                            0x25D50000, // Mid ambient diffusion
+                            0x0E7A0000, // Outer subtle dusk
+                            0x00000000  // Edge clear
+                    },
+                    new float[]{0.0f, 0.35f, 0.70f, 1.0f},
+                    Shader.TileMode.CLAMP
+            );
+            recAmbientBgPaint.setShader(recBgAuraShader);
+        }
+
+        // Modulate atmospheric intensity with live voice volume
+        int bgAlpha = Math.min(255, (int) (18 + 195 * effectiveVol));
+        recAmbientBgPaint.setAlpha(bgAlpha);
+        canvas.drawRect(0, 0, w, h, recAmbientBgPaint);
+
+        // 2. Dual Undulating Ambient Acoustic Waveform Ribbons across canvas width
+        float yRibbon1 = h * 0.34f;
+        float yRibbon2 = h * 0.66f;
+        float waveAmp = (4f + 26f * effectiveVol) * density;
+        int waveSteps = 24;
+        float stepX = w / (float) waveSteps;
+
+        // Wave Ribbon 1 (Top sector)
+        recWavePath1.reset();
+        recWavePath1.moveTo(0, yRibbon1);
+        for (int i = 0; i <= waveSteps; i++) {
+            float x = i * stepX;
+            float form = (float) Math.sin((float) i / (float) waveSteps * Math.PI); // Pinched at screen edges
+            float waveY = yRibbon1 + (float) Math.sin(i * 0.45 + waveTime * 3.2f) * waveAmp * form;
+            recWavePath1.lineTo(x, waveY);
+        }
+        int waveAlpha1 = Math.min(255, (int) (20 + 95 * effectiveVol));
+        recWaveRibbonPaint.setStrokeWidth(2.0f * density);
+        recWaveRibbonPaint.setColor(0xFFFF5252);
+        recWaveRibbonPaint.setAlpha(waveAlpha1);
+        canvas.drawPath(recWavePath1, recWaveRibbonPaint);
+
+        // Wave Ribbon 2 (Bottom sector)
+        recWavePath2.reset();
+        recWavePath2.moveTo(0, yRibbon2);
+        for (int i = 0; i <= waveSteps; i++) {
+            float x = i * stepX;
+            float form = (float) Math.sin((float) i / (float) waveSteps * Math.PI);
+            float waveY = yRibbon2 + (float) Math.cos(i * 0.38 - waveTime * 2.6f) * waveAmp * 0.85f * form;
+            recWavePath2.lineTo(x, waveY);
+        }
+        int waveAlpha2 = Math.min(255, (int) (16 + 85 * effectiveVol));
+        recWaveRibbonPaint.setStrokeWidth(1.6f * density);
+        recWaveRibbonPaint.setColor(0xFFFF8A80);
+        recWaveRibbonPaint.setAlpha(waveAlpha2);
+        canvas.drawPath(recWavePath2, recWaveRibbonPaint);
+    }
+
+    /**
+     * Luminous whole-screen perimeter edge vignette & breathing frame.
+     * Illuminates the outer physical bezel margins (Top, Bottom, Left, Right)
+     * so user gets instant visual confirmation that recording is active and
+     * picking up voice volume, even from across the room or glancing away.
+     */
+    private void drawRecordingPerimeterEdgeGlow(Canvas canvas, float w, float h, float density, float volume) {
+        if (w <= 0 || h <= 0) return;
+
+        float breathingPulse = 0.5f + 0.5f * (float) Math.sin(waveTime * 2.4f);
+        float effectiveVol = Math.max(0.04f + 0.05f * breathingPulse, volume);
+
+        // Edge depth scales dynamically with voice volume:
+        // Whisper / idle: ~12dp border
+        // Loud speech / shouting: up to ~46dp inward glow
+        float edgeDepth = (12f + 34f * effectiveVol) * density;
+        int edgeColor = getRecordingEdgeColor(effectiveVol);
+        int baseAlpha = Math.min(255, (int) (32 + 185 * effectiveVol));
+
+        // Recreate edge shaders if depth, color, or view bounds changed
+        if (recEdgeTopShader == null || Math.abs(lastRecEdgeDepth - edgeDepth) > 2f ||
+                lastRecEdgeColor != edgeColor || Math.abs(lastRecShaderW - w) > 2f || Math.abs(lastRecShaderH - h) > 2f) {
+            lastRecEdgeDepth = edgeDepth;
+            lastRecEdgeColor = edgeColor;
+            lastRecShaderW = w;
+            lastRecShaderH = h;
+
+            int edgeColorSolid = 0xFF000000 | (edgeColor & 0x00FFFFFF);
+            int edgeColorTransparent = edgeColor & 0x00FFFFFF;
+
+            recEdgeTopShader = new LinearGradient(0f, 0f, 0f, edgeDepth,
+                    edgeColorSolid, edgeColorTransparent, Shader.TileMode.CLAMP);
+            recEdgeBottomShader = new LinearGradient(0f, h, 0f, h - edgeDepth,
+                    edgeColorSolid, edgeColorTransparent, Shader.TileMode.CLAMP);
+            recEdgeLeftShader = new LinearGradient(0f, 0f, edgeDepth, 0f,
+                    edgeColorSolid, edgeColorTransparent, Shader.TileMode.CLAMP);
+            recEdgeRightShader = new LinearGradient(w, 0f, w - edgeDepth, 0f,
+                    edgeColorSolid, edgeColorTransparent, Shader.TileMode.CLAMP);
+        }
+
+        // Draw 4 perimeter edge glows with volume-modulated alpha
+        recEdgeGlowPaint.setAlpha(baseAlpha);
+
+        // Top Edge
+        recEdgeGlowPaint.setShader(recEdgeTopShader);
+        recEdgeRect.set(0f, 0f, w, edgeDepth);
+        canvas.drawRect(recEdgeRect, recEdgeGlowPaint);
+
+        // Bottom Edge
+        recEdgeGlowPaint.setShader(recEdgeBottomShader);
+        recEdgeRect.set(0f, h - edgeDepth, w, h);
+        canvas.drawRect(recEdgeRect, recEdgeGlowPaint);
+
+        // Left Edge
+        recEdgeGlowPaint.setShader(recEdgeLeftShader);
+        recEdgeRect.set(0f, 0f, edgeDepth, h);
+        canvas.drawRect(recEdgeRect, recEdgeGlowPaint);
+
+        // Right Edge
+        recEdgeGlowPaint.setShader(recEdgeRightShader);
+        recEdgeRect.set(w - edgeDepth, 0f, w, h);
+        canvas.drawRect(recEdgeRect, recEdgeGlowPaint);
+
+        // 5. Crisp Perimeter Bezel Frame (Outer hairline glowing border around entire display)
+        int frameAlpha = Math.min(255, (int) (40 + 195 * effectiveVol));
+        recPerimeterFramePaint.setColor(edgeColor);
+        recPerimeterFramePaint.setAlpha(frameAlpha);
+        recPerimeterFramePaint.setStrokeWidth(1.8f * density);
+        canvas.drawRect(1f * density, 1f * density, w - 1f * density, h - 1f * density, recPerimeterFramePaint);
+    }
+
+    /**
      * Option 0: Simplest UI (Minimal Split Navigation)
      * Displays folder name on the left and file names on the right.
      * Incorporates minimal, super-mandatory basic UX animations:
@@ -4909,7 +5196,8 @@ public class DialView extends View {
                 int freqIdx = Math.min(NUM_FREQ_BANDS - 1, b * 2);
                 float audio = (freqIdx < NUM_FREQ_BANDS) ? freqBands[freqIdx] : 0.25f;
                 float wavePulse = 0.5f + 0.5f * (float) Math.sin(waveTime * 5.0f + b * 1.1f);
-                float hBar = 2f * density + (0.35f * wavePulse + 0.65f * audio) * 12f * density;
+                float liveAmp = Math.max(audio, smoothRecordingVolume);
+                float hBar = 2f * density + (0.25f * wavePulse + 0.75f * liveAmp) * 14f * density;
                 float bx = leftContentMargin + b * (barW + barSpacing);
                 splitMeterBarRect.set(bx, eqBaseY - hBar, bx + barW, eqBaseY);
                 canvas.drawRoundRect(splitMeterBarRect, 1.0f * density, 1.0f * density, splitRecCorePaint);
@@ -4932,13 +5220,13 @@ public class DialView extends View {
         // 4. Outer Border & Left Accent Stripe
         if (isRecording) {
             float pulse = 0.55f + 0.45f * (float) Math.sin(waveTime * 4.2f);
-            int borderAlpha = (int) (180 + 75 * pulse);
+            int borderAlpha = Math.min(255, (int) (180 + 75 * pulse + 50 * smoothRecordingVolume));
             splitFileActiveBorderPaint.setColor(Color.parseColor("#FF1744"));
             splitFileActiveBorderPaint.setAlpha(borderAlpha);
-            splitFileActiveBorderPaint.setShadowLayer(10f * density, 0f, 0f, Color.parseColor("#B3FF1744"));
+            splitFileActiveBorderPaint.setShadowLayer((10f + 14f * smoothRecordingVolume) * density, 0f, 0f, Color.parseColor("#B3FF1744"));
 
             splitFileAccentStripePaint.setColor(Color.parseColor("#FF1744"));
-            splitFileAccentStripePaint.setShadowLayer(6f * density, 0f, 0f, Color.parseColor("#FF1744"));
+            splitFileAccentStripePaint.setShadowLayer((6f + 8f * smoothRecordingVolume) * density, 0f, 0f, Color.parseColor("#FF1744"));
         } else {
             splitFileActiveBorderPaint.setColor(Color.parseColor("#00E5FF"));
             splitFileActiveBorderPaint.setAlpha(255);
