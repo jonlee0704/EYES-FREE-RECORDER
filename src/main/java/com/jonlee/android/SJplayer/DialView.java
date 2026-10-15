@@ -52,6 +52,7 @@ public class DialView extends View {
     public static final String TAG = "DialView";
     public static final int DIR_MODE_4 = 4;
     public static final int DIR_MODE_8 = 8;
+    public static final float ALPHABET_MODE_THRESHOLD_DP = 190f;
 
     private int DIAL_COLOR = Color.GRAY;
     private boolean progressBarMode = false;
@@ -1304,8 +1305,13 @@ public class DialView extends View {
             private boolean isHoldTriggered = false;
             private boolean isFolderSwipeFired = false;
             private boolean isFileSwipeFired = false;
+            private boolean isAlphabetModeFired = false;
             private float currentDragDeltaX = 0f;
             private float currentDragDeltaY = 0f;
+
+            public boolean isAlphabetModeDistance(float deltaYDp) {
+                return Math.abs(deltaYDp) >= ALPHABET_MODE_THRESHOLD_DP;
+            }
 
             {
                 cancelTapsCallback = new Runnable() {
@@ -1368,8 +1374,13 @@ public class DialView extends View {
                 }
 
                 // 2. Vertical Folder Navigation (Up / Down)
+                // When swipe up/down distance reaches ~80% farest (>= 190dp), it goes to Alphabet mode navigation!
+                float densityY = (activity != null) ? activity.getResources().getDisplayMetrics().density : 1.0f;
+                float dragDistanceYDp = Math.abs(currentDragDeltaY) / (densityY > 0 ? densityY : 1.0f);
+                boolean isAlphabet = (pointerCount >= 2) || isAlphabetModeDistance(dragDistanceYDp);
+
                 if (dir == BOTTOM_TOP) {
-                    if (pointerCount >= 2) {
+                    if (isAlphabet) {
                         commander.cmd(Commander.FAST_SEEK_NEXT_FOLDER);
                     } else {
                         commander.cmd(Commander.NEXT_FOLDER);
@@ -1378,7 +1389,7 @@ public class DialView extends View {
                 }
 
                 if (dir == TOP_BOTTOM) {
-                    if (pointerCount >= 2) {
+                    if (isAlphabet) {
                         commander.cmd(Commander.FAST_SEEK_PREVIOUS_FOLDER);
                     } else {
                         commander.cmd(Commander.PREVIOUS_FOLDER);
@@ -1502,6 +1513,7 @@ public class DialView extends View {
                 }
                 currentHoldDir = NO_DIRECTION;
                 isHoldTriggered = false;
+                isAlphabetModeFired = false;
                 currentDragDeltaX = 0f;
                 currentDragDeltaY = 0f;
                 if (SWIPE_HOLD) {
@@ -1540,6 +1552,7 @@ public class DialView extends View {
                         isUserTouching = true;
                         isFolderSwipeFired = false;
                         isFileSwipeFired = false;
+                        isAlphabetModeFired = false;
                         currentDragDeltaX = 0f;
                         currentDragDeltaY = 0f;
                         // To check gesture direction in ACTION_UP
@@ -1686,24 +1699,40 @@ public class DialView extends View {
 
                             // Vertical folder navigation: fires immediately on crossing threshold in ACTION_MOVE,
                             // and transitions into SWIPE_HOLD to continuously navigate faster based on drag distance!
+                            // When swipe up/down distance reaches ~80% farest (>= 190dp), it enters Alphabet mode navigation!
                             if (absY > swipeThreshold && absY > absX) {
                                 int vDir = (deltaY < 0 || dir == BOTTOM_TOP) ? BOTTOM_TOP : TOP_BOTTOM;
+                                float dragYDp = absY / density;
+                                boolean isFarAlphabet = isAlphabetModeDistance(dragYDp);
 
                                 if (!isFolderSwipeFired) {
                                     isFolderSwipeFired = true;
                                     if (vDir == BOTTOM_TOP) {
-                                        if (effectivePointers >= 2) {
+                                        if (effectivePointers >= 2 || isFarAlphabet) {
+                                            isAlphabetModeFired = true;
                                             cmd(Commander.FAST_SEEK_NEXT_FOLDER);
                                         } else {
                                             cmd(Commander.NEXT_FOLDER);
                                         }
                                     } else {
-                                        if (effectivePointers >= 2) {
+                                        if (effectivePointers >= 2 || isFarAlphabet) {
+                                            isAlphabetModeFired = true;
                                             cmd(Commander.FAST_SEEK_PREVIOUS_FOLDER);
                                         } else {
                                             cmd(Commander.PREVIOUS_FOLDER);
                                         }
                                     }
+                                } else if (effectivePointers == 1 && isFarAlphabet && !isAlphabetModeFired) {
+                                    // Dragged further into 80% farest during ongoing swipe/hold:
+                                    isAlphabetModeFired = true;
+                                    if (vDir == BOTTOM_TOP) {
+                                        cmd(Commander.FAST_SEEK_NEXT_FOLDER);
+                                    } else {
+                                        cmd(Commander.FAST_SEEK_PREVIOUS_FOLDER);
+                                    }
+                                } else if (effectivePointers == 1 && !isFarAlphabet && isAlphabetModeFired) {
+                                    // Finger moved back below 80% farest threshold:
+                                    isAlphabetModeFired = false;
                                 }
 
                                 if (elapsed >= LONGPRESS_THRESHOLD) {
@@ -1845,6 +1874,7 @@ public class DialView extends View {
                             cancelPendingTaps();
                             isFolderSwipeFired = false;
                             isFileSwipeFired = false;
+                            isAlphabetModeFired = false;
                             isFired = false;
                             return true;
                         }
@@ -1852,6 +1882,7 @@ public class DialView extends View {
                         // If folder swipe already fired in real-time during ACTION_MOVE (quick swipe):
                         if (isFolderSwipeFired) {
                             isFolderSwipeFired = false;
+                            isAlphabetModeFired = false;
                             cancelPendingTaps();
                             isFired = false;
                             return true;
@@ -1860,6 +1891,7 @@ public class DialView extends View {
                         // If file swipe already fired in real-time during ACTION_MOVE (quick 2-finger swipe):
                         if (isFileSwipeFired) {
                             isFileSwipeFired = false;
+                            isAlphabetModeFired = false;
                             cancelPendingTaps();
                             isFired = false;
                             return true;
@@ -1895,14 +1927,14 @@ public class DialView extends View {
 
                             switch (dir) {
                                 case BOTTOM_TOP:
-                                    if (effectivePointers >= 2)
+                                    if (effectivePointers >= 2 || isAlphabetModeDistance(absUpY / densityUp))
                                         cmd(Commander.FAST_SEEK_NEXT_FOLDER);
                                     else
                                         cmd(Commander.NEXT_FOLDER);
                                     break;
 
                                 case TOP_BOTTOM:
-                                    if (effectivePointers >= 2)
+                                    if (effectivePointers >= 2 || isAlphabetModeDistance(absUpY / densityUp))
                                         cmd(Commander.FAST_SEEK_PREVIOUS_FOLDER);
                                     else
                                         cmd(Commander.PREVIOUS_FOLDER);
@@ -1970,6 +2002,7 @@ public class DialView extends View {
                         currentDragDeltaY = 0f;
                         isFolderSwipeFired = false;
                         isFileSwipeFired = false;
+                        isAlphabetModeFired = false;
                         setInteractiveDragDelta(0, 0);
                         isStartedFromEdge = false;
                         cancelPendingTaps();

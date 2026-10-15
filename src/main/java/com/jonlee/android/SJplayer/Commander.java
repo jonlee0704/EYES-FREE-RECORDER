@@ -2260,6 +2260,8 @@ public class Commander{
             } catch (Exception e) {
                 return key + ", Folder " + spokenFolder;
             }
+        } else if (key.length() == 1 && Character.isLetter(key.charAt(0))) {
+            return "Alphabet " + key + ", Folder " + spokenFolder;
         } else {
             return "Section " + key + ", Folder " + spokenFolder;
         }

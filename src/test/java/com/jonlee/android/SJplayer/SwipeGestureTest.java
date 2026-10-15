@@ -445,4 +445,44 @@ public class SwipeGestureTest {
         assertEquals(90L, calculateFastNavInterval(LEFT_RIGHT, 1, 200f));
         assertEquals(60L, calculateFastNavInterval(LEFT_RIGHT, 1, 280f));
     }
+
+    private int resolveVerticalFolderCommand(int vDir, int pointerCount, float dragYDp) {
+        boolean isAlphabet = (pointerCount >= 2) || (dragYDp >= DialView.ALPHABET_MODE_THRESHOLD_DP);
+        if (vDir == BOTTOM_TOP) {
+            return isAlphabet ? Commander.FAST_SEEK_NEXT_FOLDER : Commander.NEXT_FOLDER;
+        } else {
+            return isAlphabet ? Commander.FAST_SEEK_PREVIOUS_FOLDER : Commander.PREVIOUS_FOLDER;
+        }
+    }
+
+    @Test
+    public void testAlphabetModeNavigationAtFarthestDistance() {
+        // Below 190dp (80% farest threshold) -> Normal folder navigation
+        assertEquals(Commander.NEXT_FOLDER, resolveVerticalFolderCommand(BOTTOM_TOP, 1, 50f));
+        assertEquals(Commander.NEXT_FOLDER, resolveVerticalFolderCommand(BOTTOM_TOP, 1, 120f));
+        assertEquals(Commander.NEXT_FOLDER, resolveVerticalFolderCommand(BOTTOM_TOP, 1, 185f));
+        assertEquals(Commander.PREVIOUS_FOLDER, resolveVerticalFolderCommand(TOP_BOTTOM, 1, 100f));
+
+        // At or above 190dp (80% farest or so) -> Alphabet mode navigation even with 1 finger!
+        assertEquals(Commander.FAST_SEEK_NEXT_FOLDER, resolveVerticalFolderCommand(BOTTOM_TOP, 1, 190f));
+        assertEquals(Commander.FAST_SEEK_NEXT_FOLDER, resolveVerticalFolderCommand(BOTTOM_TOP, 1, 220f));
+        assertEquals(Commander.FAST_SEEK_NEXT_FOLDER, resolveVerticalFolderCommand(BOTTOM_TOP, 1, 260f));
+        assertEquals(Commander.FAST_SEEK_PREVIOUS_FOLDER, resolveVerticalFolderCommand(TOP_BOTTOM, 1, 200f));
+
+        // 2 fingers is always Alphabet mode regardless of distance
+        assertEquals(Commander.FAST_SEEK_NEXT_FOLDER, resolveVerticalFolderCommand(BOTTOM_TOP, 2, 40f));
+        assertEquals(Commander.FAST_SEEK_PREVIOUS_FOLDER, resolveVerticalFolderCommand(TOP_BOTTOM, 2, 40f));
+    }
+
+    @Test
+    public void testFolderGroupingAnnouncementAlphabet() {
+        String announceA = Commander.getFolderGroupingAnnouncement("Adele");
+        assertTrue("Single-letter folder announcement must start with 'Alphabet '", announceA.startsWith("Alphabet A,"));
+
+        String announceB = Commander.getFolderGroupingAnnouncement("Beatles");
+        assertTrue("Single-letter folder announcement must start with 'Alphabet '", announceB.startsWith("Alphabet B,"));
+
+        String announceDate = Commander.getFolderGroupingAnnouncement("2025-10-30");
+        assertTrue("Date folder announcement must format month and year", announceDate.startsWith("October 2025,"));
+    }
 }
