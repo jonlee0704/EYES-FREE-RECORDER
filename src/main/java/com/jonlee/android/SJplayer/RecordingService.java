@@ -30,7 +30,7 @@ import androidx.core.content.ContextCompat;
 public class RecordingService extends Service {
     private static final String TAG = "SJRecorder.RecService";
 
-    public static final String CHANNEL_ID = "eyes_free_recording";
+    public static final String CHANNEL_ID = "eyes_free_recording_status";
     private static final int NOTIFICATION_ID = 4210;
     private static final int SAVED_NOTIFICATION_ID = 4211;
 
@@ -232,7 +232,7 @@ public class RecordingService extends Service {
                 .setShowWhen(false)
                 .setCategory(NotificationCompat.CATEGORY_SERVICE)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                 .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
                 .build();
     }
@@ -247,9 +247,12 @@ public class RecordingService extends Service {
     private static void createChannel(Context context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
         NotificationManager nm = context.getSystemService(NotificationManager.class);
-        if (nm == null || nm.getNotificationChannel(CHANNEL_ID) != null) return;
-        // Low importance: shown in the status bar and shade, never makes a sound into the recording
-        NotificationChannel channel = new NotificationChannel(CHANNEL_ID, "Recording", NotificationManager.IMPORTANCE_LOW);
+        if (nm == null) return;
+        try {
+            nm.deleteNotificationChannel("eyes_free_recording");
+        } catch (Exception ignored) {}
+        if (nm.getNotificationChannel(CHANNEL_ID) != null) return;
+        NotificationChannel channel = new NotificationChannel(CHANNEL_ID, "Recording", NotificationManager.IMPORTANCE_DEFAULT);
         channel.setDescription("Shows while a recording is running, with a Stop button.");
         channel.enableVibration(false);
         channel.setSound(null, null);

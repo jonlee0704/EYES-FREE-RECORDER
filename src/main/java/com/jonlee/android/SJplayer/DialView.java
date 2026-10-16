@@ -1600,6 +1600,7 @@ public class DialView extends View {
                         startX = event.getX();
                         startY = event.getY();
                         maxPointerCount = 1;
+                        this.touchCnt = 1;
 
                         if (isEdgeTouch(event)) {
                             Log.i(TAG, "ACTION_DOWN in edge touch zone: rawX=" + event.getRawX() + ", rawY=" + event.getRawY() + " -> passing to system navigation");
@@ -2051,6 +2052,7 @@ public class DialView extends View {
                         isFired = false;
                         isLongpress = false;
                         isMultiFingerMode = false;
+                        this.touchCnt = 1;
                         return false;
                 }
                 return false;

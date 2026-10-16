@@ -505,12 +505,17 @@ public class GestureListener implements GestureDetector.OnGestureListener, Gestu
 
     @Override
     public boolean onDoubleTap(MotionEvent e) {
-        // User tapped the screen twice.
+        // User tapped the screen twice -> Record / Stop
         lastDoubleTapTime = System.currentTimeMillis();
         if (activity != null && activity.getCommander() != null) {
-            activity.getCommander().cmd(Commander.SPEAK_FILE_INFO);
+            Recorder rec = activity.getCommander().getRecorder();
+            if (rec != null && rec.isRecording()) {
+                activity.getCommander().cmd(Commander.STOP_RECORD);
+            } else {
+                activity.getCommander().cmd(Commander.START_RECORD);
+            }
         }
-        return false;
+        return true;
     }
 
     @Override
